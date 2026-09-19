@@ -1,0 +1,10 @@
+# Outils de dev gérés par mise dans le home (persistants, indépendants de l'image).
+# Les paquets système viennent de pacman.
+# Comme omarchy-install-dev-env : `mise use -g go@latest`, `mise use -g python@latest`…
+
+[tools]
+node = "lts"
+
+# Agents de code
+"npm:@earendil-works/pi-coding-agent" = "latest"   # pi
+"github:can1357/oh-my-pi" = "latest"               # omp

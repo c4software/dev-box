@@ -1,0 +1,17 @@
+services:
+  box:
+    build: .
+    container_name: mise-box
+    hostname: ${TS_HOSTNAME:-devbox}
+    init: true
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data/home:/home/${USER_NAME:-dev}
+      - ${PROJECTS_DIR:-./data/projets}:/home/${USER_NAME:-dev}/projets
+      - ./data/tailscale:/var/lib/tailscale
+    devices:
+      - /dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW

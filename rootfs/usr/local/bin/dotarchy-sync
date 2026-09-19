@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Récupère la conf de dotarchy/common-no-omarchy (config/ et default/) et les
+# scripts de base dont ses alias ont besoin (try, proj, alias git) — sans lancer
+# les scripts d'installation (bootstrap.sh, nvim.sh…).
+# Lancé au démarrage, périodiquement, ou à la main : `dotarchy-sync`
+set -euo pipefail
+
+[ -f /etc/devbox/dotarchy.env ] && . /etc/devbox/dotarchy.env
+REPO="${DOTARCHY_REPO:-https://github.com/c4software/dotarchy.git}"
+BRANCH="${DOTARCHY_BRANCH:-main}"
+SUBDIR="${DOTARCHY_SUBDIR:-common-no-omarchy}"
+
+SRC="$HOME/.local/share/dotarchy"
+STARTER="$HOME/.local/share/lazyvim-starter"
+CFG="$SRC/$SUBDIR/config"
+DEF="$SRC/$SUBDIR/default"
+
+log() { echo "[dotarchy-sync] $*"; }
+
+# --- 1. Clone ou mise à jour (miroir en lecture seule du repo) ---
+if [ -d "$SRC/.git" ]; then
+  before=$(git -C "$SRC" rev-parse --short HEAD)
+  git -C "$SRC" remote set-url origin "$REPO"
+  git -C "$SRC" fetch -q --depth 1 origin "$BRANCH"
+  git -C "$SRC" reset -q --hard FETCH_HEAD
+  after=$(git -C "$SRC" rev-parse --short HEAD)
+  [ "$before" = "$after" ] && log "repo à jour ($after)" || log "repo mis à jour $before → $after"
+else
+  git clone -q --depth 1 --branch "$BRANCH" "$REPO" "$SRC"
+  log "repo cloné ($(git -C "$SRC" rev-parse --short HEAD))"
+fi
+
+# --- 2. config/ → ~/.config (sauf nvim, traité à part) ---
+mkdir -p "$HOME/.config"
+rsync -a --exclude nvim "$CFG/" "$HOME/.config/"
+log "config/ copié dans ~/.config"
+
+# --- 3. default/ → dotfiles du home ---
+for f in zshrc bashrc profile; do
+  [ -f "$DEF/$f" ] && cp "$DEF/$f" "$HOME/.$f"
+done
+log "default/ copié (.zshrc, .bashrc, .profile)"
+
+# --- 4. nvim : config/nvim est une surcouche LazyVim → posée sur le starter officiel ---
+if [ -d "$CFG/nvim" ]; then
+  [ -d "$STARTER/.git" ] || git clone -q --depth 1 https://github.com/LazyVim/starter "$STARTER"
+  git -C "$STARTER" pull -q --ff-only || true
+
+  NVIM_DIR="$HOME/.config/nvim"
+  if [ -d "$NVIM_DIR" ] && [ ! -f "$NVIM_DIR/.dotarchy-managed" ]; then
+    mv "$NVIM_DIR" "$NVIM_DIR.bak.$(date +%Y%m%d%H%M%S)"
+    log "ancien $NVIM_DIR sauvegardé en .bak"
+  fi
+
+  tmp=$(mktemp -d)
+  rsync -a --exclude .git "$STARTER/" "$tmp/"
+  rsync -a "$CFG/nvim/" "$tmp/"
+  touch "$tmp/.dotarchy-managed"
+  mkdir -p "$NVIM_DIR"
+  # lazy-lock.json appartient à la box (versions des plugins installés)
+  rsync -a --delete --exclude lazy-lock.json "$tmp/" "$NVIM_DIR/"
+  rm -rf "$tmp"
+  log "nvim : starter LazyVim + config/nvim"
+fi
+
+# --- 5. Scripts de base utilisés par les alias ---
+# try / proj : mêmes téléchargements que install/bootstrap.sh (lus dans le script,
+# donc tout nouvel outil ajouté de la même façon au repo suit automatiquement)
+mkdir -p "$HOME/.local/bin"
+# (`|| true` : sans bootstrap.sh ou sans ligne trouvée, pipefail arrêterait le script)
+{ grep -oE 'curl -sL https://[^ ]+ -o ~/.local/bin/[A-Za-z0-9._-]+' \
+       "$SRC/$SUBDIR/install/bootstrap.sh" 2>/dev/null || true; } \
+| while read -r _ _ url _ dest; do
+    name=$(basename "$dest")
+    if curl -fsSL "$url" -o "$HOME/.local/bin/$name.tmp"; then
+      mv "$HOME/.local/bin/$name.tmp" "$HOME/.local/bin/$name"
+      chmod +x "$HOME/.local/bin/$name"
+      log "~/.local/bin/$name à jour"
+    else
+      rm -f "$HOME/.local/bin/$name.tmp"
+      log "⚠ téléchargement de $name impossible"
+    fi
+  done
+
+# Alias git : fonction setup() de install/git.sh (uniquement des `git config --global`)
+if [ -f "$SRC/$SUBDIR/install/git.sh" ]; then
+  ( . "$SRC/$SUBDIR/install/git.sh" && setup ) && log "alias git appliqués (git.sh)"
+fi
+
+# --- 6. Recharge tmux s'il tourne ---
+if tmux info &>/dev/null && [ -f "$HOME/.config/tmux/tmux.conf" ]; then
+  tmux source-file "$HOME/.config/tmux/tmux.conf" && log "tmux rechargé"
+fi

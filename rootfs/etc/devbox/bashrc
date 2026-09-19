@@ -1,0 +1,6 @@
+
+# --- mise-box (secours si USER_SHELL=/bin/bash) ---
+. /etc/devbox/tmux-auto.sh
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+command -v mise >/dev/null && eval "$(mise activate bash)"

@@ -1,0 +1,14 @@
+# Surcharges locales, propres à cette machine (non versionnées) :
+#   cp compose.override.example.yaml compose.override.yaml
+# Docker Compose le fusionne automatiquement avec compose.yaml.
+# Vide par défaut : décommenter ce qui sert.
+
+services:
+  box:
+    # Volumes supplémentaires (ajoutés à ceux de compose.yaml)
+    # volumes:
+    #   - /srv/partage:/home/dev/partage
+    #
+    # Limites de ressources
+    # mem_limit: 8g
+    # cpus: 4
