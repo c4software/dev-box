@@ -7,7 +7,7 @@ config applied as-is and dev tools managed by [mise](https://mise.jdx.dev/).
 
 - No published ports, no OpenSSH server: `tailscaled` runs inside the container and
   Tailscale SSH opens the shell.
-- SSH lands you in zsh inside a tmux session (`Work`), in `~/projets`.
+- SSH lands you in zsh inside a tmux session (`Work`), in your home directory.
 - Dotfiles pulled from a git repo and kept in sync, without running its install scripts.
 - Two persistent volumes (home and projects) that survive image rebuilds.
 - System packages via pacman (image), dev tools via mise (home).
@@ -101,8 +101,8 @@ Headscale v0.29.3 (`headscale policy check`):
 ssh dev@devbox
 ```
 
-The login shell runs `exec tmux new-session -A -s Work -c ~/projets`: you always land
-in the same tmux session, in `~/projets`. To get a plain shell instead:
+The login shell runs `exec tmux new-session -A -s Work -c ~`: you always land in the
+same tmux session, which starts in your home directory. To get a plain shell instead:
 
 ```bash
 ssh -t dev@devbox env NO_TMUX=1 zsh
