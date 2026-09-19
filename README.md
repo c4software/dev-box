@@ -155,10 +155,11 @@ neovim, luarocks, tree-sitter-cli) plus the base (tailscale, rsync, base-devel, 
 - `pi` (`aqua:earendil-works/pi`)
 - `omp` (`github:can1357/oh-my-pi`, via mise's github backend)
 
-`claude`, `pi` and `omp` are also wrapped in `/usr/local/bin`: each wrapper runs
+`claude`, `pi`, `omp` and `opencode` are wrapped in `/usr/local/bin`: each wrapper runs
 `mise use -g <tool>` (a no-op once declared) then `mise x <tool> -- <cmd>`, so the
 command works on first call even before the background install finished, or after
-the tool was removed from `~/.config/mise/config.toml`.
+the tool was removed from `~/.config/mise/config.toml`. `opencode` is not
+pre-installed: its first call installs it.
 
 They are installed in the background at start; follow progress with
 `tail -f ~/.cache/dev-box-install.log`. Add more on demand, e.g.

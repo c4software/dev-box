@@ -5,7 +5,8 @@
 [tools]
 node = "lts"
 
-# Agents de code : mêmes noms que les wrappers de /usr/local/bin (claude, pi, omp),
+# Agents de code : mêmes noms que les wrappers de /usr/local/bin (claude, pi, omp ;
+# opencode aussi, mais installé seulement au premier appel),
 # qui font un `mise use -g <outil>` à la volée s'il manque.
 claude = "latest"
 pi = "latest"
