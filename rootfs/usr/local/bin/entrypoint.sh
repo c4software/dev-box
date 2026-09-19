@@ -78,7 +78,7 @@ fi
 # --- 4. Tailscale (dans ce conteneur : Tailscale SSH ouvre le shell ici) ---
 # TS_DISABLE=true : debug sans Tailscale, on entre avec `docker exec`
 if [ "${TS_DISABLE:-false}" = "true" ]; then
-  log "Tailscale désactivé (TS_DISABLE=true) : docker exec -it -u $USER_NAME mise-box zsh -l"
+  log "Tailscale désactivé (TS_DISABLE=true) : docker exec -it -u $USER_NAME dev-box zsh -l"
   exec sleep infinity
 fi
 

@@ -1,7 +1,7 @@
 services:
-  box:
+  dev-box:
     build: .
-    container_name: mise-box
+    container_name: dev-box
     hostname: ${TS_HOSTNAME:-devbox}
     init: true
     restart: unless-stopped

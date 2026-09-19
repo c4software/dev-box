@@ -4,7 +4,7 @@
 # Vide par défaut : décommenter ce qui sert.
 
 services:
-  box:
+  dev-box:
     # Volumes supplémentaires (ajoutés à ceux de compose.yaml)
     # volumes:
     #   - /srv/partage:/home/dev/partage

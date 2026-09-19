@@ -177,7 +177,7 @@ it as root); its contents are never touched. You can start from a fresh home
 ## Troubleshooting and debug
 
 - **Run without Tailscale.** Set `TS_DISABLE=true` in `.env`, then enter with
-  `docker exec -it -u dev mise-box zsh -l`. The healthcheck stays healthy in this mode.
+  `docker exec -it -u dev dev-box zsh -l`. The healthcheck stays healthy in this mode.
 - **Logs.** `docker compose logs -f` shows the entrypoint, `dotarchy-sync` and
   `tailscale up` output (including the login URL when `TS_AUTHKEY` is empty).
 - **mise install failed.** See `~/.cache/mise-box-install.log`; rate-limit errors
