@@ -1,0 +1,4 @@
+#!/bin/bash
+export MISE_MINIMUM_RELEASE_AGE=0
+mise use -g "github:can1357/oh-my-pi" || exit 1
+exec mise x "github:can1357/oh-my-pi" -- "omp" "$@"

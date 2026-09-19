@@ -14,7 +14,7 @@ RUN pacman -Syu --noconfirm --needed \
     && rm -rf /var/cache/pacman/pkg/*
 
 COPY rootfs/ /
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/dotarchy-sync \
+RUN chmod +x /usr/local/bin/* \
     && mkdir -p /etc/zsh \
     && cat /etc/devbox/zshenv >> /etc/zsh/zshenv \
     && echo '. /etc/devbox/tmux-auto.sh' >> /etc/zsh/zshrc \

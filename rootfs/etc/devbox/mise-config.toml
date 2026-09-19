@@ -5,6 +5,8 @@
 [tools]
 node = "lts"
 
-# Agents de code
-"npm:@earendil-works/pi-coding-agent" = "latest"   # pi
-"github:can1357/oh-my-pi" = "latest"               # omp
+# Agents de code : mêmes noms que les wrappers de /usr/local/bin (claude, pi, omp),
+# qui font un `mise use -g <outil>` à la volée s'il manque.
+claude = "latest"
+pi = "latest"
+"github:can1357/oh-my-pi" = "latest"   # omp
