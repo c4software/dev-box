@@ -1,4 +1,4 @@
-# mise-box
+# dev-box
 
 An always-on development box in a Docker container: Arch Linux, reachable only
 through Tailscale SSH (works with Headscale), with the
@@ -155,7 +155,7 @@ neovim, luarocks, tree-sitter-cli) plus the base (tailscale, rsync, base-devel, 
 - `omp` (`github:can1357/oh-my-pi`, via mise's github backend)
 
 They are installed in the background at start; follow progress with
-`tail -f ~/.cache/mise-box-install.log`. Add more on demand, e.g.
+`tail -f ~/.cache/dev-box-install.log`. Add more on demand, e.g.
 `mise use -g go@latest`. Set `GITHUB_TOKEN` (no scopes needed) to avoid GitHub API
 rate limits.
 
@@ -180,7 +180,7 @@ it as root); its contents are never touched. You can start from a fresh home
   `docker exec -it -u dev dev-box zsh -l`. The healthcheck stays healthy in this mode.
 - **Logs.** `docker compose logs -f` shows the entrypoint, `dotarchy-sync` and
   `tailscale up` output (including the login URL when `TS_AUTHKEY` is empty).
-- **mise install failed.** See `~/.cache/mise-box-install.log`; rate-limit errors
+- **mise install failed.** See `~/.cache/dev-box-install.log`; rate-limit errors
   usually mean `GITHUB_TOKEN` is missing.
 - **SSH refused / port 22 filtered.** Check the Headscale policy: both the `ssh` rule
   and a `grants`/`acls` rule allowing traffic to the box are required.

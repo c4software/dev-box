@@ -10,7 +10,7 @@ TS_HOSTNAME="${TS_HOSTNAME:-devbox}"
 HOME_DIR="/home/${USER_NAME}"
 SYNC_INTERVAL="${DOTARCHY_SYNC_INTERVAL:-3600}"
 
-log()     { echo "[mise-box] $*"; }
+log()     { echo "[dev-box] $*"; }
 as_user() { su - "$USER_NAME" -w GITHUB_TOKEN,TZ -c "$1"; }
 
 # --- 1. Utilisateur (recréé à chaque démarrage, le home est persistant) ---
@@ -34,12 +34,12 @@ install -d -m 700 -o "$PUID" -g "$PGID" "/run/user/$PUID"
 
 # --- 2. Premier démarrage : initialisation du home ---
 mkdir -p "$HOME_DIR"
-if [ ! -f "$HOME_DIR/.mise-box-init" ]; then
+if [ ! -f "$HOME_DIR/.dev-box-init" ]; then
   log "Initialisation de $HOME_DIR"
   cp -r --update=none /etc/skel/. "$HOME_DIR/"
   mkdir -p "$HOME_DIR/.config/mise" "$HOME_DIR/.local/bin" "$HOME_DIR/projets"
   cp --update=none /etc/devbox/mise-config.toml "$HOME_DIR/.config/mise/config.toml"
-  touch "$HOME_DIR/.mise-box-init"
+  touch "$HOME_DIR/.dev-box-init"
   # chown du home sans descendre dans ~/projets (volume à part, contenu existant intact)
   find "$HOME_DIR" -path "$HOME_DIR/projets" -prune -o -exec chown -h "$PUID:$PGID" {} +
 fi
@@ -61,10 +61,10 @@ fi
   as_user "dotarchy-sync" || log "⚠ dotarchy-sync a échoué"
   if [ "${MISE_INSTALL_ON_START:-true}" = "true" ]; then
     if as_user "mkdir -p ~/.cache && { mise install node && mise install; } \
-                >> ~/.cache/mise-box-install.log 2>&1"; then
+                >> ~/.cache/dev-box-install.log 2>&1"; then
       log "mise : outils à jour"
     else
-      log "⚠ mise install a échoué, voir ~/.cache/mise-box-install.log"
+      log "⚠ mise install a échoué, voir ~/.cache/dev-box-install.log"
     fi
   fi
   # Resynchronisation périodique des dotfiles (0 = désactivé)
