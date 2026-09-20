@@ -1,20 +1,19 @@
-# dev-box: update message at login (sourced by interactive shells).
-# When there is nothing, the cost is a single file test.
-# The flag is written by dev-box-check-updates (the periodic check).
-if [ -f "$HOME/.cache/dev-box/updates" ]; then
+# dev-box: the login message (sourced by interactive shells).
+# The message itself is dev-box-motd: it reads nothing but the box, never the
+# network, so what happens here is a guard and one call. Inside tmux it is
+# printed once per session, not once per pane; elsewhere, once per shell.
+# The file keeps its name: the Dockerfile and /etc/devbox/bashrc source it.
+if command -v dev-box-motd >/dev/null 2>&1; then
   _devbox_motd=1
-  # Inside tmux: once per session, not once per pane
   if [ -n "${TMUX:-}" ]; then
-    if tmux show-environment DEVBOX_UPDATES_SHOWN >/dev/null 2>&1; then
+    if tmux show-environment DEVBOX_MOTD_SHOWN >/dev/null 2>&1; then
       _devbox_motd=0
     else
-      tmux set-environment DEVBOX_UPDATES_SHOWN 1 2>/dev/null || true
+      tmux set-environment DEVBOX_MOTD_SHOWN 1 2>/dev/null || true
     fi
   fi
   if [ "$_devbox_motd" = 1 ]; then
-    printf '\n\033[1;33mUpdates available\033[0m\n'
-    sed 's/^/  /' "$HOME/.cache/dev-box/updates"
-    printf '\033[2mRun: devbox update\033[0m\n\n'
+    dev-box-motd 2>/dev/null || true
   fi
   unset _devbox_motd
 fi

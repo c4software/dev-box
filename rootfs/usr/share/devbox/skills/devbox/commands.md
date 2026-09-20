@@ -33,7 +33,8 @@ the same binary.
 | `sync` | `dotarchy-sync` | clones or updates the dotfiles repo and applies the config. Never runs its install scripts. |
 | `dev-env` | `dev-box-dev-env` | installs a dev environment with mise. `--list`, or names as arguments, or a menu. |
 | `dbs` | `dev-box-dbs` | starts a development database in a podman container. `--list`, `--start`, `--stop`, `--remove [--purge]`, or names, or a menu. |
-| `agent` | `dev-box-agent` | the default coding agent. `set`, `which`, `prompt <text>`, `usage [claude\|codex]`, or bare for a menu (run, pick, usage). |
+| `agent` | `dev-box-agent` | the default coding agent. `set`, `which`, `prompt <text>`, `usage [claude\|codex\|proxy]`, or bare for a menu (run, pick, usage). |
+| `motd` | `dev-box-motd` | the login message: one command drawn at random, pending updates. |
 | `migrate` | `dev-box-migrate` | runs the migrations shipped by the image, once each. `--pending`, `--list`, `--mark-done <name>`. |
 | `mise-install` | `dev-box-mise-install` | writes a mise-backed wrapper into `~/.local/bin`. `--list`, `--remove <cmd>`. |
 | `pkg` | `dev-box-pkg` | pacman packages that survive a rebuild. `add`, `drop`, `list`, `install`, `restore`. |
@@ -142,6 +143,24 @@ from the local transcripts, `~/.claude/projects` for Claude Code and
 logged in. `usage proxy` (alias `llmproxy`) prints the same block for the LLM
 proxy, from its usage route on `LLM_PROXY_URL`. Cached tokens are the part of
 the input served from a cache and are never counted twice.
+
+## motd
+
+`devbox motd` prints the frame you see when you land in the box: one command of
+the box drawn at random, with what it does, and one line when an update is waiting.
+It is sourced at login by `/etc/devbox/updates-motd.sh`, once per tmux session
+and once per shell elsewhere.
+
+```bash
+devbox motd    # print it again
+```
+
+It reads nothing but the box: no network, no cache, and one `gum style` call
+for the frame (plain lines when gum is missing). The commands come from the `TIPS` array at the top of the script,
+`command|what it does`, with a third field `tailscale` on the ones that stay
+out when `TS_DISABLE=true`; adding one is adding a line there. The updates line
+is a count of `~/.cache/dev-box/updates`; the detail is in `devbox check` and
+`devbox status`.
 
 ## migrate
 

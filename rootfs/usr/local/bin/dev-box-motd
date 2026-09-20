@@ -1,0 +1,136 @@
+#!/usr/bin/env bash
+# devbox:name=motd
+# devbox:summary=The login message: one command to try, pending updates
+# devbox:args=
+# What you see when you land in the box: one command of the box drawn at
+# random, with what it does, and a line when an update is waiting. Nothing
+# else. Interactive shells print it through /etc/devbox/updates-motd.sh, once
+# per tmux session.
+#
+#   dev-box-motd   print it again
+#
+# It never touches the network and never reads a cache: a few milliseconds.
+set -euo pipefail
+
+UPDATES="$HOME/.cache/dev-box/updates"
+
+usage() { sed -n '5,12p' "$0" | sed 's/^# \?//'; }
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+  "") ;;
+  *) echo "dev-box-motd: unknown option '$1'" >&2; usage >&2; exit 2 ;;
+esac
+
+# Colors written out rather than read from tput or asked to gum: this is on the
+# critical path of every login, and every fork there is one too many. gum is
+# started once, for the frame.
+C_OFF=""; C_BOLD=""; C_DIM=""; C_YELLOW=""
+if [ -t 1 ] && [ -n "${TERM:-}" ] && [ "${TERM}" != "dumb" ]; then
+  C_OFF=$'\033[0m'; C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'; C_YELLOW=$'\033[33m'
+fi
+
+# TS_DISABLE is not in the environment of an SSH session: the entrypoint writes
+# it to /etc/devbox/env. Read, not sourced, like the devbox dispatcher does.
+tailscale_off() {
+  local ts="${TS_DISABLE:-}"
+  if [ -z "$ts" ] && [ -r /etc/devbox/env ]; then
+    ts="$(sed -n 's/^export TS_DISABLE=//p' /etc/devbox/env | tail -n 1)"
+  fi
+  [ "${ts:-false}" = "true" ]
+}
+
+# The commands on offer, "command|what it does", one per line. The ones that
+# need Tailscale carry a third field and are left out when it is off. Adding
+# one is adding a line here.
+TIPS=(
+  'devbox|the menu of everything the box can do'
+  'devbox status|the state of the box on one page'
+  'devbox update|update the dotfiles, the tools and the shipped config'
+  'devbox update tools|upgrade the mise tools only'
+  'devbox update dotfiles|pull the dotfiles again'
+  'devbox agent|run the default coding agent'
+  'devbox agent set|pick the default coding agent'
+  'devbox agent usage|account limits and tokens per model'
+  'devbox agent prompt "review this"|the default agent, told what to do'
+  'devbox dev-env|pick language toolchains, through mise'
+  'devbox dev-env node go|install these toolchains right away'
+  'devbox dbs postgres redis|start these databases, data kept in a volume'
+  'devbox dbs --list|the databases, their port and their state'
+  'devbox pkg add htop|a pacman package that survives a rebuild'
+  'devbox pkg install|fuzzy picker over the Arch repositories'
+  'devbox mise-install crush|a mise-backed wrapper in ~/.local/bin'
+  'devbox seed --check|new shipped config, nothing written'
+  'devbox migrate --list|the migrations of this image, played or pending'
+  'devbox check|look for updates, install nothing'
+  'devbox serve 3000|publish port 3000 of the box on the tailnet|tailscale'
+  'devbox serve 8080:3000|tailnet port 8080, app on 3000|tailscale'
+  'devbox tailscale send laptop file.tar|Taildrop a file to another machine|tailscale'
+  'devbox tailscale receive|wait for Taildrop files into ~/inbox|tailscale'
+  'NO_TMUX=1 ssh dev@box|a shell without the tmux session'
+)
+
+# The box name the way tmux-auto.sh reads it: /etc/hostname, cut at the first
+# dot, since the Arch image ships no hostname binary.
+box_name() {
+  local host=""
+  [ -r /etc/hostname ] && read -r host < /etc/hostname
+  [ -n "$host" ] || host="${HOSTNAME:-dev-box}"
+  printf '%s' "${host%%.*}"
+}
+
+pick_tip() {
+  local -a pool=()
+  local t off=no
+  tailscale_off && off=yes
+  for t in "${TIPS[@]}"; do
+    case "$t" in
+      *'|tailscale') [ "$off" = "yes" ] && continue; t="${t%|tailscale}" ;;
+    esac
+    pool+=("$t")
+  done
+  [ "${#pool[@]}" -gt 0 ] || return 0
+  printf '%s' "${pool[$(( RANDOM % ${#pool[@]} ))]}"
+}
+
+# The detail of what is waiting stays in `devbox check` and `devbox status`:
+# here a count is enough to say there is something to read.
+updates_count() {
+  local n
+  [ -s "$UPDATES" ] || return 0
+  n="$(grep -c '' "$UPDATES" 2>/dev/null || true)"
+  [ -n "$n" ] && [ "$n" -gt 0 ] && printf '%s' "$n"
+  return 0
+}
+
+# The frame is gum's: one call to `gum style`, with the box name as the first
+# line, since one gum start costs about seventy milliseconds and the login
+# should not pay it five times. The styles inside are written out as escapes
+# for the same reason. Without gum, the same lines, no frame.
+print_message() {
+  local tip cmd text n
+  local -a lines=()
+  tip="$(pick_tip)"
+  cmd="${tip%%|*}"; text="${tip#*|}"
+  n="$(updates_count)"
+
+  if [ -n "$tip" ]; then
+    lines+=("${C_DIM}Try${C_OFF}  ${C_BOLD}$cmd${C_OFF}")
+    lines+=("     ${C_DIM}$text${C_OFF}")
+  fi
+  if [ -n "$n" ]; then
+    [ "${#lines[@]}" -eq 0 ] || lines+=("")
+    lines+=("${C_YELLOW}Updates${C_OFF}  $n available, run ${C_BOLD}devbox update${C_OFF}")
+  fi
+  [ "${#lines[@]}" -gt 0 ] || return 0
+
+  if command -v gum >/dev/null 2>&1; then
+    gum style --border rounded --border-foreground 6 --padding "0 2" --margin "1 0" \
+      "${C_BOLD}$(box_name)${C_OFF}" "" "${lines[@]}"
+  else
+    printf '\n'
+    printf '  %s\n' "${lines[@]}"
+    printf '\n'
+  fi
+}
+
+print_message

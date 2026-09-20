@@ -11,7 +11,9 @@ config as-is, and its dev tools are managed by [mise](https://mise.jdx.dev/).
 - SSH lands you in zsh inside a tmux session named after the box (`TS_HOSTNAME`,
   `dev-box` by default), in your home directory.
 - Dotfiles are pulled from a git repo and applied without running its install scripts.
-- Nothing updates behind your back. There is a background check every 24 h, a message at
+- Landing in the box prints one command to try, drawn at random, and a line when an
+  update is waiting.
+- Nothing updates behind your back. There is a background check every 24 h, a line at
   login, and `devbox update` when you decide.
 - One command, `devbox`, gathers everything the box can do for you.
 - Two persistent volumes, home and projects, that survive image rebuilds.
@@ -311,6 +313,7 @@ Adding a command therefore means dropping a `dev-box-<name>` script in
 | `dev-env` | `dev-box-dev-env` | install a dev environment with mise |
 | `dbs` | `dev-box-dbs` | start a development database in a podman container |
 | `agent` | `dev-box-agent` | the default coding agent: run it, pick it, read its usage |
+| `motd` | `dev-box-motd` | the login message: one command drawn at random, pending updates |
 | `migrate` | `dev-box-migrate` | run the migrations shipped by the image, once each |
 | `mise-install` | `dev-box-mise-install` | write a mise-backed wrapper into `~/.local/bin` |
 | `pkg` | `dev-box-pkg` | pacman packages that survive an image rebuild |
@@ -392,6 +395,32 @@ with `LLM_PROXY_API_KEY`, in hourly buckets so the days line up with the box's.
 The cached tokens are the part of the input that was served from a cache, in
 every account, so they are counted inside the input and never twice. When the
 proxy does not answer, the section says so in one line and nothing else.
+
+## The login message
+
+Landing in the box prints a small frame, once per tmux session and once per
+shell outside tmux: the box name, one command of the box drawn at random with
+what it does, and a line when an update is waiting. It is `devbox motd`. It
+reads nothing but the box itself, no network and no cache, and the frame is
+one `gum style` call, so it costs under a tenth of a second.
+
+```
+╭─────────────────────────────────────────────────────╮
+│  dev-box                                            │
+│                                                     │
+│  Try  devbox dbs postgres redis                     │
+│       start these databases, data kept in a volume  │
+│                                                     │
+│  Updates  2 available, run devbox update            │
+╰─────────────────────────────────────────────────────╯
+```
+
+The commands come from the `TIPS` list at the top of the script; the ones that
+need Tailscale stay out when `TS_DISABLE=true`. The updates line folds
+`~/.cache/dev-box/updates` into a count; the detail of what is waiting stays in
+`devbox check` and `devbox status`. Everything else, the box, its commands and
+where the coding accounts stand, is one command away: `devbox`, `devbox status`
+and `devbox agent usage`.
 
 ## Dotfiles sync
 
@@ -736,10 +765,12 @@ the image was built from, `mise outdated`, and the shipped config files whose
 version changed. What it finds goes into `~/.cache/dev-box/updates`,
 one line per item. When there is nothing left, the file is removed.
 
-Interactive shells print that file at login, once per tmux session, followed by a
-reminder to run `devbox update`. With no file, the cost is a single file test.
+The login message folds that file into one line, `Updates: 2 available, devbox
+update`, once per tmux session. The detail stays one command away, in `devbox
+check` and in `devbox status`. With no file, there is no such line. See *The
+login message* above.
 
-![Login in the box with a pending update: an Updates available block lists the new dotfiles commit and the shipped config files that changed, followed by the devbox update reminder](docs/screenshots/updates-motd.png)
+![Login in the box with a pending update, in the form this message had before it was folded into one line: an Updates available block lists the new dotfiles commit and the shipped config files that changed, followed by the devbox update reminder](docs/screenshots/updates-motd.png)
 
 ```bash
 devbox update            # all of the below
