@@ -2,3 +2,6 @@
 # --- dev-box ---
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+# Variables du conteneur (écrites par l'entrypoint) : ni Tailscale SSH ni sshd
+# n'héritent de l'environnement du PID 1.
+[ -r /etc/devbox/env ] && . /etc/devbox/env

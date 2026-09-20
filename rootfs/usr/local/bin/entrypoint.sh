@@ -21,6 +21,9 @@ if ! id "$USER_NAME" &>/dev/null; then
   chmod 440 "/etc/sudoers.d/$USER_NAME"
 fi
 usermod -s "$USER_SHELL" "$USER_NAME"
+# Pas de mot de passe, mais compte non verrouillé : useradd pose « ! », que sshd
+# refuse même en authentification par clé.
+usermod -p '*' "$USER_NAME"
 
 # XDG_RUNTIME_DIR (utilisé par la conf zsh de dotarchy : ssh-agent, sockets rsync)
 install -d -m 700 -o "$PUID" -g "$PGID" "/run/user/$PUID"
@@ -31,6 +34,15 @@ install -d -m 700 -o "$PUID" -g "$PGID" "/run/user/$PUID"
   printf 'DOTARCHY_BRANCH=%q\n' "${DOTARCHY_BRANCH:-main}"
   printf 'DOTARCHY_SUBDIR=%q\n' "${DOTARCHY_SUBDIR:-common-no-omarchy}"
 } > /etc/devbox/dotarchy.env
+
+# Variables à retrouver dans les shells de connexion (cf. /etc/devbox/zshenv)
+{
+  for v in TZ GITHUB_TOKEN LLM_PROXY_URL LLM_PROXY_API_KEY; do
+    [ -n "${!v:-}" ] && printf 'export %s=%q\n' "$v" "${!v}" || true
+  done
+} > /etc/devbox/env
+chown "$PUID:$PGID" /etc/devbox/env
+chmod 600 /etc/devbox/env
 
 # --- 2. Premier démarrage : initialisation du home ---
 mkdir -p "$HOME_DIR"
@@ -55,6 +67,21 @@ if [ ! -f "$HOME_DIR/.zshrc" ]; then
   chown "$PUID:$PGID" "$HOME_DIR/.zshrc"
 fi
 
+# Conf de base des agents (posée si absente, jamais écrasée : une fois dans le
+# home persistant, elle appartient à la box — Claude y réécrit settings.json).
+seed() { # seed <source> <chemin relatif au home>
+  local dst="$HOME_DIR/$2"
+  [ -e "$dst" ] && return 0
+  install -d -m 755 -o "$PUID" -g "$PGID" "$(dirname "$dst")"
+  install -m 644 -o "$PUID" -g "$PGID" "$1" "$dst"
+  log "conf posée : ~/$2"
+}
+seed /etc/devbox/claude/settings.json .claude/settings.json
+seed /etc/devbox/claude/agents/pi.md  .claude/agents/pi.md
+seed /etc/devbox/claude/agents/omp.md .claude/agents/omp.md
+seed /etc/devbox/llm-proxy.ts         .pi/agent/extensions/llm-proxy.ts
+seed /etc/devbox/llm-proxy.ts         .omp/agent/extensions/llm-proxy.ts
+
 # --- 3. Dotfiles + outils (en arrière-plan, avant Tailscale : `tailscale up` peut
 #        attendre un login interactif si TS_AUTHKEY est vide) ---
 (
@@ -75,11 +102,46 @@ fi
   fi
 ) &
 
-# --- 4. Tailscale (dans ce conteneur : Tailscale SSH ouvre le shell ici) ---
-# TS_DISABLE=true : debug sans Tailscale, on entre avec `docker exec`
+# --- 4. Accès : Tailscale SSH, ou OpenSSH sur le port publié si TS_DISABLE=true ---
 if [ "${TS_DISABLE:-false}" = "true" ]; then
-  log "Tailscale désactivé (TS_DISABLE=true) : docker exec -it -u $USER_NAME dev-box zsh -l"
-  exec sleep infinity
+  log "Tailscale désactivé (TS_DISABLE=true) : démarrage d'OpenSSH"
+
+  # StrictModes : sshd refuse l'authentification si le home est inscriptible par
+  # le groupe ou tout le monde (fréquent sur un bind mount créé à la main).
+  if [ -n "$(find "$HOME_DIR" -maxdepth 0 -perm /022)" ]; then
+    chmod go-w "$HOME_DIR"
+    log "$HOME_DIR rendu non inscriptible par le groupe/les autres (StrictModes)"
+  fi
+
+  # Clés d'hôte dans le home persistant : pas de « host key changed » après un
+  # rebuild ou une recréation du conteneur.
+  KEY_DIR="$HOME_DIR/.config/dev-box/ssh"
+  install -d -m 700 -o "$PUID" -g "$PGID" "$KEY_DIR"
+  for t in ed25519 rsa; do
+    [ -f "$KEY_DIR/ssh_host_${t}_key" ] && continue
+    ssh-keygen -q -t "$t" -N '' -f "$KEY_DIR/ssh_host_${t}_key"
+    log "clé d'hôte $t générée"
+  done
+  chown -R "$PUID:$PGID" "$KEY_DIR"
+  chmod 600 "$KEY_DIR"/ssh_host_*_key
+
+  AUTH_KEYS="$HOME_DIR/.ssh/authorized_keys"
+  if [ -n "${SSH_AUTHORIZED_KEYS:-}" ]; then
+    install -d -m 700 -o "$PUID" -g "$PGID" "$HOME_DIR/.ssh"
+    printf '%s\n' "$SSH_AUTHORIZED_KEYS" > "$AUTH_KEYS"
+    chown "$PUID:$PGID" "$AUTH_KEYS"
+    chmod 600 "$AUTH_KEYS"
+  fi
+  if [ ! -s "$AUTH_KEYS" ]; then
+    log "⚠ aucune clé publique : renseigner SSH_AUTHORIZED_KEYS dans .env"
+    log "  accès de secours : docker exec -it -u $USER_NAME dev-box zsh -l"
+    exec sleep infinity
+  fi
+
+  log "sshd : ssh -p <port publié> ${USER_NAME}@<hôte>"
+  exec /usr/bin/sshd -D -e -f /etc/devbox/sshd_config \
+       -o "AllowUsers=$USER_NAME" \
+       -h "$KEY_DIR/ssh_host_ed25519_key" -h "$KEY_DIR/ssh_host_rsa_key"
 fi
 
 mkdir -p /var/lib/tailscale /var/run/tailscale

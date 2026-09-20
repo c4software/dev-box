@@ -1,0 +1,21 @@
+# dev-box : sshd utilisé uniquement quand TS_DISABLE=true (sinon c'est
+# Tailscale SSH qui ouvre le shell). Clé publique obligatoire.
+# Les clés d'hôte et AllowUsers sont passés en ligne de commande par l'entrypoint.
+
+Port 22
+AddressFamily any
+
+PermitRootLogin no
+PubkeyAuthentication yes
+PasswordAuthentication no
+PermitEmptyPasswords no
+KbdInteractiveAuthentication no
+UsePAM no
+
+AuthorizedKeysFile .ssh/authorized_keys
+
+X11Forwarding no
+PrintMotd no
+AcceptEnv LANG LC_* NO_TMUX
+
+Subsystem sftp /usr/lib/ssh/sftp-server

@@ -5,8 +5,9 @@ through Tailscale SSH (works with Headscale), with the
 [dotarchy/common-no-omarchy](https://github.com/c4software/dotarchy/tree/main/common-no-omarchy)
 config applied as-is and dev tools managed by [mise](https://mise.jdx.dev/).
 
-- No published ports, no OpenSSH server: `tailscaled` runs inside the container and
-  Tailscale SSH opens the shell.
+- `tailscaled` runs inside the container and Tailscale SSH opens the shell; nothing
+  is published on the host. Without Tailscale (`TS_DISABLE=true`), the box falls back
+  to its own OpenSSH server on a published port, public key only.
 - SSH lands you in zsh inside a tmux session (`dev-box`), in your home directory.
 - Dotfiles pulled from a git repo and kept in sync, without running its install scripts.
 - Two persistent volumes (home and projects) that survive image rebuilds.
@@ -14,8 +15,8 @@ config applied as-is and dev tools managed by [mise](https://mise.jdx.dev/).
 
 ## Quick start
 
-1. Create `.env` from the example and fill in at least `TS_LOGIN_SERVER`, `TS_AUTHKEY`
-   and (recommended) `GITHUB_TOKEN`:
+1. Create `.env` from the example and fill in at least `TS_LOGIN_SERVER` and
+   (recommended) `GITHUB_TOKEN`:
 
    ```bash
    cp .env.example .env
@@ -27,6 +28,8 @@ config applied as-is and dev tools managed by [mise](https://mise.jdx.dev/).
    docker compose up -d --build
    docker compose logs -f
    ```
+
+   The logs print the login URL to open to attach the box to your tailnet.
 
 3. From any machine on your tailnet:
 
@@ -53,26 +56,29 @@ All settings live in `.env` (see `.env.example`):
 | `PROJECTS_DIR` | `./data/projets` | Host directory mounted at `~/projets` (separate from the home) |
 | `TS_HOSTNAME` | `devbox` | Tailscale hostname (also the container hostname) |
 | `TS_LOGIN_SERVER` | `https://headscale.example.com` | Control server; empty = Tailscale's own |
-| `TS_AUTHKEY` | empty | Pre-auth key; empty = interactive login (see logs) |
+| `TS_AUTHKEY` | empty | Auth key; empty = the login URL is printed in the logs |
 | `TS_EXTRA_ARGS` | empty | Extra arguments appended to `tailscale up` |
-| `TS_DISABLE` | `false` | `true` = no Tailscale, access via `docker exec` only |
+| `TS_DISABLE` | `false` | `true` = no Tailscale, the box runs its own sshd instead |
+| `SSH_AUTHORIZED_KEYS` | empty | Public key(s) allowed when `TS_DISABLE=true`, one per line |
+| `SSH_BIND` | `127.0.0.1` | Host interface the SSH port is published on |
+| `SSH_PORT` | `2222` | Host port mapped to the box's port 22 |
 | `DOTARCHY_REPO` | `https://github.com/c4software/dotarchy.git` | Dotfiles repo |
 | `DOTARCHY_BRANCH` | `main` | Branch to track |
 | `DOTARCHY_SUBDIR` | `common-no-omarchy` | Subfolder holding `config/`, `default/`, `install/` |
 | `DOTARCHY_SYNC_INTERVAL` | `3600` | Re-sync period in seconds (`0` = at start and manually only) |
 | `MISE_INSTALL_ON_START` | `true` | Install mise tools in the background at start |
 | `GITHUB_TOKEN` | empty | Token with no scopes, avoids GitHub API rate limits during mise installs |
+| `LLM_PROXY_URL` | `http://llmproxy` | Endpoint used by the `llm-proxy.ts` extension of pi/omp |
+| `LLM_PROXY_API_KEY` | `unused` | Its API key |
 
 The container needs `/dev/net/tun` plus the `NET_ADMIN` and `NET_RAW` capabilities
 (already set in `compose.yaml`).
 
 ## Headscale setup
 
-Create a pre-auth key (`--user` takes the numeric ID, see `headscale users list`):
-
-```bash
-headscale preauthkeys create --user <ID> --reusable --expiration 24h
-```
+On first start the box prints a login URL in `docker compose logs -f`: open it (or
+feed it to `headscale nodes register`) to attach the machine. The node identity is then
+kept in `./data/tailscale`, so this happens only once.
 
 Tailscale SSH is refused without an `ssh` rule in the policy, and the `ssh` rule alone
 does not open the network: as soon as the policy contains `grants` or `acls`, traffic to
@@ -90,10 +96,33 @@ Headscale v0.29.3 (`headscale policy check`):
 }
 ```
 
-- `src` / `dst`: the Headscale user owning the machines (the one the auth key was
-  created for).
+- `src` / `dst`: the Headscale user owning the machines (the one the box was
+  registered to).
 - `users`: the Unix account inside the box (`USER_NAME`).
 - A `user@` SSH destination requires `src` to contain only that same user.
+
+## SSH without Tailscale
+
+Set `TS_DISABLE=true` in `.env` and the box starts its own OpenSSH server instead of
+`tailscaled`. Public key only — password and root login are refused:
+
+```bash
+TS_DISABLE=true
+SSH_AUTHORIZED_KEYS="ssh-ed25519 AAAA... you@laptop"
+SSH_BIND=127.0.0.1   # 0.0.0.0 to expose it on the LAN
+SSH_PORT=2222
+```
+
+```bash
+ssh -p 2222 dev@127.0.0.1
+```
+
+The keys are rewritten into `~/.ssh/authorized_keys` at every start, so `.env` is the
+source of truth. Host keys are generated once into `~/.config/dev-box/ssh` and live in
+the persistent home: no "host key changed" warning after a rebuild.
+
+With `SSH_AUTHORIZED_KEYS` empty, sshd is not started at all (the container stays up
+and reports unhealthy) — use `docker exec -it -u dev dev-box zsh -l`.
 
 ## Connecting
 
@@ -117,7 +146,8 @@ shell and passwordless sudo. The home itself is persistent.
 and takes **only the config**. It never runs the repo's install scripts.
 
 - `config/` → `~/.config/` (zsh, tmux, starship, lazygit, btop, ...), except `nvim`.
-- `default/{zshrc,bashrc,profile}` → `~/.zshrc`, `~/.bashrc`, `~/.profile`.
+- `default/{zshrc,profile}` → `~/.zshrc`, `~/.profile`. zsh only: the box has no bash
+  config of its own, `USER_SHELL` is expected to stay `/bin/zsh`.
 - `config/nvim` is a LazyVim overlay: it is applied on top of the official LazyVim
   starter and rebuilt on each pass. `lazy-lock.json` belongs to the box and is kept.
   A pre-existing `~/.config/nvim` not managed by the sync is renamed to `.bak.<timestamp>`.
@@ -166,13 +196,39 @@ They are installed in the background at start; follow progress with
 `mise use -g go@latest`. Set `GITHUB_TOKEN` (no scopes needed) to avoid GitHub API
 rate limits.
 
+
+## Agent configuration
+
+A base config is laid down in the home on first start, and never overwritten
+afterwards — once there, the files belong to the box (Claude Code rewrites its own
+`settings.json`). Delete a file and the next start puts the shipped one back.
+
+| File | From |
+|---|---|
+| `~/.claude/settings.json` | `rootfs/etc/devbox/claude/settings.json` |
+| `~/.claude/agents/{pi,omp}.md` | `rootfs/etc/devbox/claude/agents/` |
+| `~/.pi/agent/extensions/llm-proxy.ts` | `rootfs/etc/devbox/llm-proxy.ts` |
+| `~/.omp/agent/extensions/llm-proxy.ts` | same file |
+
+- `settings.json`: model, theme, effort level, empty commit/PR attribution, and the
+  `harness@c4software` plugin from its GitHub marketplace.
+- `pi.md` / `omp.md`: Claude Code sub-agents that delegate a task to the `pi` and `omp`
+  CLIs. They only run when asked for explicitly.
+- `llm-proxy.ts` registers the Albert (DINUM) provider in pi and omp. It reads
+  `LLM_PROXY_URL` and `LLM_PROXY_API_KEY` from `.env`; if the endpoint is unreachable it
+  registers nothing rather than blocking startup.
+
+Login shells get those two variables from `/etc/devbox/env`, written at start and
+sourced by `/etc/devbox/zshenv`: neither Tailscale SSH nor sshd inherits the
+environment of PID 1.
+
 ## Persistence
 
 Three bind mounts under `./data/` (git-ignored); a rebuild of the image loses nothing:
 
 | Host | Container | Contents |
 |---|---|---|
-| `./data/home` | `~` | config, mise toolchains, nvim plugins, pi/omp sessions, zsh history |
+| `./data/home` | `~` | config, mise toolchains, nvim plugins, pi/omp sessions, zsh history, SSH host keys |
 | `${PROJECTS_DIR:-./data/projets}` | `~/projets` | your repositories |
 | `./data/tailscale` | `/var/lib/tailscale` | tailscaled state (node identity) |
 
@@ -183,16 +239,17 @@ it as root); its contents are never touched. You can start from a fresh home
 
 ## Troubleshooting and debug
 
-- **Run without Tailscale.** Set `TS_DISABLE=true` in `.env`, then enter with
-  `docker exec -it -u dev dev-box zsh -l`. The healthcheck stays healthy in this mode.
+- **Run without Tailscale.** See *SSH without Tailscale* above. With no
+  `SSH_AUTHORIZED_KEYS` set, sshd does not start (the container stays up and reports
+  unhealthy); get in with `docker exec -it -u dev dev-box zsh -l`.
 - **Logs.** `docker compose logs -f` shows the entrypoint, `dotarchy-sync` and
   `tailscale up` output (including the login URL when `TS_AUTHKEY` is empty).
 - **mise install failed.** See `~/.cache/dev-box-install.log`; rate-limit errors
   usually mean `GITHUB_TOKEN` is missing.
 - **SSH refused / port 22 filtered.** Check the Headscale policy: both the `ssh` rule
   and a `grants`/`acls` rule allowing traffic to the box are required.
-- **Healthcheck.** `tailscale status --peers=false` every 60 s (skipped when
-  `TS_DISABLE=true`).
+- **Healthcheck.** Every 60 s: `tailscale status --peers=false`, or a connection to
+  port 22 when `TS_DISABLE=true`.
 
 ## Design choices
 

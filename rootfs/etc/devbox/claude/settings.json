@@ -1,0 +1,36 @@
+{
+  "model": "opus",
+  "theme": "dark",
+  "tui": "fullscreen",
+  "effortLevel": "medium",
+  "modelSettings": {
+    "claude-opus-5": {
+      "effortLevel": "medium"
+    }
+  },
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  },
+  "plansDirectory": "./plans",
+  "autoCompactEnabled": true,
+  "prefersReducedMotion": true,
+  "promptSuggestionEnabled": false,
+  "awaySummaryEnabled": false,
+  "terminalProgressBarEnabled": false,
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": true,
+  "skipDangerousModePermissionPrompt": true,
+  "enabledPlugins": {
+    "harness@c4software": true
+  },
+  "extraKnownMarketplaces": {
+    "c4software": {
+      "source": {
+        "source": "github",
+        "repo": "c4software/claude-harness-init-template"
+      }
+    }
+  }
+}

@@ -6,6 +6,10 @@ services:
     init: true
     restart: unless-stopped
     env_file: .env
+    # Sert uniquement quand TS_DISABLE=true (sshd) ; sans listener, le port est
+    # simplement fermé. Par défaut lié à la loopback de l'hôte.
+    ports:
+      - "${SSH_BIND:-127.0.0.1}:${SSH_PORT:-2222}:22"
     volumes:
       - ./data/home:/home/${USER_NAME:-dev}
       - ${PROJECTS_DIR:-./data/projets}:/home/${USER_NAME:-dev}/projets
