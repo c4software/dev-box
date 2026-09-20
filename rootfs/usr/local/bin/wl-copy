@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Remplaçant de wl-copy pour la box : pas de Wayland ici, mais la fonction
+# `copy` de la conf dotarchy (et tout ce qui appelle wl-copy) doit marcher.
+# Le texte va dans le buffer tmux (collage avec prefix + ]) et, via OSC 52,
+# dans le presse-papier du terminal qui affiche la session, même à travers SSH.
+# Usage : wl-copy [texte…]  |  commande | wl-copy
+set -euo pipefail
+
+if [ $# -gt 0 ]; then
+  data="$*"
+else
+  data="$(cat)"
+fi
+
+# Dans tmux : load-buffer -w pose le buffer et relaie OSC 52 au terminal
+# (tmux ≥ 3.2, set-clipboard à external ou on, ce qui est le défaut).
+if [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
+  printf '%s' "$data" | tmux load-buffer -w - 2>/dev/null && exit 0
+fi
+
+# Hors tmux : OSC 52 directement sur le terminal de contrôle, s'il y en a un
+# (le test -w /dev/tty ne suffit pas : sans terminal, l'écriture échoue).
+if { printf '\033]52;c;%s\a' "$(printf '%s' "$data" | base64 -w0)" > /dev/tty; } 2>/dev/null; then
+  exit 0
+fi
+
+echo "wl-copy : ni tmux ni terminal, rien à copier dedans" >&2
+exit 1
