@@ -68,9 +68,13 @@ config.
 ### A new environment in `devbox dev-env`
 
 Add a line to the `ENVS` array of `rootfs/usr/local/bin/dev-box-dev-env`
-(`name|short description`) and an `install_<name>` function next to the others.
-Only `mise use -g`: no pacman, no `curl | sh`. That is the whole point of the
-command. PHP is the one exception, baked into the image through the `Dockerfile`
+(`name|short description`), an `install_<name>` function and a `remove_<name>`
+function next to the others. Only `mise use -g` and `mise unuse -g`: no pacman,
+no `curl | sh`. That is the whole point of the command. The removal takes out
+what the environment brought and nothing more: no project data, and not a base
+another environment may rely on (say in the message how to remove it). If the
+installed state cannot be read from the global mise config, add a case to
+`is_installed`. PHP is the one exception, baked into the image through the `Dockerfile`
 because mise would have to compile it; OCaml is not in it for the same reason.
 
 ### A new devbox command

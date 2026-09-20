@@ -310,7 +310,7 @@ Adding a command therefore means dropping a `dev-box-<name>` script in
 | `update` | `dev-box-update` | `dotfiles`, `tools`, `seed`, or all of them |
 | `seed` | `dev-box-seed` | lay down the config shipped by the image |
 | `sync` | `dotarchy-sync` | pull the dotfiles and apply them |
-| `dev-env` | `dev-box-dev-env` | install a dev environment with mise |
+| `dev-env` | `dev-box-dev-env` | install or remove a dev environment with mise |
 | `dbs` | `dev-box-dbs` | start a development database in a podman container |
 | `agent` | `dev-box-agent` | the default coding agent: run it, pick it, read its usage |
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates |
@@ -526,22 +526,32 @@ GitHub API rate limits.
 
 ### Dev environments
 
-`devbox dev-env` installs a whole language environment in one call, through mise.
-No `curl | sh`, and no pacman except for PHP (see below). Whatever mise installs is
-declared in `~/.config/mise/config.toml`, survives a rebuild, and is upgraded by
-`devbox update tools` like the rest.
+`devbox dev-env` installs or removes a whole language environment in one call,
+through mise. No `curl | sh`, and no pacman except for PHP (see below). Whatever
+mise installs is declared in `~/.config/mise/config.toml`, survives a rebuild, and
+is upgraded by `devbox update tools` like the rest.
 
 ```bash
-devbox dev-env --list      # what is on offer
-devbox dev-env node go     # install these two
-devbox dev-env             # menu, several at a time
+devbox dev-env --list             # what is on offer, and what is installed
+devbox dev-env node go            # install these two
+devbox dev-env --remove node go   # remove them
+devbox dev-env                    # menu: install or remove, then several at a time
 ```
 
 ![dev-box-dev-env --list in the box: the environments with a one line description each](docs/screenshots/dev-env-list.png)
 
-Without arguments it opens a gum menu with multiple selection, the environments on
-the left and their description on the right. Running it again on an environment
-already installed changes nothing.
+Without arguments it first asks whether to install or remove, then opens a gum menu
+with multiple selection, the environments on the left and their description on the
+right. The remove menu only offers what is installed. Running it again on an
+environment already installed, or already removed, changes nothing.
+
+A removal takes the tools out of `~/.config/mise/config.toml` with `mise unuse -g`,
+which also prunes the versions no other config needs. It only removes what the
+environment itself brought: `laravel` drops the installer but keeps PHP and Node,
+`phoenix` drops the `phx_new` archive but keeps Elixir, `scala` keeps Java, and the
+message says how to remove the base. Project data is never touched: `~/go`,
+`~/.cargo`, `~/.mix`, `~/.m2`, `~/.config/composer` and the like stay where they
+are, so a later `devbox dev-env <name>` finds everything back.
 
 A few of them do more than pull a runtime. `python` also installs `uv`. `ruby` writes
 `~/.gemrc`, turns off `ruby.compile` so mise takes a precompiled build instead of

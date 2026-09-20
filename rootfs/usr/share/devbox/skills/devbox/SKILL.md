@@ -132,6 +132,7 @@ Never guess a command name. Run `devbox commands`.
 ## Example Requests
 
 - "Install Go" -> `devbox dev-env go`
+- "Remove Go" -> `devbox dev-env --remove go`
 - "Start a postgres" -> `devbox dbs postgres`; `devbox dbs --list` for what is
   running and what is on offer
 - "What is available to install?" -> `devbox dev-env --list`

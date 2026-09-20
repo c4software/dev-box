@@ -31,7 +31,7 @@ the same binary.
 | `update` | `dev-box-update` | `[dotfiles\|tools\|seed\|all]`, default `all`. The only command that installs. |
 | `seed` | `dev-box-seed` | lays down the config shipped by the image. `--check` to look, `--force [path]` to take a new version. |
 | `sync` | `dotarchy-sync` | clones or updates the dotfiles repo and applies the config. Never runs its install scripts. |
-| `dev-env` | `dev-box-dev-env` | installs a dev environment with mise. `--list`, or names as arguments, or a menu. |
+| `dev-env` | `dev-box-dev-env` | installs or removes a dev environment with mise. `--list`, names as arguments (`--remove` to remove), or a menu. |
 | `dbs` | `dev-box-dbs` | starts a development database in a podman container. `--list`, `--start`, `--stop`, `--remove [--purge]`, or names, or a menu. |
 | `agent` | `dev-box-agent` | the default coding agent. `set`, `which`, `prompt <text>`, `usage [claude\|codex\|proxy]`, or bare for a menu (run, pick, usage). |
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates. |
@@ -57,18 +57,23 @@ cat $(which dev-box-dev-env)   # the ENVS list is at the top
 
 ## dev-env
 
-`devbox dev-env` installs development environments with mise and nothing else:
-no pacman, no `curl | sh`. Everything it installs is declared in
+`devbox dev-env` installs or removes development environments with mise and
+nothing else: no pacman, no `curl | sh`. Everything it installs is declared in
 `~/.config/mise/config.toml`, so it survives a rebuild and is upgraded by
 `devbox update tools`.
 
 ```bash
-devbox dev-env --list      # what is on offer
-devbox dev-env node go     # install these two
-devbox dev-env             # menu, multiple selection
+devbox dev-env --list             # what is on offer, installed ones marked
+devbox dev-env node go            # install these two
+devbox dev-env --remove node go   # remove these two
+devbox dev-env                    # menu: install or remove, then multiple selection
 ```
 
-Re-running on an environment already installed is harmless.
+Re-running on an environment already installed, or already removed, is
+harmless. A removal (`mise unuse -g`) only takes out what the environment
+brought: `laravel` keeps php and node, `phoenix` keeps elixir, `scala` keeps
+java. Project data (`~/go`, `~/.cargo`, `~/.mix`, `~/.config/composer`, ...)
+is never deleted.
 
 PHP is baked into the image (pacman: php, composer, php-sqlite, php-gd,
 php-sodium, xdebug, extensions enabled at build); `dev-env php` only checks it,
