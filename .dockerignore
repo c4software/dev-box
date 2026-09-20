@@ -1,0 +1,7 @@
+# The build only needs rootfs/ and the clone's .git (the Dockerfile reads the
+# commit from it). Everything else, data/ above all (the home, the projects,
+# tailscale state owned by root), stays out of the build context.
+*
+!rootfs
+!.git
+!Dockerfile
