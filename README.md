@@ -47,6 +47,34 @@ that Compose merges automatically and git ignores:
 cp compose.override.example.yaml compose.override.yaml
 ```
 
+## Host commands
+
+A `justfile` at the root wraps the Compose invocations you would otherwise type
+by hand. Install [just](https://just.systems) (`sudo pacman -S just` on Arch,
+`mise use -g just` anywhere else), then run `just` to list everything:
+
+| Command | Does |
+|---|---|
+| `just up` | Build if needed and start the box |
+| `just rebuild` | Update Arch: rebuild from a fresh base image, then restart |
+| `just down` | Stop and remove the container (`./data/` is kept) |
+| `just restart` | Restart without rebuilding |
+| `just logs` | Follow the entrypoint logs (last 100 lines) |
+| `just status` | Container state, healthcheck, and whether the image lags the repo |
+| `just shell` | `zsh -l` inside the box, as your user |
+| `just ssh` | SSH in, through Tailscale or the published port |
+| `just update [what]` | Run `dev-box-update` in the box (`dotfiles`, `tools`, `seed`, `all`) |
+| `just backup [dest]` | Write a backup archive (see *Backup*) |
+| `just restore <archive>` | Restore one |
+
+`just rebuild` is the one to reach for when Arch moves: it runs
+`docker compose build --pull --no-cache`. `--pull` alone is not enough: as long as
+the base image keeps the same digest, the `pacman -Syu` layer stays cached and the
+packages remain frozen at the date of the first build.
+
+The recipes read `.env`, so `just shell` and `just ssh` follow `USER_NAME`,
+`TS_HOSTNAME`, `TS_DISABLE`, `SSH_BIND` and `SSH_PORT` without extra configuration.
+
 ## Configuration
 
 All settings live in `.env` (see `.env.example`):
@@ -286,6 +314,49 @@ Three bind mounts under `./data/` (git-ignored); a rebuild of the image loses no
 disk independently. Only its top-level directory is ever chowned (when Docker created
 it as root); its contents are never touched. You can start from a fresh home
 (`rm -rf data/home`) without affecting your projects.
+
+## Backup
+
+`scripts/backup.sh [--with-tailscale] [dest_dir]` (also `just backup`) writes
+`dev-box-<TS_HOSTNAME>-<YYYYmmdd-HHMMSS>.tar.zst` into `dest_dir`, `./backups`
+by default (git-ignored). It needs `zstd` on the host.
+
+What goes in:
+
+- `data/home`, minus the caches that rebuild themselves: `.cache`,
+  `.local/share/{mise,nvim,dotarchy,lazyvim-starter}`, `.local/state/nvim`,
+  `.npm`, `.bun`.
+- The projects directory (`PROJECTS_DIR`), minus every `node_modules`.
+  `.git/objects` is **kept**: your repositories come back whole, with their history.
+- A copy of `.env` and `compose.override.yaml` when they exist. `.env` holds
+  `TS_AUTHKEY` and `GITHUB_TOKEN`: treat the archive as a secret.
+
+What stays out: `data/tailscale`. It holds the node identity, and restoring it
+elsewhere would give you two machines claiming the same one. Pass
+`--with-tailscale` if you really want it in the archive.
+
+Ownership is preserved (`--numeric-owner`), and `sudo` is used only when
+something that goes into the archive is not readable as you. The archive is read
+back end to end after being written, and its entry count and size are printed.
+
+Restoring:
+
+```bash
+./scripts/restore.sh backups/dev-box-dev-box-20260920-101500.tar.zst
+# or: just restore backups/dev-box-dev-box-20260920-101500.tar.zst
+```
+
+It stops the container, lists what already exists and would be overwritten, asks
+for confirmation, then unpacks at the root of the repo. Files are overwritten one
+by one: nothing outside the archive is ever deleted, so a home restored over a
+newer one keeps whatever the archive does not mention. Add `--yes` to skip the
+prompt; outside a terminal the script refuses to run without it. Then bring the
+box back with `just up`: the mise toolchains were not in the archive, the start
+reinstalls them (or run `just update tools`).
+
+If `PROJECTS_DIR` points outside the repo (another disk), the projects are stored
+under `projets-external/` in the archive and restored there: move them back
+yourself, the script will not write outside the repo.
 
 ## Troubleshooting and debug
 
