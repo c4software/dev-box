@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Wrapper devant `docker` et `podman` (liens dans /usr/local/bin, avant /usr/bin) :
+# quand podman rootless n'est pas activé sur cette box, il dit pourquoi et quoi
+# faire, au lieu de laisser podman échouer sur une erreur obscure.
+# Contournement : PODMAN_FORCE=1, ou /usr/bin/podman directement.
+set -euo pipefail
+
+sock="/run/user/$(id -u)/podman/podman.sock"
+state="disabled"
+[ -r /etc/devbox/podman.state ] && state="$(cat /etc/devbox/podman.state)"
+
+if [ "${PODMAN_FORCE:-0}" != "1" ] && [ ! -S "$sock" ]; then
+  name="$(basename "$0")"
+  {
+    echo "$name : podman n'est pas actif sur cette box."
+    if [ "$state" != "enabled" ]; then
+      echo "  Podman rootless est désactivé (PODMAN_ENABLE absent ou false dans .env)."
+      echo "  Pour l'activer, sur l'hôte :"
+      echo "    1. décommenter le bloc podman de compose.override.example.yaml"
+      echo "       (/dev/fuse + security_opt) dans compose.override.yaml ;"
+      echo "    2. PODMAN_ENABLE=true dans .env ;"
+      echo "    3. just up"
+      echo "  Ce bloc relâche l'isolation de la box : voir « Containers inside the box »"
+      echo "  dans le README."
+    else
+      echo "  PODMAN_ENABLE=true mais le socket $sock est absent :"
+      echo "  le service n'a pas démarré. Voir ~/.cache/dev-box-podman.log et vérifier"
+      echo "  que compose.override.yaml contient bien le bloc podman (/dev/fuse, security_opt)."
+    fi
+    echo "  Forcer quand même : PODMAN_FORCE=1 $name …"
+  } >&2
+  exit 1
+fi
+
+case "$(basename "$0")" in
+  docker) exec /usr/bin/docker "$@" ;;
+  *)      exec /usr/bin/podman "$@" ;;
+esac

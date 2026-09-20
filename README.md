@@ -290,9 +290,10 @@ docker compose up -d && docker compose ps
 ```
 
 With `PODMAN_ENABLE=false` no socket is started and `DOCKER_HOST` is not set.
-The `docker` shim and `podman` are still there, but without the override they
-fail as soon as a container has to start. The socket's own log is
-`~/.cache/dev-box-podman.log`.
+`docker` and `podman` then go through a wrapper that stops with the three steps
+above instead of an obscure error; the same wrapper points to
+`~/.cache/dev-box-podman.log` when podman is enabled but the socket never came
+up. `PODMAN_FORCE=1 docker …` (or `/usr/bin/podman`) bypasses it.
 
 Known limits:
 

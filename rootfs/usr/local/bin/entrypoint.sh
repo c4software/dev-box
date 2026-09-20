@@ -83,12 +83,15 @@ DEVBOX_HOME="$HOME_DIR" dev-box-seed || log "⚠ dev-box-seed a échoué"
 # `docker compose` dans la box passent par lui, sans socket Docker de l'hôte.
 # Demande /dev/fuse et les security_opt de compose.override.example.yaml.
 # Un échec est signalé mais ne bloque pas le démarrage de la box.
+# État lu par le wrapper dev-box-podman (message explicite si désactivé)
+if [ "${PODMAN_ENABLE:-false}" = "true" ]; then echo enabled; else echo disabled; fi > /etc/devbox/podman.state
+chmod 644 /etc/devbox/podman.state
 if [ "${PODMAN_ENABLE:-false}" = "true" ]; then
   PODMAN_SOCK="/run/user/$PUID/podman/podman.sock"
   install -d -m 700 -o "$PUID" -g "$PGID" "/run/user/$PUID/podman"
   rm -f "$PODMAN_SOCK"
   as_user "mkdir -p ~/.cache && XDG_RUNTIME_DIR=/run/user/$PUID \
-           exec podman system service --time=0 unix://$PODMAN_SOCK \
+           exec /usr/bin/podman system service --time=0 unix://$PODMAN_SOCK \
            >> ~/.cache/dev-box-podman.log 2>&1" &
   (
     for _ in $(seq 1 50); do

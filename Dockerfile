@@ -58,6 +58,10 @@ RUN printf 'DEVBOX_COMMIT=%s\nDEVBOX_REPO=%s\nDEVBOX_BRANCH=%s\n' \
     # podman-docker exporte DOCKER_HOST dans tous les shells de login, socket
     # ou pas : on ne le garde que si le socket existe (cf. /etc/devbox/zshenv).
     && rm -f /etc/profile.d/podman-docker.sh /etc/profile.d/podman-docker.csh \
+    # docker et podman passent par un wrapper qui explique quoi faire quand
+    # podman n'est pas activé (/usr/local/bin précède /usr/bin dans le PATH).
+    && ln -s dev-box-podman /usr/local/bin/docker \
+    && ln -s dev-box-podman /usr/local/bin/podman \
     && mkdir -p /etc/zsh \
     && cat /etc/devbox/zshenv >> /etc/zsh/zshenv \
     && echo '. /etc/devbox/tmux-auto.sh' >> /etc/zsh/zshrc \
