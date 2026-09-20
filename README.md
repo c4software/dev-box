@@ -18,7 +18,7 @@ config applied as-is and dev tools managed by [mise](https://mise.jdx.dev/).
 
 ## Quick start
 
-1. Create `.env` from the example and fill in at least `TS_LOGIN_SERVER` and
+1. Create `.env` from the example, set `TS_LOGIN_SERVER` if you use Headscale, and add
    (recommended) `GITHUB_TOKEN`:
 
    ```bash
@@ -106,7 +106,7 @@ All settings live in `.env` (see `.env.example`):
 | `TZ` | `Europe/Paris` | Timezone |
 | `PROJECTS_DIR` | `./data/projets` | Host directory mounted at `~/projets` (separate from the home) |
 | `TS_HOSTNAME` | `dev-box` | Tailscale hostname; also the container hostname and the tmux session name |
-| `TS_LOGIN_SERVER` | `https://headscale.example.com` | Control server; empty = Tailscale's own |
+| `TS_LOGIN_SERVER` | `https://controlplane.tailscale.com` | Control server: Tailscale itself (the default), or your Headscale URL |
 | `TS_AUTHKEY` | empty | Auth key; empty = the login URL is printed in the logs |
 | `TS_EXTRA_ARGS` | empty | Extra arguments appended to `tailscale up` |
 | `TS_DISABLE` | `false` | `true` = no Tailscale, the box runs its own sshd instead |
