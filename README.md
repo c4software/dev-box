@@ -17,6 +17,8 @@ config as-is, and its dev tools are managed by [mise](https://mise.jdx.dev/).
 - Two persistent volumes, home and projects, that survive image rebuilds.
 - System packages come from pacman (image), dev tools from mise (home).
 
+![A tmux session in the box: devbox serve 3000 publishes a dev server on the tailnet and prints its URL, devbox serve off stops it, and devbox agent shows the Claude Code limit windows as bars with a countdown to the reset](docs/screenshots/serve-and-agent.png)
+
 ## Quick start
 
 1. Create `.env` from the example, set `TS_LOGIN_SERVER` if you use Headscale, and add
@@ -338,12 +340,14 @@ devbox agent set             # gum menu, then remember the choice
 devbox agent set codex       # or name it outright
 devbox agent which           # print the current default
 devbox agent prompt "review this project"
-devbox agent usage claude    # what is left of the account limits
-devbox agent usage           # both accounts, Claude Code and Codex
+devbox agent usage claude    # what is left of the account limits, and the tokens
+devbox agent usage proxy     # what went through the LLM proxy
+devbox agent usage           # the three of them, Claude Code, Codex, LLM proxy
 ```
 
 In a terminal, a bare `devbox agent` opens a small menu: run the default agent
-here, pick the default, or show the usage of Claude Code, of Codex, or of both.
+here, pick the default, or show the usage of Claude Code, of Codex, of the LLM
+proxy, or of all three.
 Without a terminal it runs the default agent directly. The list of agents is what
 the image ships, `claude`, `pi`, `omp`, `opencode` and `codex`, plus any wrapper
 `devbox mise-install` has written.
@@ -357,6 +361,22 @@ ever travels in that one Authorization header. Without credentials it says to ru
 For Codex it talks to `codex app-server` over stdin, which is where Codex keeps
 its rate limits; when that answers nothing it says so and points at `/status`
 inside Codex.
+
+Under the limits comes a `Tokens` table, one line per model, counted from the
+transcripts the agents themselves write in the home, `~/.claude/projects` for
+Claude Code and `~/.codex/sessions` for Codex. Nothing is fetched for it and
+nothing is written: the files are read as they are. The columns are the input,
+the cached input, the output and the total over the last seven days, plus the
+total for today, days cut at local midnight in the box's timezone. Counts are
+printed short, `12.3k` or `4.5M`, and exact below a thousand.
+
+`devbox agent usage proxy` is the same table for the LLM proxy, with the number
+of requests per model. Those figures do not come from a transcript but from the
+proxy's own usage route, `/v1/organization/usage/completions` on `LLM_PROXY_URL`,
+called with `LLM_PROXY_API_KEY`. There, `cached` is the part of the input the
+proxy served from its cache, so it is counted inside `in` and not a second time
+in the total. When the proxy does not answer, the section says so in one line
+and nothing else.
 
 ## Dotfiles sync
 

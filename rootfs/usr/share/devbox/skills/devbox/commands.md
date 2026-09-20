@@ -116,7 +116,7 @@ devbox agent                    # menu: run the default, pick one, usage
 devbox agent set [name]         # change it, gum menu when no name is given
 devbox agent which              # print it
 devbox agent prompt <text...>   # run it with an instruction
-devbox agent usage [claude|codex]   # no name: both accounts
+devbox agent usage [claude|codex|proxy]   # no name: the three of them
 ```
 
 The choices are what the image ships (`claude`, `pi`, `omp`, `opencode`,
@@ -131,6 +131,15 @@ output stays greppable. Claude Code goes through the OAuth token in
 in that request's Authorization header and nowhere else, and no figure is
 written to disk. Codex goes through `codex app-server` on stdin.
 Without credentials each one says which command to run to log in.
+
+Under the limits comes a `Tokens` table, one line per model, with the input,
+the cached input, the output and the total over the last seven days and the
+total for today, days cut at local midnight. Those counts are read from the
+local transcripts, `~/.claude/projects` for Claude Code and `~/.codex/sessions`
+for Codex, so they still work when the account is not logged in. `usage proxy`
+(alias `llmproxy`) prints the same table for the LLM proxy, requests included;
+its figures come from the proxy's usage route on `LLM_PROXY_URL`, where the
+cached tokens are a part of the input and are not counted twice in the total.
 
 ## migrate
 

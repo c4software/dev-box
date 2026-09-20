@@ -9,9 +9,14 @@
 #   dev-box-agent set [name]       change the default agent (menu with no name)
 #   dev-box-agent which            print the default agent
 #   dev-box-agent prompt <text...> run the agent with an instruction
-#   dev-box-agent usage [claude|codex]
+#   dev-box-agent usage [claude|codex|proxy]
 #                                  account limits, one bar per window with the
-#                                  percentage used and the time left before it resets
+#                                  percentage used and the time left before it
+#                                  resets, then the tokens per model read from
+#                                  the local transcripts. With no name: the
+#                                  three of them, Claude Code, Codex and the
+#                                  LLM proxy, whose figures come from its own
+#                                  usage route.
 #
 # The agents on offer are the ones shipped by the image (claude, pi, omp,
 # opencode, codex) plus the wrappers written by `devbox mise-install`.
@@ -21,7 +26,7 @@ CONF_DIR="$HOME/.config/dev-box"
 CONF="$CONF_DIR/agent"
 BUILTIN=(claude pi omp opencode codex)
 
-usage() { sed -n '5,17p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '5,19p' "$0" | sed 's/^# \?//'; }
 
 # Early, so that `devbox agent --help` really finds a help to print.
 case "${1:-}" in -h|--help) usage; exit 0 ;; esac
@@ -112,14 +117,25 @@ run_with_prompt() {
 }
 
 # --- the shared usage renderer -----------------------------------------------
-# The resets are printed in the box's timezone. TZ lives in /etc/devbox/env,
-# which login shells source, but a caller may not have it in its environment.
-# The subshell keeps everything else in that file out of this one.
-if [ -z "${TZ:-}" ] && [ -r /etc/devbox/env ]; then
+# The resets are printed in the box's timezone, and the proxy is reached at the
+# address the entrypoint was given. Both live in /etc/devbox/env, which login
+# shells source, but a caller may not have them in its environment. The
+# subshell keeps everything else in that file out of this one.
+from_devbox_env() {
+  [ -r /etc/devbox/env ] || return 0
   # shellcheck source=/dev/null
-  TZ="$(. /etc/devbox/env 2>/dev/null; printf '%s' "${TZ:-}")"
+  ( . /etc/devbox/env 2>/dev/null; printf '%s' "${!1:-}" )
+}
+
+if [ -z "${TZ:-}" ]; then
+  TZ="$(from_devbox_env TZ)"
   if [ -n "$TZ" ]; then export TZ; else unset TZ; fi
 fi
+[ -n "${LLM_PROXY_URL:-}" ] || LLM_PROXY_URL="$(from_devbox_env LLM_PROXY_URL)"
+[ -n "${LLM_PROXY_API_KEY:-}" ] || LLM_PROXY_API_KEY="$(from_devbox_env LLM_PROXY_API_KEY)"
+LLM_PROXY_URL="${LLM_PROXY_URL:-http://llmproxy}"
+# The trailing slash would double up in the route below.
+LLM_PROXY_URL="${LLM_PROXY_URL%/}"
 
 repeat() { local i s=""; for (( i = 0; i < $2; i++ )); do s+="$1"; done; printf '%s' "$s"; }
 
@@ -211,6 +227,295 @@ render_usage() {
     fi
     printf '%s\n' "$when"
   done
+}
+
+# --- the shared token table --------------------------------------------------
+# The two windows every token table uses: today and the last 7 days, both cut
+# at local midnight in the box's timezone, so "7 days" means today plus the six
+# days before it. Epoch seconds, for jq and for `find`.
+TOK_DAY0=""; TOK_WEEK0=""
+token_windows() {
+  TOK_DAY0="$(date -d 'today 00:00' +%s)"
+  TOK_WEEK0="$(date -d '6 days ago 00:00' +%s)"
+}
+
+# 12345 becomes 12.3k, 4500000 becomes 4.5M, anything under 1000 stays exact.
+human_tokens() {
+  local n="${1:-0}"
+  if [ "$n" -lt 1000 ]; then printf '%s' "$n"
+  elif [ "$n" -lt 1000000 ]; then printf '%d.%dk' $(( n / 1000 )) $(( (n % 1000) / 100 ))
+  elif [ "$n" -lt 1000000000 ]; then printf '%d.%dM' $(( n / 1000000 )) $(( (n % 1000000) / 100000 ))
+  else printf '%d.%dG' $(( n / 1000000000 )) $(( (n % 1000000000) / 100000000 ))
+  fi
+}
+
+# Reads "model<TAB>in<TAB>cached<TAB>out<TAB>total<TAB>today[<TAB>extra]" lines
+# on stdin, the four middle ones over the last 7 days and "today" the total for
+# today, and prints them as a table sorted by the 7 day total, largest first.
+# $1 is the header of the model column, $2 the header of the optional seventh
+# column, printed right after the model when there is one. Model names longer
+# than their column are cut short, so the table stays inside 80 columns.
+render_tokens() {
+  local title="${1:-Tokens}" extra_title="${2:-}" maxw=30 width
+  local -a rows=()
+  local model in cached out total today extra line
+  [ -z "$extra_title" ] || maxw=24
+
+  while IFS=$'\t' read -r model in cached out total today extra; do
+    [ -n "$model" ] || continue
+    # Too long for the column: the vendor prefix goes first, since what tells
+    # two models apart is at the end of the name, then the tail is cut.
+    [ "${#model}" -le "$maxw" ] || model="${model##*/}"
+    [ "${#model}" -le "$maxw" ] || model="${model:0:$(( maxw - 2 ))}.."
+    rows+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+      "$model" "${in:-0}" "${cached:-0}" "${out:-0}" "${total:-0}" "${today:-0}" "${extra:-0}")")
+  done
+  [ "${#rows[@]}" -gt 0 ] || return 0
+
+  width="${#title}"
+  for line in "${rows[@]}"; do
+    model="${line%%$'\t'*}"
+    [ "${#model}" -gt "$width" ] && width="${#model}"
+  done
+
+  row_line() { # the one place the column layout is written down
+    local m="$1"; shift
+    if [ -n "$extra_title" ]; then
+      printf '  %-*s %6s %8s %8s %8s %8s %8s\n' "$width" "$m" "$@"
+    else
+      printf '  %-*s %8s %8s %8s %8s %8s\n' "$width" "$m" "$@"
+    fi
+  }
+
+  if [ -n "$extra_title" ]; then
+    row_line "$title" "$extra_title" "in" "cached" "out" "total" "today"
+  else
+    row_line "$title" "in" "cached" "out" "total" "today"
+  fi
+  # Sorted on the 7 day total, which is the fifth column.
+  printf '%s\n' "${rows[@]}" | sort -t $'\t' -k5,5nr | while IFS=$'\t' read -r model in cached out total today extra; do
+    if [ -n "$extra_title" ]; then
+      row_line "$model" "$(human_tokens "$extra")" \
+        "$(human_tokens "$in")" "$(human_tokens "$cached")" "$(human_tokens "$out")" \
+        "$(human_tokens "$total")" "$(human_tokens "$today")"
+    else
+      row_line "$model" \
+        "$(human_tokens "$in")" "$(human_tokens "$cached")" "$(human_tokens "$out")" \
+        "$(human_tokens "$total")" "$(human_tokens "$today")"
+    fi
+  done
+}
+
+# The transcript files worth reading: the ones touched inside the window. A
+# reference file is the portable way to say "newer than this epoch" to find.
+# Fills the TOK_FILES array, empty when there is nothing to read.
+TOK_FILES=()
+token_files() {
+  local dir="$1" ref
+  TOK_FILES=()
+  [ -d "$dir" ] || return 0
+  ref="$(mktemp)" || return 0
+  touch -d "@$TOK_WEEK0" "$ref" 2>/dev/null || { rm -f "$ref"; return 0; }
+  mapfile -d '' -t TOK_FILES < <(find "$dir" -type f -name '*.jsonl' -newer "$ref" -print0 2>/dev/null)
+  rm -f "$ref"
+}
+
+# --- usage tokens claude: what Claude Code writes in ~/.claude/projects -------
+# Every assistant line carries .message.usage and .message.model. The four
+# counters are disjoint there, so the total is their sum: cache creation counts
+# as input, cache reads are the "cached" column. The "<synthetic>" model is not
+# a real call. One jq pass over the files, no shell loop on the lines.
+tokens_claude() {
+  local tsv
+  command -v jq >/dev/null 2>&1 || { echo "  jq is missing"; return 1; }
+  token_windows
+  token_files "$HOME/.claude/projects"
+  if [ "${#TOK_FILES[@]}" -eq 0 ]; then
+    echo "  no local transcripts"
+    return 0
+  fi
+
+  tsv="$(jq -nRr --argjson day0 "$TOK_DAY0" --argjson week0 "$TOK_WEEK0" '
+    def num($v): if ($v | type) == "number" then $v else 0 end;
+    # Truncated or half written lines happen, fromjson? drops them.
+    reduce ( inputs | (fromjson? // empty)
+             | select(type == "object")
+             | { ts: .timestamp, msg: (try .message catch null) }
+             | select((.msg | type) == "object")
+             | select((.msg.usage | type) == "object")
+             | select((.msg.model | type) == "string" and .msg.model != "<synthetic>")
+             | { m: .msg.model,
+                 t: ((.ts // "") | if type == "string" and . != ""
+                     then ((sub("\\.[0-9]+"; "") | fromdateiso8601?) // 0) else 0 end),
+                 i: (num(.msg.usage.input_tokens) + num(.msg.usage.cache_creation_input_tokens)),
+                 c: num(.msg.usage.cache_read_input_tokens),
+                 o: num(.msg.usage.output_tokens) }
+             | select(.t >= $week0)
+           ) as $e ({};
+      .[$e.m] = ((.[$e.m] // { i: 0, c: 0, o: 0, d: 0 })
+                 | .i += $e.i | .c += $e.c | .o += $e.o
+                 | if $e.t >= $day0 then .d += ($e.i + $e.c + $e.o) else . end))
+    | to_entries[]
+    | [ .key, (.value.i | tostring), (.value.c | tostring), (.value.o | tostring),
+        ((.value.i + .value.c + .value.o) | tostring), (.value.d | tostring) ]
+    | @tsv
+  ' "${TOK_FILES[@]}" 2>/dev/null)" || {
+    echo "  unreadable transcripts in ~/.claude/projects"
+    return 1
+  }
+  if [ -z "$tsv" ]; then
+    echo "  no tokens in the last 7 days"
+    return 0
+  fi
+  printf '%s\n' "$tsv" | render_tokens "Tokens, last 7 days"
+}
+
+# --- usage tokens codex: what codex writes in ~/.codex/sessions --------------
+# A rollout file is one session. Its token_count events carry a running total
+# for the session in info.total_token_usage, so what a single event adds is its
+# difference with the event before it in the same file, which is why the jq
+# below keeps state per input_filename. The model is whatever the file said
+# last, on the session header or on a later settings event. cached_input_tokens
+# is a part of input_tokens here, so the total does not add it a second time.
+# Format read off the codex protocol source, not verified against a real
+# session: no box has one yet.
+tokens_codex() {
+  local tsv
+  command -v jq >/dev/null 2>&1 || { echo "  jq is missing"; return 1; }
+  token_windows
+  token_files "$HOME/.codex/sessions"
+  if [ "${#TOK_FILES[@]}" -eq 0 ]; then
+    echo "  no local sessions"
+    return 0
+  fi
+
+  tsv="$(jq -nRr --argjson day0 "$TOK_DAY0" --argjson week0 "$TOK_WEEK0" '
+    def num($v): if ($v | type) == "number" then $v else 0 end;
+    def pos($v): if $v > 0 then $v else 0 end;
+    reduce ( inputs | (fromjson? // empty)
+             | select(type == "object")
+             | { f: input_filename,
+                 t: ((.timestamp // "") | if type == "string" and . != ""
+                     then ((sub("\\.[0-9]+"; "") | fromdateiso8601?) // 0)
+                     elif type == "number" then . else 0 end),
+                 # The model moved around between versions, we take the first
+                 # of the places it has been known to sit.
+                 m: ( [ (try .payload.model catch null),
+                        (try .payload.thread_settings.model catch null),
+                        (try .payload.turn_context.model catch null),
+                        (try .model catch null) ]
+                      | map(select(type == "string" and . != "")) | first ),
+                 u: ( (try .payload.info.total_token_usage catch null)
+                      // (try .info.total_token_usage catch null) ) }
+             | select(.m != null or (.u | type) == "object")
+           ) as $e ({ file: null, model: null, prev: null, acc: {} };
+      # A new file starts a new session: no model and no running total yet.
+      (if .file == $e.f then . else { file: $e.f, model: null, prev: null, acc: .acc } end)
+      | (if $e.m != null then .model = $e.m else . end)
+      | if ($e.u | type) != "object" then .
+        else
+          ($e.u | { i: num(.input_tokens), c: num(.cached_input_tokens),
+                    o: (num(.output_tokens) + num(.cache_write_input_tokens)) }) as $now
+          | (.prev // { i: 0, c: 0, o: 0 }) as $was
+          # A total that went down means the session was reset: take it whole.
+          | (if $now.i >= $was.i and $now.o >= $was.o then $was else { i: 0, c: 0, o: 0 } end) as $base
+          | { i: pos($now.i - $base.i), c: pos($now.c - $base.c), o: pos($now.o - $base.o) } as $d
+          | .prev = $now
+          | (.model // "unknown") as $m
+          | if $e.t < $week0 then .
+            else .acc[$m] = ((.acc[$m] // { i: 0, c: 0, o: 0, d: 0 })
+                 | .i += $d.i | .c += $d.c | .o += $d.o
+                 | if $e.t >= $day0 then .d += ($d.i + $d.o) else . end)
+            end
+        end)
+    | .acc | to_entries[]
+    | [ .key, (.value.i | tostring), (.value.c | tostring), (.value.o | tostring),
+        ((.value.i + .value.o) | tostring), (.value.d | tostring) ]
+    | @tsv
+  ' "${TOK_FILES[@]}" 2>/dev/null)" || {
+    echo "  unreadable sessions in ~/.codex/sessions"
+    return 1
+  }
+  if [ -z "$tsv" ]; then
+    echo "  no tokens in the last 7 days"
+    return 0
+  fi
+  printf '%s\n' "$tsv" | render_tokens "Tokens, last 7 days"
+}
+
+# --- usage proxy: the OpenAI style usage route of the LLM proxy --------------
+# Hourly buckets from local midnight seven days back, so the day boundaries are
+# the box's own. input_cached_tokens is a part of input_tokens, so "cached" is
+# shown as a part of "in" and the total is input plus output, nothing twice.
+usage_proxy() {
+  local start page body data tsv url guard
+  local -a page_arg=()
+  for c in jq curl; do
+    command -v "$c" >/dev/null 2>&1 || { echo "dev-box-agent: $c is missing" >&2; return 1; }
+  done
+  token_windows
+  start="$TOK_WEEK0"
+  url="$LLM_PROXY_URL/v1/organization/usage/completions"
+
+  data=""
+  page=""
+  guard=0
+  while :; do
+    body="$(curl -fsS --max-time 10 \
+        -H "Authorization: Bearer ${LLM_PROXY_API_KEY:-unused}" \
+        -H "Accept: application/json" \
+        --get --data-urlencode "start_time=$start" \
+        --data-urlencode "bucket_width=1h" \
+        --data-urlencode "group_by=model" \
+        --data-urlencode "limit=168" \
+        "${page_arg[@]}" \
+        "$url" 2>/dev/null || true)"
+    if [ -z "$body" ] || ! printf '%s' "$body" | jq -e 'type == "object"' >/dev/null 2>&1; then
+      echo "  proxy at $LLM_PROXY_URL did not answer (network, or LLM_PROXY_URL not set)"
+      return 1
+    fi
+    if printf '%s' "$body" | jq -e '.error' >/dev/null 2>&1; then
+      printf '  proxy refused the request: %s\n' \
+        "$(printf '%s' "$body" | jq -r '.error.message // "no reason given"')"
+      return 1
+    fi
+    data="$data$(printf '%s' "$body" | jq -c '.data // [] | .[]')"$'\n'
+    # A page that says there is more is followed, a few times at most.
+    page="$(printf '%s' "$body" | jq -r 'if .has_more then (.next_page // "") else "" end')"
+    guard=$(( guard + 1 ))
+    [ -n "$page" ] && [ "$guard" -lt 4 ] || break
+    page_arg=(--data-urlencode "page=$page")
+  done
+
+  tsv="$(printf '%s' "$data" | jq -rn --argjson day0 "$TOK_DAY0" '
+    def num($v): if ($v | type) == "number" then $v else 0 end;
+    reduce ( inputs | . as $b | (.results // [])[]
+             | { m: (.model // "all models"),
+                 t: num($b.start_time),
+                 r: num(.num_model_requests),
+                 i: num(.input_tokens),
+                 c: num(.input_cached_tokens),
+                 o: num(.output_tokens) }
+           ) as $e ({};
+      .[$e.m] = ((.[$e.m] // { r: 0, i: 0, c: 0, o: 0, d: 0 })
+                 | .r += $e.r | .i += $e.i | .c += $e.c | .o += $e.o
+                 | if $e.t >= $day0 then .d += ($e.i + $e.o) else . end))
+    | to_entries[]
+    | [ .key,
+        (.value.i | tostring), (.value.c | tostring), (.value.o | tostring),
+        ((.value.i + .value.o) | tostring), (.value.d | tostring),
+        (.value.r | tostring) ]
+    | @tsv
+  ' 2>/dev/null)" || {
+    echo "  unexpected answer from the proxy at $LLM_PROXY_URL"
+    return 1
+  }
+  if [ -z "$tsv" ]; then
+    echo "  nothing went through the proxy in the last 7 days"
+    return 0
+  fi
+  printf '%s\n' "$tsv" | render_tokens "Model, last 7 days" "req"
+  echo "  cached is the part of in the proxy served from its cache, counted once"
 }
 
 # --- usage claude: Anthropic's OAuth endpoint --------------------------------
@@ -348,19 +653,45 @@ usage_codex() {
   printf '%s\n' "$tsv" | render_usage
 }
 
+# The limits first, then the tokens, each one reported on its own: an account
+# that is not logged in still has transcripts worth counting.
+section_claude() {
+  local rc=0
+  printf '\033[1mClaude Code\033[0m\n'
+  usage_claude || rc=1
+  tokens_claude || rc=1
+  return "$rc"
+}
+
+section_codex() {
+  local rc=0
+  printf '\033[1mCodex\033[0m\n'
+  usage_codex || rc=1
+  tokens_codex || rc=1
+  return "$rc"
+}
+
+section_proxy() {
+  printf '\033[1mLLM proxy\033[0m\n'
+  usage_proxy
+}
+
 do_usage() {
   local which="${1:-}" rc=0
-  # No name: both accounts, each one saying by itself when it is not logged in.
+  # No name: the three of them, each one saying by itself what it cannot read.
   if [ -z "$which" ]; then
-    printf '\033[1mClaude Code\033[0m\n'; usage_claude || rc=1
+    section_claude || rc=1
     echo
-    printf '\033[1mCodex\033[0m\n'; usage_codex || rc=1
+    section_codex || rc=1
+    echo
+    section_proxy || rc=1
     return "$rc"
   fi
   case "$which" in
-    claude) printf '\033[1mClaude Code\033[0m\n'; usage_claude ;;
-    codex)  printf '\033[1mCodex\033[0m\n'; usage_codex ;;
-    *) echo "dev-box-agent: usage is only available for claude and codex" >&2; exit 2 ;;
+    claude)          section_claude ;;
+    codex)           section_codex ;;
+    proxy|llmproxy)  section_proxy ;;
+    *) echo "dev-box-agent: usage is only available for claude, codex and proxy" >&2; exit 2 ;;
   esac
 }
 
@@ -397,14 +728,15 @@ case "${1:-}" in
       default="$(read_agent || true)"
       entries=()
       [ -n "$default" ] && entries+=("Run $default here")
-      entries+=("Pick the default agent" "Usage: Claude Code" "Usage: Codex" "Usage: both")
-      choice="$(printf '%s\n' "${entries[@]}" | gum choose --height 8 --header "Coding agent")" || exit 0
+      entries+=("Pick the default agent" "Usage: Claude Code" "Usage: Codex" "Usage: LLM proxy" "Usage: all")
+      choice="$(printf '%s\n' "${entries[@]}" | gum choose --height 9 --header "Coding agent")" || exit 0
       case "$choice" in
-        "Run "*)           exec "$default" ;;
-        "Pick "*)          set_agent ""; exit 0 ;;
-        "Usage: Claude"*)  do_usage claude; exit $? ;;
-        "Usage: Codex")    do_usage codex; exit $? ;;
-        "Usage: both")     do_usage; exit $? ;;
+        "Run "*)             exec "$default" ;;
+        "Pick "*)            set_agent ""; exit 0 ;;
+        "Usage: Claude"*)    do_usage claude; exit $? ;;
+        "Usage: Codex")      do_usage codex; exit $? ;;
+        "Usage: LLM proxy")  do_usage proxy; exit $? ;;
+        "Usage: all")        do_usage; exit $? ;;
         *) exit 0 ;;
       esac
     fi
