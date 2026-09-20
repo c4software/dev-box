@@ -10,7 +10,8 @@
 #   dev-box-agent which            print the default agent
 #   dev-box-agent prompt <text...> run the agent with an instruction
 #   dev-box-agent usage [claude|codex]
-#                                  account usage and limits
+#                                  account limits, one bar per window with the
+#                                  percentage used and the time left before it resets
 #
 # The agents on offer are the ones shipped by the image (claude, pi, omp,
 # opencode, codex) plus the wrappers written by `devbox mise-install`.
@@ -20,7 +21,7 @@ CONF_DIR="$HOME/.config/dev-box"
 CONF="$CONF_DIR/agent"
 BUILTIN=(claude pi omp opencode codex)
 
-usage() { sed -n '5,16p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '5,17p' "$0" | sed 's/^# \?//'; }
 
 # Early, so that `devbox agent --help` really finds a help to print.
 case "${1:-}" in -h|--help) usage; exit 0 ;; esac
@@ -110,11 +111,113 @@ run_with_prompt() {
   esac
 }
 
+# --- the shared usage renderer -----------------------------------------------
+# The resets are printed in the box's timezone. TZ lives in /etc/devbox/env,
+# which login shells source, but a caller may not have it in its environment.
+# The subshell keeps everything else in that file out of this one.
+if [ -z "${TZ:-}" ] && [ -r /etc/devbox/env ]; then
+  # shellcheck source=/dev/null
+  TZ="$(. /etc/devbox/env 2>/dev/null; printf '%s' "${TZ:-}")"
+  if [ -n "$TZ" ]; then export TZ; else unset TZ; fi
+fi
+
+repeat() { local i s=""; for (( i = 0; i < $2; i++ )); do s+="$1"; done; printf '%s' "$s"; }
+
+# Reads "label<TAB>percent<TAB>reset" lines on stdin, one per window, and
+# prints an aligned label, a 20 cell bar, the percentage, and how long is left
+# before the window resets. percent is empty when unknown, reset is an ISO 8601
+# timestamp, an epoch in seconds, or empty. Colors only on a terminal, so the
+# output stays greppable in a pipe.
+render_usage() {
+  local -a labels=() pcts=() resets=()
+  local label pct reset width=0
+
+  while IFS=$'\t' read -r label pct reset; do
+    [ -n "$label" ] || continue
+    labels+=("$label"); pcts+=("${pct:-}"); resets+=("${reset:-}")
+    [ "${#label}" -gt "$width" ] && width="${#label}"
+  done
+  [ "${#labels[@]}" -gt 0 ] || return 0
+
+  local c_off="" c_green="" c_yellow="" c_red=""
+  if [ -t 1 ] && command -v tput >/dev/null 2>&1; then
+    c_off="$(tput sgr0 2>/dev/null || true)"
+    c_green="$(tput setaf 2 2>/dev/null || true)"
+    c_yellow="$(tput setaf 3 2>/dev/null || true)"
+    c_red="$(tput setaf 1 2>/dev/null || true)"
+  fi
+
+  local i n filled color bar when ts now today delta d h m clock
+  now="$(date +%s)"
+  today="$(date -d "@$now" +%F)"
+  for i in "${!labels[@]}"; do
+    pct="${pcts[$i]}"
+    reset="${resets[$i]}"
+
+    n=""
+    case "$pct" in
+      ''|*[!0-9]*) n="" ;;
+      *) n="$pct"; [ "$n" -gt 100 ] && n=100 ;;
+    esac
+
+    if [ -n "$n" ]; then
+      filled=$(( n * 20 / 100 ))
+      bar="$(repeat '█' "$filled")$(repeat '░' $(( 20 - filled )))"
+      if [ "$n" -lt 50 ]; then color="$c_green"
+      elif [ "$n" -lt 80 ]; then color="$c_yellow"
+      else color="$c_red"; fi
+    else
+      bar="$(repeat ' ' 20)"
+      color=""
+    fi
+
+    # The reset, as a countdown in the box's local time.
+    when=""
+    ts=""
+    if [ -n "$reset" ]; then
+      case "$reset" in
+        *[!0-9]*) ts="$(date -d "$reset" +%s 2>/dev/null || true)" ;;
+        *) ts="$reset" ;;
+      esac
+    fi
+    if [ -n "$ts" ]; then
+      delta=$(( ts - now ))
+      # The day is only worth printing when the reset is not today.
+      if [ "$(date -d "@$ts" +%F)" = "$today" ]; then
+        clock="$(date -d "@$ts" +%H:%M)"
+      else
+        clock="$(date -d "@$ts" '+%a %H:%M')"
+      fi
+      if [ "$delta" -le 0 ]; then
+        when="  resets now"
+      elif [ "$delta" -ge 86400 ]; then
+        d=$(( delta / 86400 )); h=$(( (delta % 86400) / 3600 ))
+        when="  resets in $d d $h h ($clock)"
+      else
+        h=$(( delta / 3600 )); m=$(( (delta % 3600) / 60 ))
+        if [ "$h" -gt 0 ]; then
+          when="  resets in $h h $m min ($clock)"
+        else
+          when="  resets in $m min ($clock)"
+        fi
+      fi
+    fi
+
+    printf '  %-*s  %s%s%s ' "$width" "${labels[$i]}" "$color" "$bar" "$c_off"
+    if [ -n "$n" ]; then
+      printf '%s%3d%%%s' "$color" "$n" "$c_off"
+    else
+      printf '%3s ' "?"
+    fi
+    printf '%s\n' "$when"
+  done
+}
+
 # --- usage claude: Anthropic's OAuth endpoint --------------------------------
 # The token only leaves here in the Authorization header of that call, and
 # nothing is written to disk.
 usage_claude() {
-  local creds="$HOME/.claude/.credentials.json" token payload
+  local creds="$HOME/.claude/.credentials.json" token payload tsv
   for c in jq curl; do
     command -v "$c" >/dev/null 2>&1 || { echo "dev-box-agent: $c is missing" >&2; return 1; }
   done
@@ -143,13 +246,15 @@ usage_claude() {
 
   # The endpoint returns percentages (37.0) sometimes and fractions (0.37)
   # other times: one value >= 1 anywhere in the answer settles it for all.
-  printf '%s' "$payload" | jq -r '
+  # One TSV line per window, "label<TAB>percent<TAB>reset", for render_usage.
+  tsv="$(printf '%s' "$payload" | jq -r '
     def num($v): if ($v | type) == "number" then $v else null end;
     def row($label; $v; $reset; $scale):
-      "  " + $label + ": "
-      + (if $v == null then "?"
-         else (($v | if $scale then . else . * 100 end) | floor | tostring) + " %" end)
-      + (if ($reset // "") == "" then "" else "   resets at: " + ($reset | tostring) end);
+      [ $label,
+        (if $v == null then ""
+         else (($v | if $scale then . else . * 100 end) | floor | tostring) end),
+        (if ($reset // "") == "" then "" else ($reset | tostring) end) ]
+      | @tsv;
     . as $p
     | ([num($p.five_hour.utilization),
         num(($p.seven_day_oauth_apps // $p.seven_day // {}).utilization)]
@@ -168,11 +273,16 @@ usage_claude() {
          | row(((.scope.model.display_name // .scope.model.id // "?") + $win);
                num(.percent); .resets_at; $scale))
       ]
-    | if length == 0 then "  no limit returned by the endpoint" else .[] end
-  ' 2>/dev/null || {
+    | .[]
+  ' 2>/dev/null)" || {
     echo "  unexpected answer from Anthropic's endpoint"
     return 1
   }
+  if [ -z "$tsv" ]; then
+    echo "  no limit returned by the endpoint"
+    return 0
+  fi
+  printf '%s\n' "$tsv" | render_usage
 }
 
 # --- usage codex: codex's own local app server -------------------------------
@@ -180,7 +290,7 @@ usage_claude() {
 # protocol of "codex app-server", over standard input and output. We send the
 # three messages at once and read the answer to request 2.
 usage_codex() {
-  local out
+  local out plan tsv
   command -v jq >/dev/null 2>&1 || { echo "dev-box-agent: jq is missing" >&2; return 1; }
   command -v codex >/dev/null 2>&1 || { echo "dev-box-agent: codex is not on the PATH" >&2; return 1; }
   if [ ! -r "$HOME/.codex/auth.json" ]; then
@@ -206,18 +316,36 @@ usage_codex() {
     return 1
   fi
 
-  printf '%s' "$out" | jq -r '
-    def label($m): if $m == 10080 then "7 d window"
+  plan="$(printf '%s' "$out" | jq -r 'if .planType then "  plan: \(.planType)" else empty end' 2>/dev/null || true)"
+  [ -n "$plan" ] && printf '%s\n' "$plan"
+
+  # One TSV line per window, "label<TAB>percent<TAB>reset", for render_usage.
+  # The app-server gives the reset as resetsAt, an epoch in seconds, on the
+  # versions that carry it, and as a number of seconds left on some others.
+  tsv="$(printf '%s' "$out" | jq -r '
+    def win_label($m): if $m == 10080 then "7 d window"
                    elif ($m | type) == "number" and ($m % 60) == 0 then "\($m / 60 | floor) h window"
                    elif ($m | type) == "number" then "\($m) min window"
                    else "Limit" end;
-    (if .planType then "  plan: \(.planType)" else empty end),
-    (( .primary, .secondary ) | select(. != null and .usedPercent != null)
-      | "  \(label(.windowDurationMins)): \(.usedPercent | floor) %")
-  ' 2>/dev/null || {
+    def reset($w):
+      ($w.resetsAt // $w.resets_at) as $at
+      | ($w.resetsInSeconds // $w.resets_in_seconds) as $in
+      | if ($at | type) == "number" then ($at | floor | tostring)
+        elif ($at | type) == "string" and $at != "" then $at
+        elif ($in | type) == "number" then ((now + $in) | floor | tostring)
+        else "" end;
+    ( .primary, .secondary ) | select(. != null and .usedPercent != null)
+      | [ win_label(.windowDurationMins), (.usedPercent | floor | tostring), reset(.) ]
+      | @tsv
+  ' 2>/dev/null)" || {
     echo "  unexpected answer from codex"
     return 1
   }
+  if [ -z "$tsv" ]; then
+    echo "  unexpected answer from codex"
+    return 1
+  fi
+  printf '%s\n' "$tsv" | render_usage
 }
 
 do_usage() {

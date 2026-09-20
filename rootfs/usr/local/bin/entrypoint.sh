@@ -236,7 +236,9 @@ for _ in $(seq 1 50); do
   sleep 0.2
 done
 
-up_args=(--hostname="$TS_HOSTNAME" --ssh --reset)
+# --operator lets the user drive tailscale serve without sudo. --reset is
+# already there, so the prefs are re-applied at every start.
+up_args=(--hostname="$TS_HOSTNAME" --ssh --reset --operator="$USER_NAME")
 if [ -n "${TS_LOGIN_SERVER:-}" ]; then up_args+=(--login-server="$TS_LOGIN_SERVER"); fi
 if [ -n "${TS_AUTHKEY:-}" ];      then up_args+=(--authkey="$TS_AUTHKEY"); fi
 # shellcheck disable=SC2206

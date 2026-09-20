@@ -170,6 +170,34 @@ Headscale v0.29.3 (`headscale policy check`):
 - `users`: the Unix account inside the box (`USER_NAME`).
 - A `user@` SSH destination requires `src` to contain only that same user.
 
+### Reaching a dev server
+
+A server listening on `0.0.0.0` inside the box is already reachable from the tailnet
+at `http://<TS_HOSTNAME>:<port>`, as long as the Headscale policy allows the port. The
+example grant above does, with its `"ip": ["*"]`. Nothing else to set up, and a server
+bound to `127.0.0.1` is not reachable that way.
+
+`devbox serve` is the other form: `tailscale serve` proxies the port for you, which also
+works for a server bound to `127.0.0.1` only.
+
+```bash
+devbox serve 3000          # tailscale serve --bg --http=3000 3000
+devbox serve 8080:3000     # listen on 8080, proxy to 127.0.0.1:3000
+devbox serve --on 8080 3000   # the same thing, written out
+devbox serve --tcp 5433:5432  # raw TCP passthrough
+devbox serve status        # what is served right now
+devbox serve off 3000      # stop that one, or "off all" for every mapping
+```
+
+It prints the URL it published, `http://dev-box.home.arpa:3000/`. A single port means the
+same port on both sides; the first port of a pair is the one the tailnet sees, the second
+is the port the app listens on in the box.
+
+HTTPS and Funnel are not available with Headscale: the https mode answers
+`error 501 Not Implemented`, so this is plain http, inside the tailnet, and never on the
+Internet. To reach the port from outside the tailnet, map it in `compose.override.yaml`
+or tunnel it with `ssh -L 3000:127.0.0.1:3000 dev@dev-box`.
+
 ## SSH without Tailscale
 
 Set `TS_DISABLE=true` in `.env` and the box starts its own OpenSSH server instead of
@@ -284,14 +312,16 @@ Adding a command therefore means dropping a `dev-box-<name>` script in
 | `migrate` | `dev-box-migrate` | run the migrations shipped by the image, once each |
 | `mise-install` | `dev-box-mise-install` | write a mise-backed wrapper into `~/.local/bin` |
 | `pkg` | `dev-box-pkg` | pacman packages that survive an image rebuild |
+| `serve` | `dev-box-serve` | publish a local port to the tailnet with `tailscale serve` |
 | `tailscale` | `dev-box-tailscale` | Taildrop send and receive, tailnet status |
 
 Every one of them keeps its own name on `PATH`, so `dev-box-update dotfiles` and
 `devbox update dotfiles` are the same thing. The `justfile` and the entrypoint
 call the binaries directly. `dev-box-podman` carries `hidden=true`: it is the
 wrapper behind the `docker` and `podman` symlinks, not a command you call.
-`dev-box-tailscale` carries `requires=tailscale`: with `TS_DISABLE=true` it leaves
-the menu and the list, but `devbox tailscale` still answers, with the reason.
+`dev-box-tailscale` and `dev-box-serve` carry `requires=tailscale`: with
+`TS_DISABLE=true` they leave the menu and the list, but `devbox tailscale` and
+`devbox serve` still answer, with the reason.
 
 Without arguments, `devbox` opens a gum menu listing the commands with their
 summary, and runs the one you pick, which may then be interactive itself. With
@@ -318,11 +348,12 @@ Without a terminal it runs the default agent directly. The list of agents is wha
 the image ships, `claude`, `pi`, `omp`, `opencode` and `codex`, plus any wrapper
 `devbox mise-install` has written.
 
-`devbox agent usage` prints the account limits as plain text and keeps them
-there: nothing is cached on disk and nothing is sent anywhere. For Claude Code
-it reads the OAuth token out of `~/.claude/.credentials.json` and asks
-Anthropic's usage endpoint, so the token only ever travels in that one
-Authorization header. Without credentials it says to run `claude` and `/login`.
+`devbox agent usage` prints one line per limit window, with a twenty cell bar, the
+percentage used and a countdown to the reset in the box's timezone
+(`resets in 2 h 13 min (16:45)`). It keeps everything local: nothing is cached on
+disk and nothing is sent anywhere. For Claude Code it reads the OAuth token out of
+`~/.claude/.credentials.json` and asks Anthropic's usage endpoint, so the token only
+ever travels in that one Authorization header. Without credentials it says to run `claude` and `/login`.
 For Codex it talks to `codex app-server` over stdin, which is where Codex keeps
 its rate limits; when that answers nothing it says so and points at `/status`
 inside Codex.

@@ -37,6 +37,7 @@ the same binary.
 | `migrate` | `dev-box-migrate` | runs the migrations shipped by the image, once each. `--pending`, `--list`, `--mark-done <name>`. |
 | `mise-install` | `dev-box-mise-install` | writes a mise-backed wrapper into `~/.local/bin`. `--list`, `--remove <cmd>`. |
 | `pkg` | `dev-box-pkg` | pacman packages that survive a rebuild. `add`, `drop`, `list`, `install`, `restore`. |
+| `serve` | `dev-box-serve` | publishes a local port to the tailnet with `tailscale serve`. `<port>`, `<listen>:<port>`, `--on <port>`, `--tcp`, `status`, `off [port\|all]`. |
 | `tailscale` | `dev-box-tailscale` | Taildrop and tailnet status. `send`, `receive [--once] [dir]`, `status`. |
 
 `dev-box-podman` carries `# devbox:hidden=true`: it is the wrapper behind the
@@ -122,10 +123,13 @@ The choices are what the image ships (`claude`, `pi`, `omp`, `opencode`,
 `codex`) plus every wrapper written by `devbox mise-install`. Nothing is
 installed by `set`: the wrapper installs its tool on the first call.
 
-`usage` is read only and prints plain text. Claude Code goes through the OAuth
-token in `~/.claude/.credentials.json` and Anthropic's usage endpoint; the
-token travels in that request's Authorization header and nowhere else, and no
-figure is written to disk. Codex goes through `codex app-server` on stdin.
+`usage` is read only and prints one line per limit window: a twenty cell bar,
+the percentage used, and a countdown to the reset in the box's timezone
+(`resets in 2 h 13 min (16:45)`). The colors only appear on a terminal, so the
+output stays greppable. Claude Code goes through the OAuth token in
+`~/.claude/.credentials.json` and Anthropic's usage endpoint; the token travels
+in that request's Authorization header and nowhere else, and no figure is
+written to disk. Codex goes through `codex app-server` on stdin.
 Without credentials each one says which command to run to log in.
 
 ## migrate
@@ -194,6 +198,33 @@ Taildrop, plus the state of the link. `receive` loops on
 returns after the first delivery. With `TS_DISABLE=true` there is no tailnet,
 so every subcommand says so and exits 1. Taildrop works with Headscale 0.23 and
 later, between machines of the same user.
+
+## serve
+
+```bash
+devbox serve <port>             # listen on <port>, proxy to 127.0.0.1:<port>
+devbox serve 8080:3000          # listen on 8080, proxy to 127.0.0.1:3000
+devbox serve --on 8080 3000     # the same thing, written out
+devbox serve --tcp 5433:5432    # raw TCP passthrough instead of http
+devbox serve status             # what this box serves right now
+devbox serve off [port|all]     # stop one mapping, or every one of them
+```
+
+A wrapper around `tailscale serve`, in plain http only: Headscale does not
+implement the HTTPS feature, so the default https mode answers
+`error 501 Not Implemented`, and Funnel is out for the same reason. What is
+served is reachable from the tailnet only, at the URL the command prints,
+`http://dev-box.home.arpa:3000/`. A single port means the same port on both
+sides; in a pair, the first one is what the tailnet sees and the second is the
+port the app listens on inside the box.
+
+A server already bound to `0.0.0.0` in the box needs none of this: it answers
+on `http://<TS_HOSTNAME>:<port>` as soon as the Headscale policy allows the
+port. `devbox serve` is for a server bound to `127.0.0.1`, or to publish it on
+another port. Running it as the user needs the tailnet operator to be set,
+which `tailscale up --operator` does at every start; on a box that has not
+restarted since, the command falls back to `sudo` once and says so. With
+`TS_DISABLE=true` there is no tailnet, so it says so and exits 1.
 
 ## What is not a devbox command
 

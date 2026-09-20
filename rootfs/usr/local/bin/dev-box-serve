@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# devbox:name=serve
+# devbox:summary=Publish a local port to the tailnet with tailscale serve
+# devbox:args=[<port>|<listen>:<port>|--on <port>|--tcp|status|off]
+# devbox:requires=tailscale
+# Publishing a dev server running inside the box to the other machines of the
+# tailnet, through tailscale serve. Plain http only: Headscale does not
+# implement the HTTPS feature, so the https mode answers 501 Not Implemented.
+#
+#   dev-box-serve <port>              listen on <port>, proxy to 127.0.0.1:<port>
+#   dev-box-serve 8080:3000           listen on 8080, proxy to 127.0.0.1:3000
+#   dev-box-serve --on 8080 3000      the same thing, written out
+#   dev-box-serve --tcp <port>        raw TCP passthrough, same port both sides
+#   dev-box-serve --tcp 5433:5432     raw TCP, listen on 5433, app on 5432
+#   dev-box-serve status              what this box serves right now
+#   dev-box-serve off [port|all]      stop one mapping, or every one of them
+#
+# The first port of a pair is the one the tailnet sees, the second is the port
+# the app listens on inside the box; a single port means the same on both
+# sides. What is served is reachable from the tailnet only, never from the
+# Internet: Funnel needs the same HTTPS feature as https, and is not available
+# with Headscale either.
+set -euo pipefail
+
+usage() { sed -n '6,22p' "$0" | sed 's/^# \?//'; }
+
+# The help stays readable even when Tailscale is off.
+case "${1:-}" in -h|--help) usage; exit 0 ;; esac
+
+# TS_DISABLE is not in the environment of an SSH session: the entrypoint writes
+# it into /etc/devbox/env, which login shells source.
+if [ -z "${TS_DISABLE:-}" ] && [ -r /etc/devbox/env ]; then
+  # shellcheck source=/dev/null
+  . /etc/devbox/env
+fi
+if [ "${TS_DISABLE:-false}" = "true" ]; then
+  echo "Tailscale is off on this box (TS_DISABLE=true)." >&2
+  echo "No tailnet here, so nothing to serve. Publish the port with a compose.override.yaml mapping instead." >&2
+  exit 1
+fi
+command -v tailscale >/dev/null 2>&1 || {
+  echo "dev-box-serve: tailscale is not on the PATH" >&2
+  exit 1
+}
+
+log() { echo "[dev-box-serve] $*"; }
+
+check_port() {
+  local p="$1" what="$2"
+  case "$p" in
+    ''|*[!0-9]*) echo "dev-box-serve: $what '$p' is not a port number" >&2; exit 2 ;;
+  esac
+  if [ "$p" -lt 1 ] || [ "$p" -gt 65535 ]; then
+    echo "dev-box-serve: $what '$p' is outside 1..65535" >&2
+    exit 2
+  fi
+}
+
+# Every call to tailscale serve goes through here. Run as the user, serve is
+# refused until the operator is set in the tailnet prefs; the entrypoint now
+# passes --operator to tailscale up, so one restart of the box settles it for
+# good. Until then we retry the same call with the passwordless sudo the box
+# user already has.
+ts_serve() {
+  local err
+  err="$(mktemp)"
+  if tailscale serve "$@" 2>"$err"; then
+    rm -f "$err"
+    return 0
+  fi
+  if grep -qi "Access denied" "$err"; then
+    if sudo -n tailscale serve "$@" 2>/dev/null; then
+      rm -f "$err"
+      log "done through sudo: restart the box once so tailscale up applies --operator, then sudo is no longer needed"
+      return 0
+    fi
+  fi
+  cat "$err" >&2
+  rm -f "$err"
+  return 1
+}
+
+# The name of the box on the tailnet, without the trailing dot. The hostname is
+# the fallback when jq is missing or tailscaled answers nothing.
+box_name() {
+  local name=""
+  if command -v jq >/dev/null 2>&1; then
+    name="$(tailscale status --json 2>/dev/null | jq -r '.Self.DNSName // empty' 2>/dev/null || true)"
+  fi
+  name="${name%.}"
+  [ -n "$name" ] || name="$(hostname)"
+  printf '%s' "$name"
+}
+
+serve_url() {
+  local listen="$1" name
+  name="$(box_name)"
+  if [ "$listen" = "80" ]; then
+    printf 'http://%s/' "$name"
+  else
+    printf 'http://%s:%s/' "$name" "$listen"
+  fi
+}
+
+# Lines of "tailscale serve status" that describe a mapping start with the
+# scheme of what is published.
+mapping_count() {
+  tailscale serve status 2>/dev/null | grep -c -E '^(http|tcp)://' || true
+}
+
+do_off() {
+  local listen="$1" tcp="$2" n
+  if [ "$listen" = "all" ]; then
+    ts_serve reset
+    log "every mapping is off"
+    return 0
+  fi
+  if [ -z "$listen" ]; then
+    n="$(mapping_count)"
+    if [ "$n" -eq 0 ]; then
+      log "nothing is served right now"
+      return 0
+    fi
+    if [ "$n" -gt 1 ]; then
+      echo "dev-box-serve: this box serves $n ports, so say which one:" >&2
+      tailscale serve status >&2 || true
+      echo "Then: devbox serve off <listen-port>, or devbox serve off all" >&2
+      return 2
+    fi
+    ts_serve reset
+    log "the only mapping is off"
+    return 0
+  fi
+  check_port "$listen" "listen port"
+  if [ "$tcp" = "true" ]; then
+    ts_serve --tcp="$listen" off
+  else
+    ts_serve --http="$listen" off
+  fi
+  log "port $listen is no longer served"
+}
+
+do_serve() {
+  local port="$1" listen="$2" tcp="$3"
+  check_port "$port" "port"
+  if [ "$tcp" = "true" ]; then
+    [ -n "$listen" ] || listen="$port"
+    check_port "$listen" "listen port"
+    ts_serve --bg --tcp="$listen" "tcp://localhost:$port"
+    log "$(box_name):$listen forwards raw TCP to localhost:$port"
+    log "reachable from the tailnet only, as long as the Headscale policy allows the port"
+    log "to stop it: devbox serve --tcp off $listen"
+    return 0
+  else
+    [ -n "$listen" ] || listen="$port"
+    check_port "$listen" "listen port"
+    # Never the default https mode: Headscale answers 501 Not Implemented.
+    ts_serve --bg --http="$listen" "$port"
+    log "$(serve_url "$listen") proxies to 127.0.0.1:$port"
+  fi
+  log "reachable from the tailnet only, in plain http, as long as the Headscale policy allows the port"
+  log "to stop it: devbox serve off $listen"
+}
+
+listen=""
+tcp=false
+port=""
+action=""
+
+# A positional argument is either "<port>" or the docker style
+# "<listen-port>:<app-port>".
+take_port() {
+  local arg="$1"
+  case "$arg" in
+    *:*)
+      listen="${arg%%:*}"
+      port="${arg#*:}"
+      case "$port" in *:*) echo "dev-box-serve: '$arg' is not a <listen>:<port> pair" >&2; exit 2 ;; esac
+      check_port "$listen" "listen port"
+      check_port "$port" "port"
+      ;;
+    *)
+      port="$arg"
+      check_port "$port" "port"
+      ;;
+  esac
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --on)   [ $# -ge 2 ] || { echo "dev-box-serve: --on needs a port" >&2; exit 2; }
+            listen="$2"; shift 2 ;;
+    --on=*) listen="${1#--on=}"; shift ;;
+    --tcp)  tcp=true; shift ;;
+    status) action=status; shift ;;
+    off)    action=off; shift
+            if [ $# -gt 0 ]; then
+              case "$1" in
+                all) listen=all; shift ;;
+                *:*) listen="${1%%:*}"; shift ;;
+                *)   listen="$1"; shift ;;
+              esac
+            fi ;;
+    -h|--help) usage; exit 0 ;;
+    -*)     echo "dev-box-serve: unknown option '$1'" >&2; usage >&2; exit 2 ;;
+    *)      if [ -n "$port" ]; then
+              echo "dev-box-serve: one port at a time, got '$port' and '$1'" >&2
+              exit 2
+            fi
+            take_port "$1"; shift ;;
+  esac
+done
+
+case "$action" in
+  status) ts_serve status ;;
+  off)    do_off "$listen" "$tcp" ;;
+  *)
+    if [ -z "$port" ]; then
+      usage >&2
+      exit 2
+    fi
+    do_serve "$port" "$listen" "$tcp"
+    ;;
+esac
