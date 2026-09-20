@@ -54,7 +54,7 @@ status:
     built="$(docker run --rm --entrypoint sh dev-box-dev-box -c '. /etc/devbox/release && echo "$DEVBOX_COMMIT"' 2>/dev/null || echo unknown)"
     head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
     if [ "$built" = unknown ]; then
-        echo "image: unknown commit (built without just), just rebuild to bake it in"
+        echo "image: unknown commit (built from a context without .git), just rebuild to bake it in"
     elif [ "$built" = "$head" ]; then
         echo "image: up to date (${built:0:7})"
     else

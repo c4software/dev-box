@@ -4,11 +4,11 @@ services:
       context: .
       # Repo commit baked into the image (/etc/devbox/release): the update
       # check inside the box compares it with the remote repo. Set by the
-      # justfile; a bare docker compose build records "unknown".
+      # justfile; left empty, the Dockerfile reads them from the clone itself.
       args:
-        DEVBOX_COMMIT: ${DEVBOX_COMMIT:-unknown}
+        DEVBOX_COMMIT: ${DEVBOX_COMMIT:-}
         DEVBOX_REPO: ${DEVBOX_REPO:-}
-        DEVBOX_BRANCH: ${DEVBOX_BRANCH:-main}
+        DEVBOX_BRANCH: ${DEVBOX_BRANCH:-}
     container_name: dev-box
     hostname: ${TS_HOSTNAME:-dev-box}
     init: true

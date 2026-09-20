@@ -59,13 +59,28 @@ RUN pacman -Syu --noconfirm --needed --disable-sandbox \
     && rm -rf /var/cache/pacman/pkg/*
 
 COPY rootfs/ /
-# Commit of the dev-box repo the image was built from (build args, set by the
-# justfile): dev-box-check-updates compares it with the remote repo.
-ARG DEVBOX_COMMIT=unknown
+# Commit of the dev-box repo the image was built from: dev-box-check-updates
+# compares it with the remote repo. The justfile passes it as build args; a
+# bare `docker compose build` leaves them empty and the build reads the clone
+# it runs from instead (the context is mounted read-only, nothing is copied
+# into the image). A context with no .git (a tarball) records "unknown".
+ARG DEVBOX_COMMIT=
 ARG DEVBOX_REPO=
-ARG DEVBOX_BRANCH=main
-RUN printf 'DEVBOX_COMMIT=%s\nDEVBOX_REPO=%s\nDEVBOX_BRANCH=%s\n' \
-      "$DEVBOX_COMMIT" "$DEVBOX_REPO" "$DEVBOX_BRANCH" > /etc/devbox/release \
+ARG DEVBOX_BRANCH=
+RUN --mount=type=bind,target=/ctx,ro \
+    commit="$DEVBOX_COMMIT"; repo="$DEVBOX_REPO"; branch="$DEVBOX_BRANCH"; \
+    if [ -e /ctx/.git ]; then \
+      # the clone belongs to the host user, not root: git refuses it otherwise
+      g="git -c safe.directory=/ctx -C /ctx"; \
+      [ -n "$commit" ] && [ "$commit" != unknown ] || commit="$($g rev-parse HEAD 2>/dev/null || echo unknown)"; \
+      [ -n "$repo" ] || repo="$($g remote get-url origin 2>/dev/null || true)"; \
+      [ -n "$branch" ] || branch="$($g rev-parse --abbrev-ref HEAD 2>/dev/null || true)"; \
+    fi; \
+    [ -n "$commit" ] || commit=unknown; \
+    [ -n "$branch" ] && [ "$branch" != HEAD ] || branch=main; \
+    printf 'DEVBOX_COMMIT=%s\nDEVBOX_REPO=%s\nDEVBOX_BRANCH=%s\n' \
+      "$commit" "$repo" "$branch" > /etc/devbox/release \
+    && echo "release: $commit $repo ($branch)" \
     && chmod +x /usr/local/bin/* \
     # podman-docker exports DOCKER_HOST in every login shell, socket or not:
     # we keep it only when the socket exists (see /etc/devbox/zshenv).
