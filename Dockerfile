@@ -20,7 +20,10 @@ ENV LANG=C.UTF-8
 # Paquets = ce que la conf de dotarchy/common-no-omarchy et ses scripts try/proj
 # appellent (zsh, tmux, LazyVim, gum, fzf, jq…) + le socle (tailscale, rsync…)
 # + podman rootless (cf. /etc/containers/ et « Containers inside the box »)
-# + libyaml, dont le ruby précompilé posé par dev-box-dev-env a besoin (psych).
+# + libyaml, dont le ruby précompilé posé par dev-box-dev-env a besoin (psych)
+# + php, composer, php-sqlite, php-gd, php-sodium, xdebug : mise ne sait que compiler PHP (5 à 15 min
+#   et une pile de headers), donc PHP est le seul environnement de dev-box-dev-env
+#   qui vient de l'image, comme chez omarchy.
 # podman tire déjà passt, shadow, conmon et containers-common ; netavark tire
 # aardvark-dns : seuls les paquets qu'aucun autre n'apporte sont listés ici.
 RUN pacman -Syu --noconfirm --needed --disable-sandbox \
@@ -30,6 +33,7 @@ RUN pacman -Syu --noconfirm --needed --disable-sandbox \
       neovim luarocks tree-sitter-cli \
       starship zoxide fzf eza bat ripgrep fd lazygit jq \
       libyaml \
+      php composer php-sqlite php-gd php-sodium xdebug \
       podman podman-docker docker-compose fuse-overlayfs crun netavark slirp4netns \
     # mise n'est pas dans les dépôts Arch Linux ARM : on retombe sur
     # l'installeur officiel, en posant le binaire dans le PATH de tout le monde
@@ -43,6 +47,11 @@ RUN pacman -Syu --noconfirm --needed --disable-sandbox \
     # Les images de base Arch perdent les capabilities de fichier (le tar qui
     # les produit ne garde pas les xattrs) : sans elles, podman rootless échoue
     # sur « newuidmap: Could not set caps ». On les repose explicitement.
+    # PHP prêt pour le dev : extensions courantes et xdebug activés (omarchy fait
+    # pareil dans omarchy-install-dev-env, ici c'est figé dans l'image).
+    && sed -i -E 's/^;(extension=(bcmath|intl|iconv|openssl|pdo_sqlite|pdo_mysql|sqlite3|mysqli|zip|gd|sodium))$/\1/' /etc/php/php.ini \
+    && sed -i -e 's/^;zend_extension=xdebug.so/zend_extension=xdebug.so/' \
+              -e 's/^;xdebug.mode=debug/xdebug.mode=debug/' /etc/php/conf.d/xdebug.ini \
     && setcap cap_setuid+ep /usr/bin/newuidmap \
     && setcap cap_setgid+ep /usr/bin/newgidmap \
     && pacman -Scc --noconfirm --disable-sandbox \

@@ -3,7 +3,7 @@ name: devbox
 description: >
   REQUIRED whenever work touches the dev-box container itself rather than a
   project inside it. Use for the `devbox` command and any `dev-box-*` binary
-  (seed, update, check, status, dev-env, podman), for `/etc/devbox/`,
+  (seed, update, check, status, dev-env, dbs, podman), for `/etc/devbox/`,
   `/usr/share/devbox/`, `~/.config/dev-box/`, the global mise config
   `~/.config/mise/config.toml`, installing a language or dev environment in the
   box, rootless podman inside the box, dotfiles sync (dotarchy-sync), updating
@@ -94,16 +94,18 @@ Never guess a command name. Run `devbox commands`.
 1. **Is it a box command?** Use `devbox <cmd>`. See `commands.md`.
 2. **Is it a dev tool or a language?** `devbox dev-env <env>`, or
    `mise use -g <tool>`. Never `sudo pacman -S`, which is lost on rebuild.
-3. **Is it a system package?** It belongs in the `Dockerfile`. See
+3. **Is it a database to run?** `devbox dbs <db>`: a podman container, data in a
+   named volume. Never install a database server in the box itself.
+4. **Is it a system package?** It belongs in the `Dockerfile`. See
    `extending.md`.
-4. **Is it a config file shipped by the image?** It is in the `SEEDS` table of
+5. **Is it a config file shipped by the image?** It is in the `SEEDS` table of
    `dev-box-seed`. Change it in the repository, not in `/etc/devbox/`.
-5. **Is it a personal tweak to the dotfiles config?** Put it in
+6. **Is it a personal tweak to the dotfiles config?** Put it in
    `~/.config/dev-box/overrides/`, which mirrors the home.
-6. **Is it a change to the dotfiles themselves?** They belong to the dotarchy
+7. **Is it a change to the dotfiles themselves?** They belong to the dotarchy
    repository, not to this box. `devbox sync` only copies them here.
-7. **Is it an update?** Nothing is automatic. See `updates.md`.
-8. **Unsure?** `devbox status`, then `devbox commands`.
+8. **Is it an update?** Nothing is automatic. See `updates.md`.
+9. **Unsure?** `devbox status`, then `devbox commands`.
 
 ## Out of Scope
 
@@ -116,6 +118,8 @@ Never guess a command name. Run `devbox commands`.
 ## Example Requests
 
 - "Install Go" -> `devbox dev-env go`
+- "Start a postgres" -> `devbox dbs postgres`; `devbox dbs --list` for what is
+  running and what is on offer
 - "What is available to install?" -> `devbox dev-env --list`
 - "Update the box" -> `devbox update`, after saying what it will do
 - "Is there anything to update?" -> `devbox check`, then `devbox status`

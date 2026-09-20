@@ -258,6 +258,7 @@ Adding a command therefore means dropping a `dev-box-<name>` script in
 | `seed` | `dev-box-seed` | lay down the config shipped by the image |
 | `sync` | `dotarchy-sync` | pull the dotfiles and apply them |
 | `dev-env` | `dev-box-dev-env` | install a dev environment with mise |
+| `dbs` | `dev-box-dbs` | start a development database in a podman container |
 
 Every one of them keeps its own name on `PATH`, so `dev-box-update dotfiles` and
 `devbox update dotfiles` are the same thing. The `justfile` and the entrypoint
@@ -335,9 +336,9 @@ GitHub API rate limits.
 
 ### Dev environments
 
-`devbox dev-env` installs a whole language environment in one call, through mise and
-nothing else. No pacman, no `curl | sh`. Whatever it installs is therefore declared in
-`~/.config/mise/config.toml`, survives a rebuild, and is upgraded by
+`devbox dev-env` installs a whole language environment in one call, through mise.
+No `curl | sh`, and no pacman except for PHP (see below). Whatever mise installs is
+declared in `~/.config/mise/config.toml`, survives a rebuild, and is upgraded by
 `devbox update tools` like the rest.
 
 ```bash
@@ -346,7 +347,7 @@ devbox dev-env node go     # install these two
 devbox dev-env             # menu, several at a time
 ```
 
-![dev-box-dev-env --list in the box: the fourteen environments with a one line description each](docs/screenshots/dev-env-list.png)
+![dev-box-dev-env --list in the box: the environments with a one line description each](docs/screenshots/dev-env-list.png)
 
 Without arguments it opens a gum menu with multiple selection, the environments on
 the left and their description on the right. Running it again on an environment
@@ -358,10 +359,16 @@ spending minutes on a compiler, and installs Rails. `elixir` runs `mix local.hex
 and `phoenix` adds rebar and the `phx_new` generator. `rust` is the mise toolchain,
 not rustup, so there is a single place where versions are declared.
 
-PHP, Laravel, Symfony and OCaml are not offered. Upstream, in Omarchy's
-`omarchy-install-dev-env`, they come from pacman packages or from the opam installer.
-Either would be wiped by the next image rebuild, which is exactly what this command
-is meant to avoid. Install PHP through the `Dockerfile` if you need it.
+PHP is the one exception. mise can only build PHP from source, which takes minutes
+and needs a pile of development headers, so `php`, `composer`, `php-sqlite`,
+`php-gd`, `php-sodium` and `xdebug` are pacman packages baked into the image, with
+the usual extensions and xdebug already enabled at build time. `devbox dev-env php`
+only checks and shows what is there. `laravel` adds Node and the Laravel installer
+through `composer global`, kept in `~/.config/composer`, which is in the PATH and in
+the persistent home. `symfony` adds `symfony-cli` through mise's github backend.
+
+OCaml is not offered: upstream it goes through the opam installer, which would be
+wiped by the next image rebuild.
 
 ### Containers inside the box
 
@@ -419,6 +426,57 @@ Known limits:
   overlay on heavy I/O.
 - Docker on the host still owns the box itself. `just up`, `just rebuild` and
   friends run on the host, not in here.
+
+### Databases
+
+`devbox dbs` starts a development database in a podman container inside the box.
+Same images and same development options as `omarchy-install-docker-dbs` on the
+host: no password, or a password you already know. It needs rootless podman
+enabled (the section above). Without it, it prints the three steps and stops
+instead of starting half of the containers.
+
+```bash
+devbox dbs                          # menu, several at a time
+devbox dbs postgres redis           # start these two
+devbox dbs --list                   # image, port and current state of each
+devbox dbs --stop redis             # stop it, keep everything
+devbox dbs --start redis            # start it again
+devbox dbs --remove redis           # drop the container, keep the data
+devbox dbs --remove --purge redis   # drop the data too, asks for confirmation
+```
+
+![dev-box-dbs --list in the box: the six databases with their image, their port and their state, postgres and redis up](docs/screenshots/dev-box-dbs-list.png)
+
+| Name | Image | Port | Credentials |
+|---|---|---|---|
+| `mysql` | `mysql:8.4` | 3306 | user `root`, empty password |
+| `postgres` | `postgres:18` | 5432 | user `postgres`, `trust`, no password |
+| `mariadb` | `mariadb:11.8` | 3306 | user `root`, empty password |
+| `redis` | `redis:7` | 6379 | none |
+| `mongodb` | `mongo:noble` | 27017 | `admin` / `admin123` |
+| `mssql` | `mcr.microsoft.com/mssql/server:2022-CU12-ubuntu-22.04` | 1433 | `sa` / `@dmin123`, amd64 only |
+
+Each container is named `devbox-<name>` and keeps its data in a podman volume
+called `devbox-<name>`. `--remove` drops the container and leaves the volume, so
+`devbox dbs <name>` right after comes back on the same data. `--purge` is the
+only thing that deletes it, and it asks first.
+
+`mysql` and `mariadb` both want port 3306: starting the second one is refused,
+with the name of the one already running. `mssql` has no arm64 image, so it is
+refused on a Raspberry Pi 5 rather than failing on a pull.
+
+Ports are published on `127.0.0.1`, as they are on the host, so a database is
+reachable from inside the box only: `psql -h 127.0.0.1 -U postgres`. From your
+laptop, go through an SSH tunnel to the box:
+
+```bash
+ssh -L 5432:127.0.0.1:5432 dev@dev-box
+```
+
+Nothing restarts on its own, here as everywhere else in the box. After a restart
+of the container, bring a database back with `devbox dbs postgres`, which starts
+the existing container instead of creating a new one, or with
+`devbox dbs --start postgres`.
 
 ## Agent configuration
 

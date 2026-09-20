@@ -64,7 +64,8 @@ config.
 Add a line to the `ENVS` array of `rootfs/usr/local/bin/dev-box-dev-env`
 (`name|short description`) and an `install_<name>` function next to the others.
 Only `mise use -g`: no pacman, no `curl | sh`. That is the whole point of the
-command, and the reason PHP and OCaml are not in it.
+command. PHP is the one exception, baked into the image through the `Dockerfile`
+because mise would have to compile it; OCaml is not in it for the same reason.
 
 ### A new devbox command
 

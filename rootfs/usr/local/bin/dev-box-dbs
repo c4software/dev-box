@@ -1,0 +1,320 @@
+#!/usr/bin/env bash
+# devbox:name=dbs
+# devbox:summary=Lance une base de données de dev dans un conteneur podman
+# devbox:args=[db…|--list|--remove]
+#
+# Bases de données de développement, dans des conteneurs podman rootless de la
+# box, sur le modèle de `omarchy-install-docker-dbs` de l'hôte : mêmes images,
+# mêmes options de dev (pas de mot de passe, ou un mot de passe connu).
+#
+#   dev-box-dbs                  menu interactif (gum, sélection multiple)
+#   dev-box-dbs postgres redis   lance ces bases
+#   dev-box-dbs --list           les bases, leur image, leur port, leur état
+#   dev-box-dbs --start <db…>    redémarre un conteneur existant
+#   dev-box-dbs --stop <db…>     arrête un conteneur, sans rien effacer
+#   dev-box-dbs --remove <db…>   supprime le conteneur, garde le volume
+#   dev-box-dbs --remove --purge <db…>   supprime aussi les données
+#
+# Les ports sont publiés sur 127.0.0.1 : accessibles depuis la box, pas depuis
+# l'extérieur (tunnel SSH pour ça, voir le README). Les données vivent dans un
+# volume podman nommé « devbox-<db> », qui survit à --remove.
+#
+# Rien ne redémarre tout seul : après un redémarrage de la box, relancer la
+# base avec `devbox dbs <db>` ou `devbox dbs --start <db>`.
+
+# Les fonctions env_* sont appelées indirectement, par « env_${name} ».
+# shellcheck disable=SC2329
+set -euo pipefail
+
+# Le wrapper /usr/local/bin/podman est devant dans le PATH : il n'apporte rien
+# ici, le message d'activation est déjà géré plus bas.
+PODMAN="/usr/bin/podman"
+SOCK="/run/user/$(id -u)/podman/podman.sock"
+
+# <nom>|<image>|<port>|<chemin des données dans le conteneur>|<description>
+DBS=(
+  "mysql|mysql:8.4|3306|/var/lib/mysql|MySQL 8.4, root sans mot de passe"
+  "postgres|postgres:18|5432|/var/lib/postgresql|PostgreSQL 18, utilisateur postgres, trust"
+  "mariadb|mariadb:11.8|3306|/var/lib/mysql|MariaDB 11.8, root sans mot de passe"
+  "redis|redis:7|6379|/data|Redis 7, sans mot de passe"
+  "mongodb|mongo:noble|27017|/data/db|MongoDB, admin / admin123"
+  "mssql|mcr.microsoft.com/mssql/server:2022-CU12-ubuntu-22.04|1433|/var/opt/mssql|SQL Server 2022, sa / @dmin123 (amd64 seulement)"
+)
+
+log() { printf '\033[1m[dev-box-dbs]\033[0m %s\n' "$*"; }
+err() { echo "dev-box-dbs : $*" >&2; }
+
+db_names() {
+  local d
+  for d in "${DBS[@]}"; do printf '%s\n' "${d%%|*}"; done
+}
+
+# db_field <nom> <n° de champ> : image (2), port (3), chemin (4), description (5)
+db_field() {
+  local d
+  for d in "${DBS[@]}"; do
+    [ "${d%%|*}" = "$1" ] && { printf '%s' "$(echo "$d" | cut -d'|' -f"$2")"; return 0; }
+  done
+  return 1
+}
+
+# --- Podman doit être actif ---------------------------------------------------
+# Même message que le wrapper dev-box-podman : sans socket, on ne lance rien,
+# plutôt que de créer la moitié des conteneurs et d'échouer sur le reste.
+require_podman() {
+  [ -S "$SOCK" ] && return 0
+  local state="disabled"
+  [ -r /etc/devbox/podman.state ] && state="$(cat /etc/devbox/podman.state)"
+  {
+    echo "dev-box-dbs : podman n'est pas actif sur cette box, aucune base lancée."
+    if [ "$state" != "enabled" ]; then
+      echo "  Podman rootless est désactivé (PODMAN_ENABLE absent ou false dans .env)."
+      echo "  Pour l'activer, sur l'hôte :"
+      echo "    1. décommenter le bloc podman de compose.override.example.yaml"
+      echo "       (/dev/fuse + security_opt) dans compose.override.yaml ;"
+      echo "    2. PODMAN_ENABLE=true dans .env ;"
+      echo "    3. just up"
+      echo "  Ce bloc relâche l'isolation de la box : voir « Containers inside the box »"
+      echo "  dans le README."
+    else
+      echo "  PODMAN_ENABLE=true mais le socket $SOCK est absent :"
+      echo "  le service n'a pas démarré. Voir ~/.cache/dev-box-podman.log et vérifier"
+      echo "  que compose.override.yaml contient bien le bloc podman (/dev/fuse, security_opt)."
+    fi
+  } >&2
+  exit 1
+}
+
+# --- État des conteneurs ------------------------------------------------------
+
+container_of() { printf 'devbox-%s' "$1"; }
+volume_of()    { printf 'devbox-%s' "$1"; }
+
+container_exists() { "$PODMAN" container exists "$(container_of "$1")" 2>/dev/null; }
+
+container_running() {
+  [ "$("$PODMAN" ps --filter "name=^$(container_of "$1")\$" --format '{{.Names}}' 2>/dev/null)" \
+    = "$(container_of "$1")" ]
+}
+
+container_status() {
+  local s
+  s="$("$PODMAN" ps -a --filter "name=^$(container_of "$1")\$" --format '{{.Status}}' 2>/dev/null | head -n1)"
+  [ -n "$s" ] && printf '%s' "$s" || printf 'absent'
+}
+
+# --- Les options de chaque image, reprises d'omarchy --------------------------
+
+env_mysql()   { printf '%s\n' -e "MYSQL_ROOT_PASSWORD=" -e "MYSQL_ALLOW_EMPTY_PASSWORD=true"; }
+env_mariadb() { printf '%s\n' -e "MARIADB_ROOT_PASSWORD=" -e "MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=true"; }
+env_postgres(){ printf '%s\n' -e "POSTGRES_HOST_AUTH_METHOD=trust"; }
+env_redis()   { :; }
+env_mongodb() { printf '%s\n' -e "MONGO_INITDB_ROOT_USERNAME=admin" -e "MONGO_INITDB_ROOT_PASSWORD=admin123"; }
+env_mssql()   { printf '%s\n' -e "MSSQL_PID=Developer" -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=@dmin123"; }
+
+# --- Actions ------------------------------------------------------------------
+
+show_list() {
+  require_podman
+  local d name image port
+  printf '\033[1mBases de données\033[0m (devbox dbs <nom>…)\n\n'
+  printf '  \033[1m%-9s %-54s %-6s %s\033[0m\n' "nom" "image" "port" "état"
+  for d in "${DBS[@]}"; do
+    name="${d%%|*}"
+    image="$(echo "$d" | cut -d'|' -f2)"
+    port="$(echo "$d" | cut -d'|' -f3)"
+    printf '  \033[36m%-9s\033[0m %-54s %-6s %s\n' \
+      "$name" "$image" "$port" "$(container_status "$name")"
+  done
+  printf '\nPorts publiés sur 127.0.0.1, conteneurs « devbox-<nom> »,\n'
+  printf 'données dans le volume podman « devbox-<nom> ».\n'
+}
+
+show_help() { sed -n '6,24p' "$0" | sed 's/^# \?//'; }
+
+# Une seule base peut tenir un port : mysql et mariadb sont tous les deux sur
+# 3306. Mieux vaut le dire que laisser podman échouer sur « address already in
+# use ».
+port_taken_by() {
+  local name="$1" port="$2" d other
+  for d in "${DBS[@]}"; do
+    other="${d%%|*}"
+    [ "$other" = "$name" ] && continue
+    [ "$(echo "$d" | cut -d'|' -f3)" = "$port" ] || continue
+    container_running "$other" && { printf '%s' "$other"; return 0; }
+  done
+  return 1
+}
+
+start_db() {
+  local name="$1" image port datadir busy args
+  image="$(db_field "$name" 2)"
+  port="$(db_field "$name" 3)"
+  datadir="$(db_field "$name" 4)"
+
+  # mcr.microsoft.com/mssql/server ne publie que des images amd64.
+  if [ "$name" = "mssql" ] && [ "$(uname -m)" = "aarch64" ]; then
+    err "mssql n'a pas d'image arm64 (mcr.microsoft.com/mssql/server est amd64 seulement)."
+    err "Sur cette machine, prendre postgres, mysql ou mariadb."
+    return 1
+  fi
+
+  if container_running "$name"; then
+    log "$name : déjà en marche sur 127.0.0.1:$port ($(container_of "$name"))."
+    return 0
+  fi
+
+  if busy="$(port_taken_by "$name" "$port")"; then
+    err "$name et $busy partagent le port $port, et $busy tourne déjà."
+    err "Arrêter l'autre d'abord : devbox dbs --stop $busy"
+    return 1
+  fi
+
+  if container_exists "$name"; then
+    log "$name : le conteneur existe déjà, redémarrage (données conservées)."
+    "$PODMAN" start "$(container_of "$name")" >/dev/null
+  else
+    log "$name : $(db_field "$name" 5)"
+    mapfile -t args < <("env_${name}")
+    "$PODMAN" run -d \
+      --name "$(container_of "$name")" \
+      -p "127.0.0.1:${port}:${port}" \
+      -v "$(volume_of "$name"):${datadir}" \
+      "${args[@]}" "$image" >/dev/null
+  fi
+  log "$name : prêt sur 127.0.0.1:$port"
+}
+
+stop_db() {
+  local name="$1"
+  container_exists "$name" || { err "$name : aucun conteneur $(container_of "$name")."; return 1; }
+  "$PODMAN" stop "$(container_of "$name")" >/dev/null
+  log "$name : arrêté (données conservées)."
+}
+
+restart_db() {
+  local name="$1" port busy
+  port="$(db_field "$name" 3)"
+  container_exists "$name" || {
+    err "$name : aucun conteneur $(container_of "$name"), le créer avec : devbox dbs $name"
+    return 1
+  }
+  container_running "$name" && { log "$name : déjà en marche."; return 0; }
+  if busy="$(port_taken_by "$name" "$port")"; then
+    err "$name et $busy partagent le port $port, et $busy tourne déjà."
+    err "Arrêter l'autre d'abord : devbox dbs --stop $busy"
+    return 1
+  fi
+  "$PODMAN" start "$(container_of "$name")" >/dev/null
+  log "$name : relancé sur 127.0.0.1:$port"
+}
+
+confirm() {
+  if command -v gum >/dev/null 2>&1 && [ -t 0 ] && [ -t 1 ]; then
+    gum confirm "$1"
+    return $?
+  fi
+  err "confirmation impossible sans terminal (gum) : $1"
+  return 1
+}
+
+remove_db() {
+  local name="$1" vol
+  vol="$(volume_of "$name")"
+  if container_exists "$name"; then
+    "$PODMAN" rm -f "$(container_of "$name")" >/dev/null
+    log "$name : conteneur supprimé."
+  else
+    log "$name : aucun conteneur à supprimer."
+  fi
+  if [ "$PURGE" = "true" ]; then
+    if ! "$PODMAN" volume exists "$vol" 2>/dev/null; then
+      log "$name : aucun volume $vol."
+      return 0
+    fi
+    confirm "Supprimer définitivement les données de $name (volume $vol) ?" || {
+      log "$name : volume conservé."
+      return 0
+    }
+    "$PODMAN" volume rm "$vol" >/dev/null
+    log "$name : volume $vol supprimé, données perdues."
+  else
+    log "$name : volume $vol conservé, « devbox dbs $name » repartira dessus."
+  fi
+}
+
+# --- Arguments ----------------------------------------------------------------
+
+ACTION="start"
+PURGE="false"
+SELECTED=()
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --list|-l)  show_list; exit 0 ;;
+    -h|--help)  show_help; exit 0 ;;
+    --stop)     ACTION="stop"; shift ;;
+    --start)    ACTION="restart"; shift ;;
+    --remove)   ACTION="remove"; shift ;;
+    --purge)    PURGE="true"; shift ;;
+    -*)         err "option inconnue « $1 »"; exit 2 ;;
+    *)          SELECTED+=("$1"); shift ;;
+  esac
+done
+
+if [ "$PURGE" = "true" ] && [ "$ACTION" != "remove" ]; then
+  err "--purge ne s'utilise qu'avec --remove."
+  exit 2
+fi
+
+require_podman
+
+# Sans argument : menu, sauf pour les actions qui demandent une cible explicite.
+if [ "${#SELECTED[@]}" -eq 0 ]; then
+  if [ "$ACTION" != "start" ]; then
+    err "il manque le nom de la base : devbox dbs --${ACTION/restart/start} <db…>"
+    err "Bases disponibles : $(db_names | tr '\n' ' ')"
+    exit 2
+  fi
+  if [ ! -t 0 ] || [ ! -t 1 ]; then
+    err "pas de terminal, donnez les bases en arguments."
+    err "Bases disponibles : $(db_names | tr '\n' ' ')"
+    exit 2
+  fi
+  command -v gum >/dev/null 2>&1 || {
+    err "gum est absent, donnez les bases en arguments."
+    exit 1
+  }
+  menu=()
+  for d in "${DBS[@]}"; do
+    menu+=("$(printf '%-9s %s' "${d%%|*}" "$(echo "$d" | cut -d'|' -f5)")")
+  done
+  chosen="$(printf '%s\n' "${menu[@]}" \
+    | gum choose --no-limit --height 10 \
+        --header "Bases à lancer (espace pour cocher, entrée pour valider)")" || true
+  [ -n "$chosen" ] || { echo "Rien de sélectionné."; exit 0; }
+  while IFS= read -r line; do
+    [ -n "$line" ] && SELECTED+=("${line%% *}")
+  done <<< "$chosen"
+fi
+
+# Les noms sont validés avant la première action : mieux vaut refuser tout de
+# suite qu'agir à moitié.
+for name in "${SELECTED[@]}"; do
+  db_field "$name" 1 >/dev/null || {
+    err "base inconnue « $name »"
+    err "Bases disponibles : $(db_names | tr '\n' ' ')"
+    exit 1
+  }
+done
+
+rc=0
+for name in "${SELECTED[@]}"; do
+  case "$ACTION" in
+    start)   start_db "$name"   || rc=1 ;;
+    restart) restart_db "$name" || rc=1 ;;
+    stop)    stop_db "$name"    || rc=1 ;;
+    remove)  remove_db "$name"  || rc=1 ;;
+  esac
+done
+exit "$rc"

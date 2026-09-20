@@ -29,6 +29,9 @@ ENVS=(
   "deno|Deno, runtime JavaScript et TypeScript"
   "go|Go, dernière version stable"
   "python|Python + uv (paquets et environnements virtuels)"
+  "php|PHP + composer + xdebug (paquets de l'image, prêts à l'emploi)"
+  "laravel|PHP + Node + installeur Laravel (composer global)"
+  "symfony|PHP + symfony-cli"
   "ruby|Ruby + Rails"
   "rust|Rust (toolchain gérée par mise, sans rustup)"
   "java|Java, dernier JDK"
@@ -83,6 +86,32 @@ install_python() {
   mise use -g python@latest uv@latest
 }
 install_zig() { mise use -g zig@latest zls@latest; }
+install_php() {
+  # Seule exception au « mise uniquement » : mise compile PHP depuis les sources
+  # (long, et il faudrait tous les headers dans l'image). php, composer,
+  # php-sqlite et xdebug sont donc des paquets de l'image, extensions déjà
+  # activées au build. Ici on vérifie et on montre ce qui est là.
+  command -v php >/dev/null 2>&1 || {
+    echo "php absent de l'image : ajouter php composer php-sqlite xdebug au Dockerfile, puis just rebuild" >&2
+    return 1
+  }
+  log "$(php -v | head -n 1)"
+  log "extensions : $(php -m | grep -iE '^(bcmath|intl|pdo_sqlite|pdo_mysql|xdebug|zip|gd)$' | tr '\n' ' ')"
+  log "composer $(composer --version 2>/dev/null | awk '{print $3}') ; paquets globaux dans ~/.config/composer (persistant)"
+}
+install_laravel() {
+  install_php
+  install_node
+  composer global require laravel/installer
+  log "laravel est prêt : laravel new mon-projet (~/.config/composer/vendor/bin est dans le PATH)"
+}
+install_symfony() {
+  install_php
+  # symfony-cli publie des binaires linux amd64 et arm64 : le backend github de
+  # mise prend le bon asset.
+  mise use -g github:symfony-cli/symfony-cli@latest
+  log "symfony est prêt : symfony new --webapp mon-projet"
+}
 install_clojure() {
   # Sans rlwrap (paquet pacman, donc perdu au rebuild) : `clj` reste utilisable,
   # l'édition de ligne du REPL en moins. Ajouter rlwrap au Dockerfile si besoin.

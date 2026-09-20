@@ -32,6 +32,7 @@ the same binary.
 | `seed` | `dev-box-seed` | lays down the config shipped by the image. `--check` to look, `--force [path]` to take a new version. |
 | `sync` | `dotarchy-sync` | clones or updates the dotfiles repo and applies the config. Never runs its install scripts. |
 | `dev-env` | `dev-box-dev-env` | installs a dev environment with mise. `--list`, or names as arguments, or a menu. |
+| `dbs` | `dev-box-dbs` | starts a development database in a podman container. `--list`, `--start`, `--stop`, `--remove [--purge]`, or names, or a menu. |
 
 `dev-box-podman` carries `# devbox:hidden=true`: it is the wrapper behind the
 `docker` and `podman` symlinks, not something a user calls. It stays routable,
@@ -62,8 +63,42 @@ devbox dev-env             # menu, multiple selection
 
 Re-running on an environment already installed is harmless.
 
-PHP, Laravel, Symfony and OCaml are deliberately absent: upstream they need
-pacman packages or opam, both of which would be lost on the next rebuild.
+PHP is baked into the image (pacman: php, composer, php-sqlite, php-gd,
+php-sodium, xdebug, extensions enabled at build); `dev-env php` only checks it,
+`laravel` and `symfony` add their installer on top. OCaml is absent: upstream it
+needs opam, which would be lost on the next rebuild.
+
+## dbs
+
+`devbox dbs` runs development databases in rootless podman containers inside the
+box, with the same images and development options as Omarchy's
+`omarchy-install-docker-dbs` on the host.
+
+```bash
+devbox dbs --list                   # image, port and state of each database
+devbox dbs postgres redis           # start these two
+devbox dbs --stop redis             # stop, nothing is deleted
+devbox dbs --start redis            # start an existing container again
+devbox dbs --remove redis           # drop the container, keep the data
+devbox dbs --remove --purge redis   # drop the data too, asks for confirmation
+```
+
+Names: `mysql` (3306), `postgres` (5432), `mariadb` (3306), `redis` (6379),
+`mongodb` (27017), `mssql` (1433). Credentials are the development ones: empty
+root password for mysql and mariadb, `trust` for postgres, `admin`/`admin123`
+for mongodb, `sa`/`@dmin123` for mssql.
+
+It needs rootless podman enabled (`PODMAN_ENABLE=true` plus the podman block in
+`compose.override.yaml`, a host-side change). Without it, the command prints the
+three steps and exits 1 without starting anything.
+
+Containers are named `devbox-<name>` and their data lives in a podman volume
+called `devbox-<name>`, so the data survives `--remove`. Re-running
+`devbox dbs <name>` on an existing container starts it instead of recreating it.
+Ports are published on `127.0.0.1`, reachable from inside the box only; from
+outside, tunnel with `ssh -L 5432:127.0.0.1:5432 dev@dev-box`. `mysql` and
+`mariadb` share port 3306, so only one of them runs at a time, and `mssql` has no
+arm64 image. Nothing restarts on its own after a restart of the box.
 
 ## What is not a devbox command
 
