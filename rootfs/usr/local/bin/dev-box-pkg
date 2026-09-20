@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# devbox:name=pkg
+# devbox:summary=Paquets pacman persistants (réinstallés au démarrage)
+# devbox:args=[add|drop|list|restore]
+# Paquets pacman qui survivent à un rebuild de l'image. pacman installe dans
+# l'image, qui est jetable : la liste des paquets ajoutés à la main est donc
+# gardée dans le home (~/.config/dev-box/packages) et réinstallée au démarrage
+# quand l'image est repartie de zéro.
+#
+#   dev-box-pkg add <paquets…>    installe et retient
+#   dev-box-pkg drop <paquets…>   désinstalle et oublie
+#   dev-box-pkg list              la liste, avec l'état de chacun
+#   dev-box-pkg install           sélecteur fuzzy (fzf) dans les dépôts Arch
+#   dev-box-pkg restore           réinstalle ce qui manque de la liste
+#
+# Seuls les paquets passent : une conf éditée à la main dans /etc disparaît au
+# rebuild sans que rien ne la rattrape. Le durable reste le Dockerfile du dépôt.
+set -euo pipefail
+
+LIST_DIR="$HOME/.config/dev-box"
+LIST="$LIST_DIR/packages"
+
+log() { echo "[dev-box-pkg] $*"; }
+usage() { sed -n '5,17p' "$0" | sed 's/^# \?//'; }
+
+installed() { pacman -Q "$1" >/dev/null 2>&1; }
+
+# La base pacman de l'image date du build : si elle est trop vieille pour les
+# miroirs, le téléchargement échoue et un -Sy la remet à niveau avant de
+# réessayer une fois.
+pac_install() {
+  sudo pacman -S --needed --noconfirm "$@" && return 0
+  log "base pacman à rafraîchir…"
+  sudo pacman -Sy --noconfirm || return 1
+  sudo pacman -S --needed --noconfirm "$@"
+}
+
+read_list() {
+  [ -s "$LIST" ] || return 0
+  grep -v '^[[:space:]]*$' "$LIST" | grep -v '^[[:space:]]*#' | sort -u
+}
+
+# Écrit la liste triée et dédoublonnée, à partir de l'entrée standard.
+write_list() {
+  mkdir -p "$LIST_DIR"
+  sort -u > "$LIST.tmp"
+  mv "$LIST.tmp" "$LIST"
+}
+
+add_to_list() {
+  { read_list; printf '%s\n' "$@"; } | grep -v '^[[:space:]]*$' | write_list
+}
+
+remove_from_list() {
+  local keep
+  keep="$(read_list | grep -vxF -f <(printf '%s\n' "$@") || true)"
+  printf '%s\n' "$keep" | grep -v '^[[:space:]]*$' | write_list || true
+}
+
+do_add() {
+  [ $# -gt 0 ] || { echo "usage : devbox pkg add <paquets…>" >&2; exit 2; }
+  log "installation : $*"
+  if ! pac_install "$@"; then
+    log "⚠ pacman a échoué, rien ajouté à la liste"
+    exit 1
+  fi
+  # Second contrôle : pacman ne signale pas toujours une erreur par son code.
+  local ok=() pkg
+  for pkg in "$@"; do
+    if installed "$pkg"; then
+      ok+=("$pkg")
+    else
+      log "⚠ $pkg n'est pas installé, il n'entre pas dans la liste"
+    fi
+  done
+  [ "${#ok[@]}" -gt 0 ] || exit 1
+  add_to_list "${ok[@]}"
+  log "${#ok[@]} paquet(s) retenu(s) dans ~/.config/dev-box/packages"
+}
+
+do_drop() {
+  [ $# -gt 0 ] || { echo "usage : devbox pkg drop <paquets…>" >&2; exit 2; }
+  local here=() pkg
+  for pkg in "$@"; do
+    installed "$pkg" && here+=("$pkg")
+  done
+  if [ "${#here[@]}" -gt 0 ]; then
+    log "désinstallation : ${here[*]}"
+    sudo pacman -Rs --noconfirm "${here[@]}" || { log "⚠ pacman a échoué"; exit 1; }
+  else
+    log "aucun de ces paquets n'est installé"
+  fi
+  remove_from_list "$@"
+  log "liste mise à jour"
+}
+
+do_list() {
+  local pkg count=0 missing=0
+  while IFS= read -r pkg; do
+    [ -n "$pkg" ] || continue
+    count=$((count + 1))
+    if installed "$pkg"; then
+      printf '  %-28s installé\n' "$pkg"
+    else
+      printf '  %-28s absent\n' "$pkg"
+      missing=$((missing + 1))
+    fi
+  done < <(read_list)
+  if [ "$count" -eq 0 ]; then
+    echo "  aucun paquet persistant (devbox pkg add <paquets…>)"
+    return 0
+  fi
+  echo
+  log "$count paquet(s), $missing absent(s)"
+  [ "$missing" -gt 0 ] && log "devbox pkg restore pour les réinstaller"
+  return 0
+}
+
+do_install() {
+  command -v fzf >/dev/null 2>&1 || { echo "dev-box-pkg : fzf est absent" >&2; exit 1; }
+  if [ ! -t 0 ] || [ ! -t 1 ]; then
+    echo "dev-box-pkg : le sélecteur a besoin d'un terminal." >&2
+    echo "Donnez les noms : devbox pkg add <paquets…>" >&2
+    exit 2
+  fi
+  local chosen sel=()
+  chosen="$(pacman -Slq | fzf --multi \
+      --preview 'pacman -Si {1}' \
+      --preview-window 'down:60%:wrap' \
+      --header 'tab : sélection multiple, entrée : installer')" || true
+  [ -n "$chosen" ] || { log "rien de sélectionné"; exit 0; }
+  mapfile -t sel <<< "$chosen"
+  do_add "${sel[@]}"
+}
+
+do_restore() {
+  local pkg missing=()
+  while IFS= read -r pkg; do
+    [ -n "$pkg" ] || continue
+    installed "$pkg" || missing+=("$pkg")
+  done < <(read_list)
+  if [ "${#missing[@]}" -eq 0 ]; then
+    log "rien à réinstaller, tout est en place"
+    return 0
+  fi
+  log "réinstallation : ${missing[*]}"
+  pac_install "${missing[@]}" || { log "⚠ pacman a échoué"; exit 1; }
+  log "${#missing[@]} paquet(s) réinstallé(s)"
+}
+
+cmd="${1:-}"
+[ $# -gt 0 ] && shift
+case "$cmd" in
+  add)     do_add "$@" ;;
+  drop)    do_drop "$@" ;;
+  list)    do_list ;;
+  install) do_install ;;
+  restore) do_restore ;;
+  -h|--help|"") usage; [ -n "$cmd" ] || exit 2 ;;
+  *) echo "dev-box-pkg : sous-commande inconnue « $cmd »" >&2; usage >&2; exit 2 ;;
+esac

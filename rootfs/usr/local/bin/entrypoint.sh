@@ -98,6 +98,40 @@ for skills_dir in "$HOME_DIR/.claude/skills" \
   chown -h "$PUID:$PGID" "$skills_dir/devbox"
 done
 
+# Migrations livrées par l'image : le seul automatisme du démarrage. Une image
+# neuve peut changer quelque chose que le seed ne sait pas reprendre seul, et
+# la migration qui l'accompagne le répare une fois pour toutes.
+# Un home neuf n'a rien à réparer : on acquitte tout sans rien jouer.
+if [ "$FIRST_BOOT" = "true" ]; then
+  as_user "dev-box-migrate --mark-all-done" || log "⚠ dev-box-migrate a échoué"
+else
+  as_user "dev-box-migrate" || log "⚠ une migration a échoué (devbox migrate pour réessayer)"
+fi
+
+# Paquets pacman retenus par dev-box-pkg : l'image est jetable, donc après un
+# rebuild ils ont disparu. Réinstallation en arrière-plan, sans bloquer l'accès.
+PKG_LIST="$HOME_DIR/.config/dev-box/packages"
+if [ -s "$PKG_LIST" ]; then
+  (
+    missing=()
+    while IFS= read -r pkg; do
+      case "$pkg" in ''|'#'*) continue ;; esac
+      pacman -Q "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
+    done < "$PKG_LIST"
+    if [ "${#missing[@]}" -gt 0 ]; then
+      # La base pacman de l'image date du build : si elle est trop vieille pour
+      # les miroirs, le téléchargement échoue et un -Sy la remet à niveau.
+      if pacman -S --needed --noconfirm "${missing[@]}" >> /tmp/dev-box-pkg.log 2>&1 ||
+         { pacman -Sy --noconfirm >> /tmp/dev-box-pkg.log 2>&1 &&
+           pacman -S --needed --noconfirm "${missing[@]}" >> /tmp/dev-box-pkg.log 2>&1; }; then
+        log "pkg : ${#missing[@]} paquet(s) réinstallé(s)"
+      else
+        log "⚠ pkg : réinstallation impossible, voir /tmp/dev-box-pkg.log"
+      fi
+    fi
+  ) &
+fi
+
 # --- 3. Socket podman compatible Docker (DOCKER_HOST des shells), opt-in ---
 # Lancé en tant qu'utilisateur, rootless : `docker run`, `docker build` et
 # `docker compose` dans la box passent par lui, sans socket Docker de l'hôte.

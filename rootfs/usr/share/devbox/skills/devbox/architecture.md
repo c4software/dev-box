@@ -15,6 +15,7 @@ vanishes without warning.
 | `/usr/local/bin/` | `devbox`, the `dev-box-*` commands, `dotarchy-sync`, the tool wrappers (`claude`, `pi`, `omp`, `codex`, `opencode`), the `wl-copy`/`wl-paste` shims |
 | `/etc/devbox/` | the config shipped to the home (`mise-config.toml`, the Claude agents, `llm-proxy.ts`), plus `zshenv`, `zshrc`, `sshd_config`, `updates-motd.sh` |
 | `/usr/share/devbox/skills/` | this skill and its guides |
+| `/usr/share/devbox/migrations/` | the one-off repairs run at start, once each |
 | `/etc/devbox/release` | `DEVBOX_COMMIT`, `DEVBOX_REPO`, `DEVBOX_BRANCH`, burned in at build time |
 | `/etc/containers/` | the rootless podman setup |
 
@@ -33,6 +34,9 @@ backed up or moved on their own.
 | `~/.local/share/mise/` | the toolchains themselves |
 | `~/.config/dev-box/seed/` | a reference copy of the config the image laid down |
 | `~/.config/dev-box/overrides/` | your box-only tweaks, a mirror of the home |
+| `~/.config/dev-box/migrations` | the migrations already played, one name per line |
+| `~/.config/dev-box/packages` | the pacman packages `devbox pkg` puts back at every start |
+| `~/.config/dev-box/agent` | the default coding agent |
 | `~/.local/share/dotarchy/` | the dotfiles clone |
 | `~/.cache/dev-box/updates` | the pending-updates flag |
 | `~/projets/` | your repositories, on their own volume |
@@ -48,13 +52,18 @@ owner on the host side of the bind mounts. `sudo` needs no password.
 2. `dev-box-seed` lays down the shipped config (see below);
 3. links this skill into `~/.claude/skills/`, `~/.pi/agent/skills/` and
    `~/.omp/agent/skills/`;
-4. starts `tailscaled` and `tailscale up`, or OpenSSH when `TS_DISABLE=true`;
-5. starts the rootless podman socket when `PODMAN_ENABLE=true`;
-6. on the very first start only, runs `dotarchy-sync` and installs the mise
+4. runs `dev-box-migrate` as your user, the only automatic step in the box; a
+   first start marks every migration as played instead of running them;
+5. reinstalls the missing packages of `~/.config/dev-box/packages`, in the
+   background;
+6. starts `tailscaled` and `tailscale up`, or OpenSSH when `TS_DISABLE=true`;
+7. starts the rootless podman socket when `PODMAN_ENABLE=true`;
+8. on the very first start only, runs `dotarchy-sync` and installs the mise
    tools in the background (`~/.cache/dev-box-install.log`);
-7. then only checks for updates, every `UPDATE_CHECK_INTERVAL` seconds.
+9. then only checks for updates, every `UPDATE_CHECK_INTERVAL` seconds.
 
-Nothing else runs on its own. No package is upgraded behind your back.
+Nothing else runs on its own. No package is upgraded behind your back, and the
+migrations of step 4 only repair what an older image left behind.
 
 ## The seed, and its three cases
 

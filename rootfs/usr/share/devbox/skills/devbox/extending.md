@@ -26,11 +26,17 @@ editing the file in the box look identical. Only one of them lasts.
 
 ### A system package
 
-`Dockerfile`, in the `pacman -Syu` list. Keep it alphabetically near its
-neighbours and say in a comment what calls for it. Check the package exists on
-Arch Linux ARM as well, since the box also builds for arm64 (Raspberry Pi 5)
-from a different base image. A package that only exists on x86_64 breaks the Pi
-build.
+Two cases, as with dev tools.
+
+- A package every box should have: the `Dockerfile`, in the `pacman -Syu` list.
+  Keep it alphabetically near its neighbours and say in a comment what calls
+  for it. Check the package exists on Arch Linux ARM as well, since the box
+  also builds for arm64 (Raspberry Pi 5) from a different base image. A package
+  that only exists on x86_64 breaks the Pi build.
+- A package only this box needs: `devbox pkg add <package>`. It is installed by
+  pacman now and reinstalled at every start from
+  `~/.config/dev-box/packages`, so it survives a rebuild without a commit.
+  Nothing else does: a config file edited in `/etc` is not tracked.
 
 ### A dev tool
 
@@ -84,6 +90,51 @@ There is nothing to register anywhere. `devbox` finds it on the next start.
 Keep the existing file names and their options untouched: the README, the
 `justfile` and `entrypoint.sh` call them by name.
 
+### A migration for existing boxes
+
+Some changes cannot reach a home that already exists. The seed only updates a
+file the user never touched, and it has no reference copy at all on the oldest
+boxes. That is what migrations are for: a script shipped with the image, run
+once, as the user, that repairs the home.
+
+```bash
+touch "rootfs/usr/share/devbox/migrations/$(date +%Y%m%d%H%M%S)-what-it-fixes.sh"
+```
+
+The name starts with a timestamp, which is what sets the order, and ends with a
+few words saying what it does. The template:
+
+```bash
+#!/usr/bin/env bash
+# One paragraph saying what this repairs, and for which boxes.
+set -euo pipefail
+
+TARGET="$HOME/.config/something"
+
+if [ ! -f "$TARGET" ]; then
+  echo "  rien a reparer ici"
+  exit 0
+fi
+...
+```
+
+Rules that matter:
+
+- Idempotent. It runs once in practice, but a failed run is retried, so it must
+  survive being run twice.
+- Never overwrite something the user may have changed. Compare against the
+  shipped version, or a checksum of the versions you know you shipped
+  (`git log -p -- rootfs/etc/devbox/<file>` finds them), and say out loud why
+  nothing was touched when that is the answer.
+- It runs as the user, not as root. `$HOME` is the box's home.
+- Output in French, two spaces of indent, since `dev-box-migrate` prints the
+  name of the migration above it.
+- Exit non-zero only when the repair genuinely failed. That stops the run and
+  leaves the migrations behind it pending.
+
+Nothing to register: `dev-box-migrate` picks up every `.sh` of that directory,
+and the entrypoint runs it at the next start.
+
 ### A config file shipped to the home
 
 Put the file under `rootfs/etc/devbox/` and add a
@@ -125,6 +176,7 @@ docker run -d --name devbox-test \
 
 docker logs -f devbox-test          # wait for "mise : outils installés"
 docker exec -u dev devbox-test zsh -lc 'devbox --help'
+docker exec -u dev devbox-test env -u TS_DISABLE zsh -lc 'devbox migrate --list'
 docker rm -f devbox-test && rm -rf "$scratch"
 ```
 

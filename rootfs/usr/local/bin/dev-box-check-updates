@@ -82,6 +82,16 @@ if command -v dev-box-seed >/dev/null 2>&1; then
   dev-box-seed --check 2>/dev/null >> "$tmp" || true
 fi
 
+# --- 5. Migrations en attente ---
+# L'entrypoint les joue au démarrage, donc il n'en reste normalement aucune.
+# Le contrôle couvre le cas où l'une a échoué, ou a été acquittée à la main.
+if command -v dev-box-migrate >/dev/null 2>&1; then
+  pending="$(dev-box-migrate --pending 2>/dev/null | grep -c . || true)"
+  if [ "${pending:-0}" -gt 0 ] 2>/dev/null; then
+    echo "migrations en attente : $pending (devbox migrate)" >> "$tmp"
+  fi
+fi
+
 mkdir -p "$FLAG_DIR"
 if [ -s "$tmp" ]; then
   cp "$tmp" "$FLAG"

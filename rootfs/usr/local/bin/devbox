@@ -85,7 +85,7 @@ print_table() {
   local n
   while IFS= read -r n; do
     printf '  \033[36m%s\033[0m %s %s\n' \
-      "$(pad "$n" 9)" "$(pad "${CMD_ARGS[$n]}" 26)" "${CMD_SUMMARY[$n]}"
+      "$(pad "$n" 12)" "$(pad "${CMD_ARGS[$n]}" 26)" "${CMD_SUMMARY[$n]}"
   done < <(visible_names)
 }
 
@@ -127,7 +127,7 @@ cmd_help() {
 menu() {
   local lines=() n chosen
   while IFS= read -r n; do
-    lines+=("$(printf '%s %s' "$(pad "$n" 9)" "${CMD_SUMMARY[$n]}")")
+    lines+=("$(printf '%s %s' "$(pad "$n" 12)" "${CMD_SUMMARY[$n]}")")
   done < <(visible_names)
 
   if [ "${#lines[@]}" -eq 0 ]; then
@@ -147,7 +147,7 @@ menu() {
   }
 
   chosen="$(printf '%s\n' "${lines[@]}" \
-    | gum choose --height 12 --header "Commandes de la box")" || true
+    | gum choose --height 15 --header "Commandes de la box")" || true
   [ -n "$chosen" ] || exit 0
   chosen="${chosen%% *}"
   exec "${CMD_BIN[$chosen]}"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # devbox:name=dbs
-# devbox:summary=Lance une base de données de dev dans un conteneur podman
+# devbox:summary=Lance une base de données de dev (podman)
 # devbox:args=[db…|--list|--remove]
 #
 # Bases de données de développement, dans des conteneurs podman rootless de la

@@ -1,7 +1,8 @@
 # Updates
 
-Nothing updates on its own. That is a design choice, not an oversight. The box
-looks, tells you, and waits.
+Nothing updates on its own, apart from the migrations shipped with the image
+(see below). That is a design choice, not an oversight. The box looks, tells
+you, and waits.
 
 ## The check
 
@@ -10,7 +11,7 @@ looks, tells you, and waits.
 fetches metadata, and every call is bounded by a timeout so a slow network
 cannot hold up a login. It installs nothing, ever.
 
-It compares four things:
+It compares five things:
 
 1. **dotfiles**: the HEAD of the local clone against the remote branch, with
    `git ls-remote`. No object is pulled.
@@ -21,6 +22,8 @@ It compares four things:
    skipped.
 3. **mise tools**: `mise outdated`.
 4. **the shipped config**: `dev-box-seed --check`.
+5. **pending migrations**: `dev-box-migrate --pending`. The start runs them, so
+   this line only shows up when one failed or was acknowledged by hand.
 
 What it finds goes into `~/.cache/dev-box/updates`, one line per item. When
 there is nothing left, the file is deleted.
@@ -30,6 +33,31 @@ there is nothing left, the file is deleted.
 Interactive shells source `/etc/devbox/updates-motd.sh`. If the flag file
 exists it is printed once per tmux session, followed by a reminder to run
 `devbox update`. With no flag file the cost is a single file test.
+
+## Migrations, the one exception
+
+Migrations are the only thing the box runs on its own. They are small scripts
+in `/usr/share/devbox/migrations/`, shipped with the image, that repair an
+existing home after a change the seed cannot pick up by itself. The entrypoint
+runs `dev-box-migrate` at every start, as your user, right after the seed. That
+is deliberate: a migration arrives with the image that needs it, so there is
+nothing to decide.
+
+Each one runs once. The names already played are listed in
+`~/.config/dev-box/migrations`. A brand new home has all of them marked as
+played without running any, since an empty home has nothing to repair. A
+migration that fails stops the run; the ones behind it stay pending and are
+tried again on the next start or on `devbox migrate`.
+
+```bash
+devbox migrate --list             # all of them, played or pending
+devbox migrate --pending          # what is left
+devbox migrate                    # run it now
+devbox migrate --mark-done <name> # acknowledge one without running it
+```
+
+Nothing else in the box is automatic: no package is upgraded, no tool is
+bumped, no dotfile is pulled without you asking.
 
 ## Updating
 

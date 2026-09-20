@@ -221,6 +221,26 @@ clipboard of the machine you are connected from over SSH, as long as its termina
 supports OSC 52. Alacritty, Ghostty, Kitty and foot do. Outside tmux the shim sends
 OSC 52 directly. `wl-paste` prints the tmux buffer back.
 
+### Taildrop
+
+`devbox tailscale` moves files between the box and the other machines of your
+tailnet, without going through a shell on the host.
+
+```bash
+devbox tailscale send laptop notes.md build.log
+devbox tailscale receive              # waits, saves into ~/inbox
+devbox tailscale receive --once ~/tmp # one delivery, then stop
+devbox tailscale status               # the link and its peers
+```
+
+`receive` loops on `tailscale file get --wait`, so it can sit there for hours;
+`--once` returns after the first delivery. The default directory is `~/inbox`,
+created if missing. With `TS_DISABLE=true` there is no tailnet at all, and the
+command says so and exits 1 rather than failing obscurely.
+
+Taildrop also works with Headscale, version 0.23 and later, between machines
+that belong to the same user.
+
 ## The devbox command
 
 `devbox` is the front door to everything the box can do. It is modelled on the
@@ -259,6 +279,11 @@ Adding a command therefore means dropping a `dev-box-<name>` script in
 | `sync` | `dotarchy-sync` | pull the dotfiles and apply them |
 | `dev-env` | `dev-box-dev-env` | install a dev environment with mise |
 | `dbs` | `dev-box-dbs` | start a development database in a podman container |
+| `agent` | `dev-box-agent` | the default coding agent: run it, pick it, read its usage |
+| `migrate` | `dev-box-migrate` | run the migrations shipped by the image, once each |
+| `mise-install` | `dev-box-mise-install` | write a mise-backed wrapper into `~/.local/bin` |
+| `pkg` | `dev-box-pkg` | pacman packages that survive an image rebuild |
+| `tailscale` | `dev-box-tailscale` | Taildrop send and receive, tailnet status |
 
 Every one of them keeps its own name on `PATH`, so `dev-box-update dotfiles` and
 `devbox update dotfiles` are the same thing. The `justfile` and the entrypoint
@@ -268,6 +293,33 @@ wrapper behind the `docker` and `podman` symlinks, not a command you call.
 Without arguments, `devbox` opens a gum menu listing the commands with their
 summary, and runs the one you pick, which may then be interactive itself. With
 no terminal it says so and prints the list instead of hanging.
+
+### The default coding agent
+
+`devbox agent` remembers one agent for the box, in `~/.config/dev-box/agent`,
+and launches it in the current directory.
+
+```bash
+devbox agent                 # run the default agent here
+devbox agent set             # gum menu, then remember the choice
+devbox agent set codex       # or name it outright
+devbox agent which           # print the current default
+devbox agent prompt "review this project"
+devbox agent usage claude    # what is left of the account limits
+```
+
+With no default set yet, a bare `devbox agent` opens the menu, records what you
+pick and starts it. The menu lists what the image ships, `claude`, `pi`, `omp`,
+`opencode` and `codex`, plus any wrapper `devbox mise-install` has written.
+
+`devbox agent usage` prints the account limits as plain text and keeps them
+there: nothing is cached on disk and nothing is sent anywhere. For Claude Code
+it reads the OAuth token out of `~/.claude/.credentials.json` and asks
+Anthropic's usage endpoint, so the token only ever travels in that one
+Authorization header. Without credentials it says to run `claude` and `/login`.
+For Codex it talks to `codex app-server` over stdin, which is where Codex keeps
+its rate limits; when that answers nothing it says so and points at `/status`
+inside Codex.
 
 ## Dotfiles sync
 
@@ -310,7 +362,50 @@ rootless podman (see *Containers inside the box*).
 
 - Update Arch: `just rebuild`, or `docker compose build --pull --no-cache && docker compose up -d`.
 - A `sudo pacman -S` inside the box is lost on rebuild. Add the package to the
-  `Dockerfile` instead.
+  `Dockerfile` for good, or let `devbox pkg` put it back at every start.
+
+### Persistent packages
+
+`devbox pkg` is the middle ground between a bare `sudo pacman -S`, which is
+gone at the next rebuild, and an edit to the `Dockerfile`, which means a commit
+and a rebuild. It installs the package and writes its name into
+`~/.config/dev-box/packages`, which lives in the persistent home.
+
+```bash
+devbox pkg add ripgrep-all htop   # install, and remember
+devbox pkg list                   # the list, and whether each one is there
+devbox pkg install                # fuzzy picker over the Arch repositories
+devbox pkg drop htop              # uninstall, and forget
+devbox pkg restore                # put back whatever is missing
+```
+
+At every start the entrypoint reads that list and reinstalls what the image
+does not have, in the background, without holding up the login. The log line is
+`[dev-box] pkg : N paquet(s) réinstallé(s)`.
+
+Only packages come back. A config file you edited by hand in `/etc`, a systemd
+unit, a file dropped in `/usr/local/bin`: none of that is tracked, and none of
+it survives. The durable answer stays the `Dockerfile` in the repository.
+
+### Extra tool wrappers
+
+`claude`, `pi`, `omp`, `opencode` and `codex` already have a wrapper in
+`/usr/local/bin` that installs them through mise on the first call.
+`devbox mise-install` writes the same kind of wrapper for anything else:
+
+```bash
+devbox mise-install npm:@google/gemini-cli gemini
+devbox mise-install crush
+devbox mise-install --list        # the wrappers written this way
+devbox mise-install --remove gemini
+```
+
+It takes `<package> [command [binary]]` and writes `~/.local/bin/<command>`.
+The wrapper runs `mise use -g --quiet <package>`, then
+`mise x <package> -- <binary>`, with `MISE_MINIMUM_RELEASE_AGE=0` so asking for
+a tool by name gets today's release. `~/.local/bin` comes before
+`/usr/local/bin` on the `PATH`, so a wrapper written here takes over from the
+one in the image when it carries the same name.
 
 **mise (persistent home).** Dev tools declared in `~/.config/mise/config.toml`:
 
@@ -480,6 +575,9 @@ the existing container instead of creating a new one, or with
 
 ## Agent configuration
 
+This is about the files the agents read. Picking which agent runs, and reading
+its account limits, is `devbox agent`, above.
+
 A base config is shipped in the image and laid down in the home by `dev-box-seed`,
 which runs at every start and on `dev-box-update seed`. A reference copy of what was laid
 down is kept in `~/.config/dev-box/seed/<path>`, which gives three cases per file:
@@ -579,11 +677,32 @@ devbox update seed       # shipped config (see above)
 ```
 
 `dev-box-update` is the binary and keeps working under that name. `devbox update` is
-the form to remember.
+the form to remember. Migrations are separate, see below.
 
 It clears the flag and re-runs the check when it is done.
 
 ![A full devbox update run: dotarchy-sync updates the repo and copies the config, mise installs and upgrades the tools, then the shipped config is checked](docs/screenshots/dev-box-update.png)
+
+### Migrations
+
+A new image sometimes needs a one-off repair in an existing home, something the
+seed cannot pick up on its own. Those repairs are shipped as migrations, small
+scripts in `/usr/share/devbox/migrations/` named after a timestamp. They run as
+your user, once each, in order, and the names already played are recorded in
+`~/.config/dev-box/migrations`.
+
+```bash
+devbox migrate              # run what is pending
+devbox migrate --pending    # list it without doing anything
+devbox migrate --list       # all of them, played or pending
+```
+
+This is the one thing the box does on its own at start, because a migration
+comes with the image that needs it: the entrypoint runs `dev-box-migrate` right
+after the seed. The first start of a brand new box marks every migration as
+played without running any, since there is nothing to repair in an empty home.
+A migration that fails stops the run, the ones behind it stay pending, and
+`devbox migrate` tries again.
 
 The one item it cannot act on is the image itself. That line points to `just rebuild`,
 or `just up`, on the host. The image knows its commit only when built through `just`,

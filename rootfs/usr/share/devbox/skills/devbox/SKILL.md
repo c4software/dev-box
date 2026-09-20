@@ -8,10 +8,14 @@ description: >
   `~/.config/mise/config.toml`, installing a language or dev environment in the
   box, rootless podman inside the box, dotfiles sync (dotarchy-sync), updating
   the box, the login message about pending updates, Tailscale or sshd access to
-  the box, and any change to the dev-box repository (Dockerfile, rootfs/,
+  the box, installing an Arch package that must survive a rebuild, adding a
+  wrapper for a coding agent or CLI tool, sending a file to another machine
+  with Taildrop, and any change to the dev-box repository (Dockerfile, rootfs/,
   compose.yaml, justfile, README). Triggers: devbox, dev-box, dev-box-update,
-  dev-box-seed, dev-box-dev-env, mise config, box update, rebuild the image,
-  "install go/python/ruby in the box", "why is my change gone after a rebuild".
+  dev-box-seed, dev-box-dev-env, dev-box-pkg, dev-box-agent, mise config, box
+  update, rebuild the image, "install go/python/ruby in the box", "install a
+  pacman package", "add a gemini wrapper", "fix my old mise config",
+  "why is my change gone after a rebuild".
 ---
 
 # dev-box Skill
@@ -96,16 +100,26 @@ Never guess a command name. Run `devbox commands`.
    `mise use -g <tool>`. Never `sudo pacman -S`, which is lost on rebuild.
 3. **Is it a database to run?** `devbox dbs <db>`: a podman container, data in a
    named volume. Never install a database server in the box itself.
-4. **Is it a system package?** It belongs in the `Dockerfile`. See
-   `extending.md`.
-5. **Is it a config file shipped by the image?** It is in the `SEEDS` table of
+4. **Is it an Arch package?** `devbox pkg add <packages>`: pacman installs it
+   and the box puts it back after a rebuild. A package every box should have
+   still belongs in the `Dockerfile`. See `extending.md`.
+5. **Is it a CLI tool with no wrapper yet?** `devbox mise-install <package>
+   [command]` writes one in `~/.local/bin`. Agents included.
+6. **Is it about the coding agent itself?** `devbox agent`: `set`, `which`,
+   `prompt`, and `usage` for what is left of the account limits.
+7. **Is a home left over from an older image misbehaving?** `devbox migrate
+   --pending`, then `devbox migrate`.
+8. **Is it a file to move in or out of the box?** `devbox tailscale send` and
+   `devbox tailscale receive`, over Taildrop.
+9. **Is it a config file shipped by the image?** It is in the `SEEDS` table of
    `dev-box-seed`. Change it in the repository, not in `/etc/devbox/`.
-6. **Is it a personal tweak to the dotfiles config?** Put it in
+10. **Is it a personal tweak to the dotfiles config?** Put it in
    `~/.config/dev-box/overrides/`, which mirrors the home.
-7. **Is it a change to the dotfiles themselves?** They belong to the dotarchy
+11. **Is it a change to the dotfiles themselves?** They belong to the dotarchy
    repository, not to this box. `devbox sync` only copies them here.
-8. **Is it an update?** Nothing is automatic. See `updates.md`.
-9. **Unsure?** `devbox status`, then `devbox commands`.
+12. **Is it an update?** Nothing is automatic except migrations. See
+    `updates.md`.
+13. **Unsure?** `devbox status`, then `devbox commands`.
 
 ## Out of Scope
 
@@ -123,8 +137,15 @@ Never guess a command name. Run `devbox commands`.
 - "What is available to install?" -> `devbox dev-env --list`
 - "Update the box" -> `devbox update`, after saying what it will do
 - "Is there anything to update?" -> `devbox check`, then `devbox status`
-- "Add ripgrep" -> already in the image; anything genuinely missing goes in the
-  `Dockerfile` (see `extending.md`), never `sudo pacman -S`
+- "Add ripgrep" -> already in the image
+- "Install ripgrep-all" -> `devbox pkg add ripgrep-all`, which also puts it back
+  after a rebuild; a package every box should have goes in the `Dockerfile`
+- "Add a gemini wrapper" -> `devbox mise-install npm:@google/gemini-cli gemini`
+- "Fix my old mise config" -> `devbox migrate --pending`, then `devbox migrate`
+- "Run my agent on this repo" -> `devbox agent prompt "..."`; `devbox agent set`
+  to change which one
+- "How much of my Claude quota is left?" -> `devbox agent usage claude`
+- "Send this file to my laptop" -> `devbox tailscale send laptop <file>`
 - "My tmux config change disappeared" -> it was overwritten by `devbox sync`;
   move it to `~/.config/dev-box/overrides/.config/tmux/tmux.conf`
 - "docker says it cannot reach the API" -> rootless podman is off, see

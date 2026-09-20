@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # devbox:name=status
-# devbox:summary=État de la box : image, accès, podman, outils, mises à jour
+# devbox:summary=État de la box : accès, podman, outils, mises à jour
 # devbox:args=
 #
 # Résumé en une page de ce que fait la box en ce moment. Lecture seule : rien
@@ -70,6 +70,18 @@ if command -v mise >/dev/null 2>&1; then
   item "config" "~/.config/mise/config.toml"
 else
   item "mise" "absent du PATH"
+fi
+
+# --- Paquets pacman retenus par dev-box-pkg (réinstallés après un rebuild) ----
+pkg_list="$HOME/.config/dev-box/packages"
+if [ -s "$pkg_list" ]; then
+  pkg_total=0; pkg_missing=0
+  while IFS= read -r p; do
+    case "$p" in ''|'#'*) continue ;; esac
+    pkg_total=$((pkg_total + 1))
+    pacman -Q "$p" >/dev/null 2>&1 || pkg_missing=$((pkg_missing + 1))
+  done < "$pkg_list"
+  item "paquets" "persistants : $pkg_total ($pkg_missing manquants)"
 fi
 
 # --- Drapeau de mises à jour, écrit par dev-box-check-updates -----------------

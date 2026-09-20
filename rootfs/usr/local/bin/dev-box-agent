@@ -1,0 +1,270 @@
+#!/usr/bin/env bash
+# devbox:name=agent
+# devbox:summary=Agent de code par défaut : lance, choisit, consommation
+# devbox:args=[set|prompt|which|usage]
+# Un seul agent par défaut pour la box, retenu dans ~/.config/dev-box/agent,
+# sur le modèle d'omarchy-default-agent et d'omarchy-agent.
+#
+#   dev-box-agent                  lance l'agent par défaut ici
+#   dev-box-agent set [nom]        change l'agent par défaut (menu sans nom)
+#   dev-box-agent which            affiche l'agent par défaut
+#   dev-box-agent prompt <texte…>  lance l'agent avec une consigne
+#   dev-box-agent usage [claude|codex]
+#                                  consommation et limites du compte
+#
+# Les agents proposés sont ceux livrés par l'image (claude, pi, omp, opencode,
+# codex) et les wrappers posés par `devbox mise-install`.
+set -euo pipefail
+
+CONF_DIR="$HOME/.config/dev-box"
+CONF="$CONF_DIR/agent"
+BUILTIN=(claude pi omp opencode codex)
+
+usage() { sed -n '5,16p' "$0" | sed 's/^# \?//'; }
+
+# Tôt, pour que `devbox agent --help` trouve bien une aide à afficher.
+case "${1:-}" in -h|--help) usage; exit 0 ;; esac
+
+# Agents disponibles : ceux de l'image, plus les wrappers de mise-install.
+available() {
+  local a f name
+  for a in "${BUILTIN[@]}"; do printf '%s\n' "$a"; done
+  if [ -d "$HOME/.local/bin" ]; then
+    for f in "$HOME/.local/bin"/*; do
+      [ -f "$f" ] || continue
+      grep -qxF '# dev-box-mise-install' "$f" || continue
+      name="$(basename "$f")"
+      printf '%s\n' "$name"
+    done
+  fi
+}
+available_sorted() { available | sort -u; }
+
+read_agent() {
+  [ -s "$CONF" ] || return 1
+  head -n 1 "$CONF" | tr -d '[:space:]'
+}
+
+write_agent() {
+  mkdir -p "$CONF_DIR"
+  printf '%s\n' "$1" > "$CONF"
+  echo "[dev-box-agent] agent par défaut : $1"
+}
+
+# Menu gum. Sans terminal, on refuse plutôt que d'attendre dans le vide.
+choose_agent() {
+  local chosen
+  if [ ! -t 0 ] || [ ! -t 1 ]; then
+    echo "dev-box-agent : pas de terminal pour le menu." >&2
+    echo "Donnez un nom : devbox agent set <nom>" >&2
+    echo "Au choix : $(available_sorted | tr '\n' ' ')" >&2
+    return 1
+  fi
+  command -v gum >/dev/null 2>&1 || {
+    echo "dev-box-agent : gum est absent, donnez un nom : devbox agent set <nom>" >&2
+    return 1
+  }
+  chosen="$(available_sorted | gum choose --height 10 --header "Agent de code par défaut")" || true
+  [ -n "$chosen" ] || return 1
+  printf '%s' "$chosen"
+}
+
+set_agent() {
+  local name="${1:-}"
+  if [ -z "$name" ]; then
+    name="$(choose_agent)" || exit 1
+  fi
+  if ! available_sorted | grep -qxF "$name"; then
+    echo "dev-box-agent : « $name » n'est pas un agent connu de cette box" >&2
+    echo "Au choix : $(available_sorted | tr '\n' ' ')" >&2
+    echo "Autre outil : devbox mise-install <paquet> <nom>" >&2
+    exit 1
+  fi
+  write_agent "$name"
+}
+
+# Agent par défaut, en le demandant s'il n'est pas encore choisi.
+current_agent() {
+  local name
+  if name="$(read_agent)" && [ -n "$name" ]; then
+    printf '%s' "$name"
+    return 0
+  fi
+  name="$(choose_agent)" || return 1
+  write_agent "$name" >&2
+  printf '%s' "$name"
+}
+
+# Comment chaque agent reçoit une consigne sur sa ligne de commande.
+run_with_prompt() {
+  local agent="$1" prompt="$2"
+  case "$agent" in
+    # claude, codex, pi et omp prennent la consigne en argument positionnel.
+    claude|codex|pi|omp) exec "$agent" "$prompt" ;;
+    # opencode : --prompt garde l'interface interactive (« run » sortirait aussitôt).
+    opencode)            exec opencode --prompt "$prompt" ;;
+    # Wrapper posé par mise-install : on tente la forme la plus répandue.
+    *)                   exec "$agent" "$prompt" ;;
+  esac
+}
+
+# --- usage claude : endpoint OAuth d'Anthropic -------------------------------
+# Le jeton ne sort d'ici que dans l'en-tête Authorization de cet appel, et rien
+# n'est écrit sur disque.
+usage_claude() {
+  local creds="$HOME/.claude/.credentials.json" token payload
+  for c in jq curl; do
+    command -v "$c" >/dev/null 2>&1 || { echo "dev-box-agent : $c est absent" >&2; return 1; }
+  done
+  if [ ! -r "$creds" ]; then
+    echo "Pas d'identifiants Claude Code dans ~/.claude/.credentials.json."
+    echo "Lancez « claude » puis /login, et réessayez."
+    return 1
+  fi
+  token="$(jq -r '.claudeAiOauth.accessToken // empty' "$creds" 2>/dev/null || true)"
+  if [ -z "$token" ]; then
+    echo "Aucun jeton OAuth dans ~/.claude/.credentials.json."
+    echo "Lancez « claude » puis /login, et réessayez."
+    return 1
+  fi
+
+  payload="$(curl -fsS --max-time 15 \
+      -H "Authorization: Bearer $token" \
+      -H "anthropic-beta: oauth-2025-04-20" \
+      -H "Accept: application/json" \
+      https://api.anthropic.com/api/oauth/usage 2>/dev/null || true)"
+  if [ -z "$payload" ]; then
+    echo "L'endpoint d'Anthropic n'a rien répondu (réseau, jeton expiré, ou quota de contrôle)."
+    echo "Relancez « claude » pour rafraîchir la connexion."
+    return 1
+  fi
+
+  # L'endpoint renvoie tantôt des pourcentages (37.0), tantôt des fractions
+  # (0.37) : une valeur >= 1 quelque part dans la réponse tranche pour tout.
+  printf '%s' "$payload" | jq -r '
+    def num($v): if ($v | type) == "number" then $v else null end;
+    def row($label; $v; $reset; $scale):
+      "  " + $label + " : "
+      + (if $v == null then "?"
+         else (($v | if $scale then . else . * 100 end) | floor | tostring) + " %" end)
+      + (if ($reset // "") == "" then "" else "   remise à zéro : " + ($reset | tostring) end);
+    . as $p
+    | ([num($p.five_hour.utilization),
+        num(($p.seven_day_oauth_apps // $p.seven_day // {}).utilization)]
+       + [($p.limits // [])[] | num(.percent)] | map(select(. != null))) as $all
+    | (reduce $all[] as $v (false; . or ($v >= 1))) as $scale
+    | [ (if $p.five_hour then row("Fenêtre 5 h"; num($p.five_hour.utilization);
+                                  $p.five_hour.resets_at; $scale) else empty end),
+        (($p.seven_day_oauth_apps // $p.seven_day) as $w
+         | if $w then row("Fenêtre 7 j"; num($w.utilization); $w.resets_at; $scale) else empty end),
+        (($p.limits // [])[] | select(.scope.model != null)
+         | ((.kind // "") | ascii_downcase) as $k
+         | (if ($k | test("hour|session")) then " (5 h)"
+            elif ($k | test("month")) then " (mois)"
+            elif ($k | test("week|day")) then " (7 j)"
+            else "" end) as $win
+         | row(((.scope.model.display_name // .scope.model.id // "?") + $win);
+               num(.percent); .resets_at; $scale))
+      ]
+    | if length == 0 then "  aucune limite renvoyée par l'\''endpoint" else .[] end
+  ' 2>/dev/null || {
+    echo "  réponse inattendue de l'endpoint d'Anthropic"
+    return 1
+  }
+}
+
+# --- usage codex : serveur applicatif local de codex --------------------------
+# codex ne publie pas d'endpoint HTTP : ses limites se lisent par le protocole
+# JSON-RPC de « codex app-server », sur l'entrée/sortie standard. On envoie les
+# trois messages d'un coup et on lit la réponse à la requête 2.
+usage_codex() {
+  local out
+  command -v jq >/dev/null 2>&1 || { echo "dev-box-agent : jq est absent" >&2; return 1; }
+  command -v codex >/dev/null 2>&1 || { echo "dev-box-agent : codex est absent du PATH" >&2; return 1; }
+  if [ ! -r "$HOME/.codex/auth.json" ]; then
+    echo "Pas d'identifiants Codex dans ~/.codex/auth.json."
+    echo "Lancez « codex » puis /login, et réessayez."
+    return 1
+  fi
+
+  out="$(
+    {
+      printf '%s\n' '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"dev-box-agent","version":"1"}}}'
+      printf '%s\n' '{"method":"initialized","params":{}}'
+      printf '%s\n' '{"id":2,"method":"account/rateLimits/read","params":{}}'
+      # Garde l'entrée ouverte le temps que codex réponde.
+      sleep 8
+    } | timeout 25 codex -s read-only -a on-request app-server 2>/dev/null \
+      | jq -c 'select(.id == 2) | .result.rateLimits // empty' 2>/dev/null | head -n 1
+  )" || true
+
+  if [ -z "$out" ]; then
+    echo "codex n'a pas renvoyé de limites (version trop ancienne, ou session non connectée)."
+    echo "Lancez « codex » puis /status pour les voir dans l'agent lui-même."
+    return 1
+  fi
+
+  printf '%s' "$out" | jq -r '
+    def label($m): if $m == 10080 then "Fenêtre 7 j"
+                   elif ($m | type) == "number" and ($m % 60) == 0 then "Fenêtre \($m / 60 | floor) h"
+                   elif ($m | type) == "number" then "Fenêtre \($m) min"
+                   else "Limite" end;
+    (if .planType then "  offre : \(.planType)" else empty end),
+    (( .primary, .secondary ) | select(. != null and .usedPercent != null)
+      | "  \(label(.windowDurationMins)) : \(.usedPercent | floor) %")
+  ' 2>/dev/null || {
+    echo "  réponse inattendue de codex"
+    return 1
+  }
+}
+
+do_usage() {
+  local which="${1:-}"
+  if [ -z "$which" ]; then
+    which="$(read_agent || true)"
+    case "$which" in
+      claude|codex) ;;
+      *) echo "usage : devbox agent usage [claude|codex]" >&2; exit 2 ;;
+    esac
+  fi
+  case "$which" in
+    claude) printf '\033[1mClaude Code\033[0m\n'; usage_claude ;;
+    codex)  printf '\033[1mCodex\033[0m\n'; usage_codex ;;
+    *) echo "dev-box-agent : usage n'est disponible que pour claude et codex" >&2; exit 2 ;;
+  esac
+}
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+  which)
+    if name="$(read_agent)" && [ -n "$name" ]; then
+      printf '%s\n' "$name"
+    else
+      echo "aucun agent par défaut (devbox agent set <nom>)"
+      exit 1
+    fi
+    exit 0
+    ;;
+  set)
+    shift
+    set_agent "${1:-}"
+    exit 0
+    ;;
+  prompt)
+    shift
+    [ $# -gt 0 ] || { echo "usage : devbox agent prompt <texte…>" >&2; exit 2; }
+    agent="$(current_agent)" || exit 1
+    run_with_prompt "$agent" "$*"
+    ;;
+  usage)
+    shift
+    do_usage "${1:-}"
+    exit 0
+    ;;
+  "")
+    agent="$(current_agent)" || exit 1
+    exec "$agent"
+    ;;
+  -*) echo "dev-box-agent : option inconnue « $1 »" >&2; exit 2 ;;
+  *)  echo "dev-box-agent : sous-commande inconnue « $1 »" >&2; usage >&2; exit 2 ;;
+esac

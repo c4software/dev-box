@@ -33,6 +33,11 @@ the same binary.
 | `sync` | `dotarchy-sync` | clones or updates the dotfiles repo and applies the config. Never runs its install scripts. |
 | `dev-env` | `dev-box-dev-env` | installs a dev environment with mise. `--list`, or names as arguments, or a menu. |
 | `dbs` | `dev-box-dbs` | starts a development database in a podman container. `--list`, `--start`, `--stop`, `--remove [--purge]`, or names, or a menu. |
+| `agent` | `dev-box-agent` | the default coding agent. `set`, `which`, `prompt <text>`, `usage [claude\|codex]`, or bare to run it. |
+| `migrate` | `dev-box-migrate` | runs the migrations shipped by the image, once each. `--pending`, `--list`, `--mark-done <name>`. |
+| `mise-install` | `dev-box-mise-install` | writes a mise-backed wrapper into `~/.local/bin`. `--list`, `--remove <cmd>`. |
+| `pkg` | `dev-box-pkg` | pacman packages that survive a rebuild. `add`, `drop`, `list`, `install`, `restore`. |
+| `tailscale` | `dev-box-tailscale` | Taildrop and tailnet status. `send`, `receive [--once] [dir]`, `status`. |
 
 `dev-box-podman` carries `# devbox:hidden=true`: it is the wrapper behind the
 `docker` and `podman` symlinks, not something a user calls. It stays routable,
@@ -99,6 +104,96 @@ Ports are published on `127.0.0.1`, reachable from inside the box only; from
 outside, tunnel with `ssh -L 5432:127.0.0.1:5432 dev@dev-box`. `mysql` and
 `mariadb` share port 3306, so only one of them runs at a time, and `mssql` has no
 arm64 image. Nothing restarts on its own after a restart of the box.
+
+## agent
+
+`devbox agent` keeps one default coding agent for the box, in
+`~/.config/dev-box/agent`, and runs it in the current directory.
+
+```bash
+devbox agent                    # run the default, or pick one first
+devbox agent set [name]         # change it, gum menu when no name is given
+devbox agent which              # print it
+devbox agent prompt <text...>   # run it with an instruction
+devbox agent usage [claude|codex]
+```
+
+The choices are what the image ships (`claude`, `pi`, `omp`, `opencode`,
+`codex`) plus every wrapper written by `devbox mise-install`. Nothing is
+installed by `set`: the wrapper installs its tool on the first call.
+
+`usage` is read only and prints plain text. Claude Code goes through the OAuth
+token in `~/.claude/.credentials.json` and Anthropic's usage endpoint; the
+token travels in that request's Authorization header and nowhere else, and no
+figure is written to disk. Codex goes through `codex app-server` on stdin.
+Without credentials each one says which command to run to log in.
+
+## migrate
+
+Migrations are small scripts in `/usr/share/devbox/migrations/`, named
+`<YYYYMMDDHHMMSS>-<what>.sh`. They repair an existing home after an image
+change the seed cannot handle on its own. Each one runs once, as the user, in
+name order. The journal is `~/.config/dev-box/migrations`, one name per line.
+
+```bash
+devbox migrate                      # run what is pending
+devbox migrate --pending            # list it, change nothing
+devbox migrate --list               # all of them, with their state
+devbox migrate --mark-done <name>   # acknowledge one without running it
+```
+
+The entrypoint runs it at every start, right after the seed. That is the only
+automatic thing in the box, and it is deliberate: a migration ships with the
+image that needs it. A brand new home has every migration marked as played
+without running any. See `updates.md`, and `extending.md` to write one.
+
+## mise-install
+
+```bash
+devbox mise-install <package> [command [binary]]
+devbox mise-install --list
+devbox mise-install --remove <command>
+```
+
+It writes `~/.local/bin/<command>`, a four line wrapper that runs
+`mise use -g --quiet <package>` and then `mise x <package> -- <binary>`, with
+`MISE_MINIMUM_RELEASE_AGE=0`. The image already ships that wrapper for
+`claude`, `pi`, `omp`, `opencode` and `codex`; this is for everything else
+(`gemini`, `crush`, `copilot`, and so on). `~/.local/bin` precedes
+`/usr/local/bin` on the `PATH`, so a wrapper written here shadows the shipped
+one of the same name. Wrappers written this way carry a
+`# dev-box-mise-install` marker line, which is what `--list` and `--remove`
+recognize; nothing else in `~/.local/bin` is ever touched.
+
+## pkg
+
+```bash
+devbox pkg add <packages...>    # pacman -S --needed, then remember
+devbox pkg drop <packages...>   # pacman -Rs, then forget
+devbox pkg list                 # the list, and whether each one is installed
+devbox pkg install              # fuzzy picker (fzf) over the Arch repositories
+devbox pkg restore              # reinstall whatever is missing
+```
+
+The list is `~/.config/dev-box/packages`, one name per line, sorted, in the
+persistent home. The entrypoint reinstalls what is missing at every start, in
+the background. This is how a pacman package survives a rebuild without a
+commit. Only packages: a config file edited in `/etc` is not tracked and does
+not come back. Anything that must really last belongs in the `Dockerfile`.
+
+## tailscale
+
+```bash
+devbox tailscale send <machine> <file...>
+devbox tailscale receive [--once] [directory]
+devbox tailscale status
+```
+
+Taildrop, plus the state of the link. `receive` loops on
+`tailscale file get --wait`, saving into `~/inbox` by default, and `--once`
+returns after the first delivery. With `TS_DISABLE=true` there is no tailnet,
+so every subcommand says so and exits 1. Taildrop works with Headscale 0.23 and
+later, between machines of the same user.
 
 ## What is not a devbox command
 
