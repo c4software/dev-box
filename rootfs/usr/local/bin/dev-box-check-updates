@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Vérifie, sans rien installer, ce qui pourrait être mis à jour : dotfiles
+# (HEAD du clone vs branche distante), image dev-box (commit gravé au build vs
+# branche distante), outils mise, conf livrée par l'image.
+# Écrit ~/.cache/dev-box/updates (une ligne par élément) si quelque chose est
+# disponible, sinon supprime le fichier. Ne télécharge que des métadonnées et
+# ne doit jamais bloquer : tout est borné par un timeout et neutralisé en cas
+# d'échec.
+set -euo pipefail
+
+FLAG_DIR="$HOME/.cache/dev-box"
+FLAG="$FLAG_DIR/updates"
+
+[ -f /etc/devbox/dotarchy.env ] && . /etc/devbox/dotarchy.env
+BRANCH="${DOTARCHY_BRANCH:-main}"
+SRC="$HOME/.local/share/dotarchy"
+
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+
+# --- 1. Dotfiles : HEAD local vs HEAD distant (git ls-remote, aucun objet tiré) ---
+if [ -d "$SRC/.git" ]; then
+  local_head="$(git -C "$SRC" rev-parse HEAD 2>/dev/null || true)"
+  remote_head="$(GIT_TERMINAL_PROMPT=0 timeout 30 \
+      git -C "$SRC" ls-remote origin "$BRANCH" 2>/dev/null | awk 'NR==1{print $1}' || true)"
+  if [ -n "$local_head" ] && [ -n "$remote_head" ] && [ "$local_head" != "$remote_head" ]; then
+    echo "dotfiles : nouvelle version (${local_head:0:7} → ${remote_head:0:7})" >> "$tmp"
+  fi
+fi
+
+# --- 2. Image dev-box : commit gravé au build vs HEAD du dépôt distant ---
+if [ -r /etc/devbox/release ]; then
+  DEVBOX_COMMIT=""; DEVBOX_REPO=""; DEVBOX_BRANCH="main"
+  . /etc/devbox/release
+  if [ -n "$DEVBOX_REPO" ] && [ "${DEVBOX_COMMIT:-unknown}" != "unknown" ]; then
+    # URL ssh (git@github.com:x/y.git) → https : la box n'a pas de clé pour ça
+    repo_url="$DEVBOX_REPO"
+    case "$repo_url" in
+      git@*:*) repo_url="https://${repo_url#git@}"; repo_url="${repo_url/:/\/}" ;;
+      ssh://git@*) repo_url="https://${repo_url#ssh://git@}" ;;
+    esac
+    # Dépôt privé sur GitHub : GITHUB_TOKEN sert d'authentification s'il a le
+    # droit de lecture sur le dépôt (sinon l'appel échoue et le contrôle est
+    # simplement sauté ; `just status` sur l'hôte fait la même comparaison).
+    auth=()
+    if [ -n "${GITHUB_TOKEN:-}" ]; then
+      auth=(-c "http.extraheader=Authorization: Bearer $GITHUB_TOKEN")
+    fi
+    image_remote="$(GIT_TERMINAL_PROMPT=0 timeout 30 \
+        git "${auth[@]}" ls-remote "$repo_url" "refs/heads/$DEVBOX_BRANCH" 2>/dev/null | awk 'NR==1{print $1}' || true)"
+    if [ -n "$image_remote" ] && [ "$image_remote" != "$DEVBOX_COMMIT" ]; then
+      echo "image dev-box : nouvelle version du dépôt (${DEVBOX_COMMIT:0:7} → ${image_remote:0:7}), just rebuild sur l'hôte" >> "$tmp"
+    fi
+  fi
+fi
+
+# --- 3. Outils mise (métadonnées des registres uniquement) ---
+if command -v mise >/dev/null 2>&1; then
+  # --json : sortie stable (le tableau n'a pas d'en-tête hors terminal) ;
+  # « rien à faire » = {} ou sortie vide.
+  outdated="$(timeout 120 mise outdated --json 2>/dev/null || true)"
+  if [ -n "$outdated" ] && [ "$outdated" != "{}" ]; then
+    if command -v jq >/dev/null 2>&1; then
+      printf '%s' "$outdated" \
+        | jq -r 'to_entries[] | select(.value.current != null)
+                 | "outil mise : \(.key) \(.value.current) → \(.value.latest // "?")"' \
+        2>/dev/null >> "$tmp" || true
+    else
+      # Repli sans jq : colonnes « nom demandé actuel dernier source »
+      timeout 120 mise outdated 2>/dev/null \
+        | awk '$1 != "Tool" && NF >= 4 { print "outil mise : " $1 " " $3 " → " $4 }' \
+        >> "$tmp" || true
+    fi
+  fi
+fi
+
+# --- 4. Conf livrée par l'image (agents, extensions, conf mise) ---
+if command -v dev-box-seed >/dev/null 2>&1; then
+  dev-box-seed --check 2>/dev/null >> "$tmp" || true
+fi
+
+mkdir -p "$FLAG_DIR"
+if [ -s "$tmp" ]; then
+  cp "$tmp" "$FLAG"
+else
+  rm -f "$FLAG"
+fi

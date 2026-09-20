@@ -14,10 +14,18 @@ RUN pacman -Syu --noconfirm --needed \
     && rm -rf /var/cache/pacman/pkg/*
 
 COPY rootfs/ /
-RUN chmod +x /usr/local/bin/* \
+# Commit du dépôt dev-box dont l'image est issue (build args, posés par le
+# justfile) : dev-box-check-updates le compare au dépôt distant.
+ARG DEVBOX_COMMIT=unknown
+ARG DEVBOX_REPO=
+ARG DEVBOX_BRANCH=main
+RUN printf 'DEVBOX_COMMIT=%s\nDEVBOX_REPO=%s\nDEVBOX_BRANCH=%s\n' \
+      "$DEVBOX_COMMIT" "$DEVBOX_REPO" "$DEVBOX_BRANCH" > /etc/devbox/release \
+    && chmod +x /usr/local/bin/* \
     && mkdir -p /etc/zsh \
     && cat /etc/devbox/zshenv >> /etc/zsh/zshenv \
     && echo '. /etc/devbox/tmux-auto.sh' >> /etc/zsh/zshrc \
+    && echo '. /etc/devbox/updates-motd.sh' >> /etc/zsh/zshrc \
     && cat /etc/devbox/bashrc >> /etc/bash.bashrc
 
 # Sain quand Tailscale est connecté, ou quand sshd écoute (TS_DISABLE=true).

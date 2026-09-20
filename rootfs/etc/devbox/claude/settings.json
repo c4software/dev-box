@@ -1,13 +1,7 @@
 {
-  "model": "opus",
   "theme": "dark",
   "tui": "fullscreen",
   "effortLevel": "medium",
-  "modelSettings": {
-    "claude-opus-5": {
-      "effortLevel": "medium"
-    }
-  },
   "attribution": {
     "commit": "",
     "pr": "",

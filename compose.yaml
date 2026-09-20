@@ -1,6 +1,14 @@
 services:
   dev-box:
-    build: .
+    build:
+      context: .
+      # Commit du dépôt gravé dans l'image (/etc/devbox/release) : le contrôle
+      # des mises à jour dans la box compare avec le dépôt distant. Renseignés
+      # par le justfile ; « unknown » avec un docker compose build direct.
+      args:
+        DEVBOX_COMMIT: ${DEVBOX_COMMIT:-unknown}
+        DEVBOX_REPO: ${DEVBOX_REPO:-}
+        DEVBOX_BRANCH: ${DEVBOX_BRANCH:-main}
     container_name: dev-box
     hostname: ${TS_HOSTNAME:-dev-box}
     init: true

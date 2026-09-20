@@ -8,7 +8,7 @@ PGID=1000
 USER_SHELL="${USER_SHELL:-/bin/zsh}"
 TS_HOSTNAME="${TS_HOSTNAME:-dev-box}"
 HOME_DIR="/home/${USER_NAME}"
-SYNC_INTERVAL="${DOTARCHY_SYNC_INTERVAL:-3600}"
+CHECK_INTERVAL="${UPDATE_CHECK_INTERVAL:-86400}"
 
 log()     { echo "[dev-box] $*"; }
 as_user() { su - "$USER_NAME" -w GITHUB_TOKEN,TZ -c "$1"; }
@@ -46,11 +46,12 @@ chmod 600 /etc/devbox/env
 
 # --- 2. Premier démarrage : initialisation du home ---
 mkdir -p "$HOME_DIR"
+FIRST_BOOT=false
 if [ ! -f "$HOME_DIR/.dev-box-init" ]; then
+  FIRST_BOOT=true
   log "Initialisation de $HOME_DIR"
   cp -r --update=none /etc/skel/. "$HOME_DIR/"
   mkdir -p "$HOME_DIR/.config/mise" "$HOME_DIR/.local/bin" "$HOME_DIR/projets"
-  cp --update=none /etc/devbox/mise-config.toml "$HOME_DIR/.config/mise/config.toml"
   touch "$HOME_DIR/.dev-box-init"
   # chown du home sans descendre dans ~/projets (volume à part, contenu existant intact)
   find "$HOME_DIR" -path "$HOME_DIR/projets" -prune -o -exec chown -h "$PUID:$PGID" {} +
@@ -67,37 +68,32 @@ if [ ! -f "$HOME_DIR/.zshrc" ]; then
   chown "$PUID:$PGID" "$HOME_DIR/.zshrc"
 fi
 
-# Conf de base des agents (posée si absente, jamais écrasée : une fois dans le
-# home persistant, elle appartient à la box — Claude y réécrit settings.json).
-seed() { # seed <source> <chemin relatif au home>
-  local dst="$HOME_DIR/$2"
-  [ -e "$dst" ] && return 0
-  install -d -m 755 -o "$PUID" -g "$PGID" "$(dirname "$dst")"
-  install -m 644 -o "$PUID" -g "$PGID" "$1" "$dst"
-  log "conf posée : ~/$2"
-}
-seed /etc/devbox/claude/settings.json .claude/settings.json
-seed /etc/devbox/claude/agents/pi.md  .claude/agents/pi.md
-seed /etc/devbox/claude/agents/omp.md .claude/agents/omp.md
-seed /etc/devbox/llm-proxy.ts         .pi/agent/extensions/llm-proxy.ts
-seed /etc/devbox/llm-proxy.ts         .omp/agent/extensions/llm-proxy.ts
+# Conf livrée par l'image (agents, extensions, conf mise) : posée si absente,
+# mise à jour si l'utilisateur n'y a pas touché, jamais écrasée sinon.
+DEVBOX_HOME="$HOME_DIR" dev-box-seed || log "⚠ dev-box-seed a échoué"
 
-# --- 3. Dotfiles + outils (en arrière-plan, avant Tailscale : `tailscale up` peut
-#        attendre un login interactif si TS_AUTHKEY est vide) ---
+# --- 3. Premier démarrage : dotfiles + outils. Ensuite : contrôle des mises à
+#        jour seulement (tout se met à jour à la main avec `dev-box-update`).
+#        En arrière-plan, avant Tailscale : `tailscale up` peut attendre un
+#        login interactif si TS_AUTHKEY est vide. ---
 (
-  as_user "dotarchy-sync" || log "⚠ dotarchy-sync a échoué"
-  if [ "${MISE_INSTALL_ON_START:-true}" = "true" ]; then
+  if [ "$FIRST_BOOT" = "true" ]; then
+    as_user "dotarchy-sync" || log "⚠ dotarchy-sync a échoué"
+  fi
+  # MISE_INSTALL_ON_START réinstalle ce qui manque, sans monter de version
+  if [ "$FIRST_BOOT" = "true" ] || [ "${MISE_INSTALL_ON_START:-true}" = "true" ]; then
     if as_user "mkdir -p ~/.cache && { mise install node && mise install; } \
                 >> ~/.cache/dev-box-install.log 2>&1"; then
-      log "mise : outils à jour"
+      log "mise : outils installés"
     else
       log "⚠ mise install a échoué, voir ~/.cache/dev-box-install.log"
     fi
   fi
-  # Resynchronisation périodique des dotfiles (0 = désactivé)
-  if [ "$SYNC_INTERVAL" -gt 0 ] 2>/dev/null; then
-    while sleep "$SYNC_INTERVAL"; do
-      as_user "dotarchy-sync" >/dev/null || log "⚠ dotarchy-sync périodique a échoué"
+  # Contrôle périodique : dépose ~/.cache/dev-box/updates, affiché au login
+  if [ "$CHECK_INTERVAL" -gt 0 ] 2>/dev/null; then
+    as_user "dev-box-check-updates" >/dev/null 2>&1 || log "⚠ contrôle des mises à jour impossible"
+    while sleep "$CHECK_INTERVAL"; do
+      as_user "dev-box-check-updates" >/dev/null 2>&1 || log "⚠ contrôle des mises à jour impossible"
     done
   fi
 ) &

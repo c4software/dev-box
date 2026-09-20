@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+# Pose la conf livrée par l'image (agents, extensions, conf mise) dans le home,
+# sans jamais écraser une modification locale.
+#
+# Une copie de référence de ce qui a été posé est gardée dans
+# ~/.config/dev-box/seed/<chemin> : elle sert à distinguer « fichier jamais
+# touché » (on peut le mettre à jour) de « fichier modifié par l'utilisateur »
+# (on prévient, on n'écrase pas).
+#
+# Utilisable par root (entrypoint, avec DEVBOX_HOME + chown 1000:1000) ou par
+# l'utilisateur (dev-box-update seed).
+#
+#   dev-box-seed                  applique la conf livrée
+#   dev-box-seed --force [chemin] écrase (tout, ou le seul chemin donné)
+#   dev-box-seed --check          n'écrit rien, liste les nouveautés livrées
+set -euo pipefail
+
+# Table : <source dans l'image>:<chemin relatif au home>
+SEEDS=(
+  "/etc/devbox/claude/settings.json:.claude/settings.json"
+  "/etc/devbox/claude/agents/pi.md:.claude/agents/pi.md"
+  "/etc/devbox/claude/agents/omp.md:.claude/agents/omp.md"
+  "/etc/devbox/llm-proxy.ts:.pi/agent/extensions/llm-proxy.ts"
+  "/etc/devbox/llm-proxy.ts:.omp/agent/extensions/llm-proxy.ts"
+  "/etc/devbox/mise-config.toml:.config/mise/config.toml"
+)
+
+FORCE=false
+CHECK=false
+ONLY=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --force) FORCE=true; shift ;;
+    --check) CHECK=true; shift ;;
+    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -*) echo "option inconnue : $1" >&2; exit 2 ;;
+    *)  ONLY="$1"; shift ;;
+  esac
+done
+
+# Home cible : celui de l'appelant, ou DEVBOX_HOME quand l'entrypoint (root) l'appelle
+TARGET_HOME="${DEVBOX_HOME:-$HOME}"
+REF_DIR="$TARGET_HOME/.config/dev-box/seed"
+# Root pose les fichiers au nom de l'utilisateur de la box (UID/GID fixes)
+OWNER=""
+[ "$(id -u)" = "0" ] && OWNER="1000:1000"
+
+# shellcheck disable=SC2088  # le tilde est là pour l'affichage, pas pour le shell
+log() { $CHECK || echo "[dev-box-seed] $*"; }
+
+# ~/x, /home/dev/x, x → x
+normalize() {
+  local p="$1"
+  p="${p#"$TARGET_HOME"/}"
+  p="${p#\~/}"
+  p="${p#./}"
+  printf '%s' "$p"
+}
+ONLY="$(normalize "$ONLY")"
+
+# install_as <source> <destination>
+# Quand root appelle, tous les répertoires créés doivent revenir à l'utilisateur
+# (`install -d -o` ne traite que le dernier composant), sinon ~/.config/dev-box
+# resterait à root et l'utilisateur ne pourrait plus rien y écrire.
+install_as() {
+  local dir sub
+  dir="$(dirname "$2")"
+  mkdir -p "$dir"
+  if [ -n "$OWNER" ]; then
+    sub="$dir"
+    while [ "$sub" != "$TARGET_HOME" ] && [ "$sub" != "/" ]; do
+      chown "$OWNER" "$sub"
+      sub="$(dirname "$sub")"
+    done
+    install -m 644 -o "${OWNER%%:*}" -g "${OWNER##*:}" "$1" "$2"
+  else
+    install -m 644 "$1" "$2"
+  fi
+}
+
+MATCHED=false
+for entry in "${SEEDS[@]}"; do
+  src="${entry%%:*}"
+  rel="${entry#*:}"
+  [ -n "$ONLY" ] && [ "$ONLY" != "$rel" ] && continue
+  MATCHED=true
+  [ -f "$src" ] || continue
+
+  dst="$TARGET_HOME/$rel"
+  ref="$REF_DIR/$rel"
+
+  if $FORCE; then
+    install_as "$src" "$dst"
+    install_as "$src" "$ref"
+    log "conf remplacée : ~/$rel"
+    continue
+  fi
+
+  # 1. Rien sur place : on pose et on enregistre la référence
+  if [ ! -e "$dst" ]; then
+    if $CHECK; then continue; fi
+    install_as "$src" "$dst"
+    install_as "$src" "$ref"
+    log "conf posée : ~/$rel"
+    continue
+  fi
+
+  # 2. Pas de référence (box existante) : on adopte la version livrée comme
+  #    référence, sans rien écraser
+  if [ ! -e "$ref" ]; then
+    if $CHECK; then continue; fi
+    install_as "$src" "$ref"
+    cmp -s "$dst" "$src" || log "~/$rel diffère de la version livrée (conservé, référence adoptée)"
+    continue
+  fi
+
+  # Version livrée inchangée depuis la dernière pose : rien à faire
+  if cmp -s "$src" "$ref"; then
+    continue
+  fi
+
+  if cmp -s "$dst" "$ref"; then
+    # 3. Jamais modifié localement : mise à jour transparente
+    if $CHECK; then
+      echo "conf livrée mise à jour : ~/$rel"
+    else
+      install_as "$src" "$dst"
+      install_as "$src" "$ref"
+      log "conf mise à jour : ~/$rel"
+    fi
+  else
+    # 4. Modifié localement : on prévient, on n'écrase pas
+    if $CHECK; then
+      echo "conf livrée mise à jour : ~/$rel (modifié localement)"
+    else
+      log "~/$rel modifié localement, nouvelle version livrée disponible (dev-box-seed --force ~/$rel)"
+    fi
+  fi
+done
+
+if [ -n "$ONLY" ] && ! $MATCHED; then
+  echo "dev-box-seed : ~/$ONLY ne fait pas partie de la conf livrée" >&2
+  exit 1
+fi

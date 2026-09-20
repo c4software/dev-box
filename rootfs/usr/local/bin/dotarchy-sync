@@ -2,7 +2,7 @@
 # Récupère la conf de dotarchy/common-no-omarchy (config/ et default/) et les
 # scripts de base dont ses alias ont besoin (try, proj, alias git) — sans lancer
 # les scripts d'installation (bootstrap.sh, nvim.sh…).
-# Lancé au démarrage, périodiquement, ou à la main : `dotarchy-sync`
+# Lancé au premier démarrage, ou à la main : `dotarchy-sync` (ou `dev-box-update`).
 set -euo pipefail
 
 [ -f /etc/devbox/dotarchy.env ] && . /etc/devbox/dotarchy.env
@@ -90,4 +90,15 @@ fi
 # --- 6. Recharge tmux s'il tourne ---
 if tmux info &>/dev/null && [ -f "$HOME/.config/tmux/tmux.conf" ]; then
   tmux source-file "$HOME/.config/tmux/tmux.conf" && log "tmux rechargé"
+fi
+
+# --- 7. Surcouche locale : ~/.config/dev-box/overrides reproduit l'arborescence
+#        du home et est réappliqué en dernier (après le rsync --delete de nvim) ---
+OVERRIDES="$HOME/.config/dev-box/overrides"
+if [ -d "$OVERRIDES" ]; then
+  n=$(find "$OVERRIDES" -type f | wc -l)
+  if [ "$n" -gt 0 ]; then
+    rsync -a "$OVERRIDES/" "$HOME/"
+    log "surcouche locale appliquée ($n fichier(s) depuis ~/.config/dev-box/overrides)"
+  fi
 fi

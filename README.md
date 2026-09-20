@@ -10,7 +10,9 @@ config applied as-is and dev tools managed by [mise](https://mise.jdx.dev/).
   to its own OpenSSH server on a published port, public key only.
 - SSH lands you in zsh inside a tmux session named after the box (`TS_HOSTNAME`,
   `dev-box` by default), in your home directory.
-- Dotfiles pulled from a git repo and kept in sync, without running its install scripts.
+- Dotfiles pulled from a git repo, applied without running its install scripts.
+- Nothing updates behind your back: a background check every 24 h, a message at
+  login, and `dev-box-update` when you decide.
 - Two persistent volumes (home and projects) that survive image rebuilds.
 - System packages via pacman (image), dev tools via mise (home).
 
@@ -66,8 +68,8 @@ All settings live in `.env` (see `.env.example`):
 | `DOTARCHY_REPO` | `https://github.com/c4software/dotarchy.git` | Dotfiles repo |
 | `DOTARCHY_BRANCH` | `main` | Branch to track |
 | `DOTARCHY_SUBDIR` | `common-no-omarchy` | Subfolder holding `config/`, `default/`, `install/` |
-| `DOTARCHY_SYNC_INTERVAL` | `3600` | Re-sync period in seconds (`0` = at start and manually only) |
-| `MISE_INSTALL_ON_START` | `true` | Install mise tools in the background at start |
+| `UPDATE_CHECK_INTERVAL` | `86400` | Update *check* period in seconds (`0` = off); it installs nothing |
+| `MISE_INSTALL_ON_START` | `true` | Reinstall missing mise tools in the background at start (no version bump) |
 | `GITHUB_TOKEN` | empty | Token with no scopes, avoids GitHub API rate limits during mise installs |
 | `LLM_PROXY_URL` | `http://llmproxy` | Endpoint used by the `llm-proxy.ts` extension of pi/omp |
 | `LLM_PROXY_API_KEY` | `unused` | Its API key |
@@ -160,11 +162,13 @@ and takes **only the config**. It never runs the repo's install scripts.
   function of `install/git.sh` (only `git config --global` calls).
 - tmux is reloaded if it is running.
 
-It runs at start, every `DOTARCHY_SYNC_INTERVAL` seconds (default 1 h, `0` = off), or
-manually with `dotarchy-sync`.
+It runs on the very first start, then only when you ask for it: `dotarchy-sync` (or
+`dev-box-update dotfiles`). There is no periodic sync.
 
 Edit the config **in the repo**, not in the box: copied files are overwritten on every
-pass.
+pass. For box-only tweaks, put them in `~/.config/dev-box/overrides/`, a mirror of the
+home (`overrides/.config/tmux/tmux.conf` → `~/.config/tmux/tmux.conf`): they are
+re-applied at the end of every sync, after the steps that overwrite (nvim included).
 
 Not replicated: the rest of `bootstrap.sh` (keyboard layout, shell choice) and
 `install/nvim.sh`. Its tweaks (`relativenumber = false`, `gb` → `<C-^>`) only apply
@@ -193,17 +197,29 @@ command works on first call even before the background install finished, or afte
 the tool was removed from `~/.config/mise/config.toml`. `opencode` is not
 pre-installed: its first call installs it.
 
-They are installed in the background at start; follow progress with
-`tail -f ~/.cache/dev-box-install.log`. Add more on demand, e.g.
-`mise use -g go@latest`. Set `GITHUB_TOKEN` (no scopes needed) to avoid GitHub API
-rate limits.
+They are installed in the background on first start; follow progress with
+`tail -f ~/.cache/dev-box-install.log`. Later starts only reinstall what is missing
+(`MISE_INSTALL_ON_START`), never bump a version. Upgrading is explicit:
+`dev-box-update tools` runs `mise install` then `mise upgrade`. Add more on demand,
+e.g. `mise use -g go@latest`. Set `GITHUB_TOKEN` (no scopes needed) to avoid GitHub
+API rate limits.
 
 
 ## Agent configuration
 
-A base config is laid down in the home on first start, and never overwritten
-afterwards — once there, the files belong to the box (Claude Code rewrites its own
-`settings.json`). Delete a file and the next start puts the shipped one back.
+A base config is shipped in the image and laid down in the home by `dev-box-seed`
+(run at every start, and by `dev-box-update seed`). A reference copy of what was laid
+down is kept in `~/.config/dev-box/seed/<path>`, which gives three cases per file:
+
+- **missing** → the shipped file is copied and recorded as the reference;
+- **untouched** (identical to the reference) and the shipped version changed → it is
+  updated in place (`conf mise à jour : ~/x`);
+- **modified locally** and the shipped version changed → nothing is overwritten, the
+  box tells you the new version exists and how to take it:
+  `dev-box-seed --force ~/x`.
+
+A box created before the reference existed simply adopts the shipped version as its
+reference on the next start, without overwriting anything.
 
 | File | From |
 |---|---|
@@ -211,9 +227,13 @@ afterwards — once there, the files belong to the box (Claude Code rewrites its
 | `~/.claude/agents/{pi,omp}.md` | `rootfs/etc/devbox/claude/agents/` |
 | `~/.pi/agent/extensions/llm-proxy.ts` | `rootfs/etc/devbox/llm-proxy.ts` |
 | `~/.omp/agent/extensions/llm-proxy.ts` | same file |
+| `~/.config/mise/config.toml` | `rootfs/etc/devbox/mise-config.toml` |
 
-- `settings.json`: model, theme, effort level, empty commit/PR attribution, and the
-  `harness@c4software` plugin from its GitHub marketplace.
+- `settings.json`: theme, effort level, empty commit/PR attribution, and the
+  `harness@c4software` plugin from its GitHub marketplace. No `model` key: Claude Code
+  picks its own default. Claude Code rewrites this file by itself, so it goes to
+  "modified locally" almost immediately — that is expected; a new shipped version is
+  reported, never forced.
 - `pi.md` / `omp.md`: Claude Code sub-agents that delegate a task to the `pi` and `omp`
   CLIs. They only run when asked for explicitly.
 - `llm-proxy.ts` registers the Albert (DINUM) provider in pi and omp. It reads
@@ -223,6 +243,34 @@ afterwards — once there, the files belong to the box (Claude Code rewrites its
 Login shells get those two variables from `/etc/devbox/env`, written at start and
 sourced by `/etc/devbox/zshenv`: neither Tailscale SSH nor sshd inherits the
 environment of PID 1.
+
+## Updates
+
+Nothing is updated automatically. A background check runs at start and every
+`UPDATE_CHECK_INTERVAL` seconds (24 h by default, `0` = off) and only fetches
+metadata, all of it by git commit hash where there is one: the dotfiles repo HEAD
+(`git ls-remote` against the local clone), the dev-box repo HEAD against the commit
+the image was built from, `mise outdated`, and the shipped config files whose
+version changed. What it finds goes into `~/.cache/dev-box/updates`
+(one line per item); when there is nothing left, the file is removed.
+
+Interactive shells print that file at login — once per tmux session — followed by
+`→ dev-box-update`. With no file, the cost is a single file test.
+
+```bash
+dev-box-update            # all of the below
+dev-box-update dotfiles   # dotarchy-sync
+dev-box-update tools      # mise install, then mise upgrade
+dev-box-update seed       # shipped config (see above)
+```
+
+It clears the flag and re-runs the check when it is done. The one item it cannot
+act on is the image itself: that line points to `just rebuild` (or `just up`) on the
+host. The image knows its commit only when built through `just`, which passes it as
+a build argument; a bare `docker compose build` records `unknown` and that check is
+skipped. A private dev-box repo is only reachable from the box if `GITHUB_TOKEN`
+can read it; otherwise `just status` on the host makes the same comparison, image
+commit against the local checkout.
 
 ## Persistence
 
@@ -244,8 +292,8 @@ it as root); its contents are never touched. You can start from a fresh home
 - **Run without Tailscale.** See *SSH without Tailscale* above. With no
   `SSH_AUTHORIZED_KEYS` set, sshd does not start (the container stays up and reports
   unhealthy); get in with `docker exec -it -u dev dev-box zsh -l`.
-- **Logs.** `docker compose logs -f` shows the entrypoint, `dotarchy-sync` and
-  `tailscale up` output (including the login URL when `TS_AUTHKEY` is empty).
+- **Logs.** `docker compose logs -f` shows the entrypoint, `dotarchy-sync`, `dev-box-seed`
+  and `tailscale up` output (including the login URL when `TS_AUTHKEY` is empty).
 - **mise install failed.** See `~/.cache/dev-box-install.log`; rate-limit errors
   usually mean `GITHUB_TOKEN` is missing.
 - **SSH refused / port 22 filtered.** Check the Headscale policy: both the `ssh` rule

@@ -7,3 +7,5 @@ command -v mise >/dev/null && eval "$(mise activate bash)"
 # Variables du conteneur (écrites par l'entrypoint) : ni Tailscale SSH ni sshd
 # n'héritent de l'environnement du PID 1.
 [ -r /etc/devbox/env ] && . /etc/devbox/env
+# Message de mise à jour au login (drapeau posé par dev-box-check-updates)
+. /etc/devbox/updates-motd.sh
