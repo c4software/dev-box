@@ -362,21 +362,36 @@ For Codex it talks to `codex app-server` over stdin, which is where Codex keeps
 its rate limits; when that answers nothing it says so and points at `/status`
 inside Codex.
 
-Under the limits comes a `Tokens` table, one line per model, counted from the
-transcripts the agents themselves write in the home, `~/.claude/projects` for
-Claude Code and `~/.codex/sessions` for Codex. Nothing is fetched for it and
-nothing is written: the files are read as they are. The columns are the input,
-the cached input, the output and the total over the last seven days, plus the
-total for today, days cut at local midnight in the box's timezone. Counts are
-printed short, `12.3k` or `4.5M`, and exact below a thousand.
+Under the limits comes a `Tokens` block, the same one for the three accounts:
+one line per model, with its share of the window as a twenty cell bar, that
+share, the tokens, the number of requests and a sparkline of the seven days,
+today on the right. The models are sorted by share and everything past the
+eighth is folded into one `others` line. Two lines close the block, the input
+and output totals and what today weighs:
 
-`devbox agent usage proxy` is the same table for the LLM proxy, with the number
-of requests per model. Those figures do not come from a transcript but from the
-proxy's own usage route, `/v1/organization/usage/completions` on `LLM_PROXY_URL`,
-called with `LLM_PROXY_API_KEY`. There, `cached` is the part of the input the
-proxy served from its cache, so it is counted inside `in` and not a second time
-in the total. When the proxy does not answer, the section says so in one line
-and nothing else.
+```
+Tokens, last 7 days                                11 884 requests   1.5G tokens
+  claude-opus-5    ███████████░░░░░░░░░  57%  874.2M 8.5k req ▂▅▆▆█▂▆
+  claude-fable-5-1 ████████░░░░░░░░░░░░  41%  643.0M 3.0k req ▂▄▆▆█▂▄
+  claude-sonnet-5  ░░░░░░░░░░░░░░░░░░░░  <1%   15.1M  292 req ▁▅█▃▃▁▁
+  in 1.5G, of which 1.5G from the cache, out 7.0M
+  today: 1 828 requests, 232.4M tokens
+```
+
+Those counts are read from the transcripts the agents themselves write in the
+home, `~/.claude/projects` for Claude Code and `~/.codex/sessions` for Codex.
+Nothing is fetched for them and nothing is written: the files are read as they
+are. A request is one assistant message for Claude Code and one token count
+event for Codex. The days are cut at local midnight in the box's timezone, and
+counts are printed short, `12.3k` or `4.5M`, exact below a thousand.
+
+`devbox agent usage proxy` is the same block for the LLM proxy, under its own
+heading. Those figures do not come from a transcript but from the proxy's own
+usage route, `/v1/organization/usage/completions` on `LLM_PROXY_URL`, called
+with `LLM_PROXY_API_KEY`, in hourly buckets so the days line up with the box's.
+The cached tokens are the part of the input that was served from a cache, in
+every account, so they are counted inside the input and never twice. When the
+proxy does not answer, the section says so in one line and nothing else.
 
 ## Dotfiles sync
 

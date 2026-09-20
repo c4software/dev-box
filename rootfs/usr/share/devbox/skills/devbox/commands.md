@@ -132,14 +132,16 @@ in that request's Authorization header and nowhere else, and no figure is
 written to disk. Codex goes through `codex app-server` on stdin.
 Without credentials each one says which command to run to log in.
 
-Under the limits comes a `Tokens` table, one line per model, with the input,
-the cached input, the output and the total over the last seven days and the
-total for today, days cut at local midnight. Those counts are read from the
-local transcripts, `~/.claude/projects` for Claude Code and `~/.codex/sessions`
-for Codex, so they still work when the account is not logged in. `usage proxy`
-(alias `llmproxy`) prints the same table for the LLM proxy, requests included;
-its figures come from the proxy's usage route on `LLM_PROXY_URL`, where the
-cached tokens are a part of the input and are not counted twice in the total.
+Under the limits comes a `Tokens` block, the same one for the three accounts:
+one line per model with its share of the last seven days as a twenty cell bar,
+the share, the tokens, the requests and a sparkline of the seven days, today on
+the right, then the input and output totals and what today weighs. Past the
+eighth model the rest is folded into one `others` line. Those counts are read
+from the local transcripts, `~/.claude/projects` for Claude Code and
+`~/.codex/sessions` for Codex, so they still work when the account is not
+logged in. `usage proxy` (alias `llmproxy`) prints the same block for the LLM
+proxy, from its usage route on `LLM_PROXY_URL`. Cached tokens are the part of
+the input served from a cache and are never counted twice.
 
 ## migrate
 
