@@ -31,6 +31,13 @@ old layout. This applies whenever you:
 Adding a brand new seeded file, a new command or a new package needs no
 migration: the seed and the entrypoint pick those up on the next start.
 
+A migration catches existing homes up, it never carries the change itself. The
+change goes in the seed, the `Dockerfile` or the script concerned first, so a
+brand new home gets the target state straight away. The entrypoint never runs
+a migration on a first start: it marks them all as played, since an empty home
+has nothing to repair. A migration that is the only place where a change is
+made is a bug, because new boxes will never see it.
+
 To create one:
 
 ```bash
@@ -43,6 +50,9 @@ Look at the existing migration in that directory for the shape. What it must
 respect:
 
 - idempotent: a failed run is retried, so it must survive running twice;
+- harmless on a home that is already in the target state, or has nothing to
+  repair: say so and exit 0, since `devbox migrate` can be run by hand at any
+  time;
 - never overwrite something the user may have changed. Compare against the
   shipped version or a checksum of the versions you know were shipped, and say
   out loud when nothing was touched and why;
