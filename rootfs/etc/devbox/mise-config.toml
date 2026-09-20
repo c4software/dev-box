@@ -10,4 +10,7 @@ node = "lts"
 # qui font un `mise use -g <outil>` à la volée s'il manque.
 claude = "latest"
 pi = "latest"
+# omp : le backend github de mise choisit l'asset de la release selon l'OS et
+# l'architecture (omp-linux-x64 en amd64, omp-linux-arm64 en arm64) ; rien à
+# régler pour le Raspberry Pi.
 "github:can1357/oh-my-pi" = "latest"   # omp

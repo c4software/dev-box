@@ -47,6 +47,26 @@ that Compose merges automatically and git ignores:
 cp compose.override.example.yaml compose.override.yaml
 ```
 
+### Raspberry Pi 5 (arm64)
+
+The image builds and runs on arm64 as it does on amd64: `docker compose up -d --build`
+picks the right base by itself. On the Pi, `archlinux:latest` is replaced by the
+community image `menci/archlinuxarm:base` (Arch Linux ARM, rebuilt daily) — a
+third-party base, not an official Arch one, which is the price of arm64 here.
+`mise` is not packaged for Arch Linux ARM either, so the build falls back to the
+official installer from `mise.run`; everything else comes from pacman as usual.
+
+On the host:
+
+- Docker >= 24 with Compose v2 (`docker compose version`); Raspberry Pi OS 64-bit.
+- `/dev/net/tun` present (stock kernel: it is).
+- `zstd` for `just backup` / `just restore`.
+- `just` is not in apt: `mise use -g just`, or run the `docker compose` commands
+  by hand.
+
+Building on the Pi takes a while (`base-devel`, neovim, tree-sitter): expect the
+first build to be measured in tens of minutes, not minutes.
+
 ## Host commands
 
 A `justfile` at the root wraps the Compose invocations you would otherwise type
@@ -378,5 +398,8 @@ yourself, the script will not write outside the repo.
   host's Docker socket amounts to root on the host.
 - **Tailscale inside the container.** The box is only reachable from the tailnet;
   nothing is published on the host, and Tailscale SSH handles authentication.
-- **x86_64 only.** The official `archlinux` image exists only for x86_64.
+- **amd64 and arm64.** The official `archlinux` image exists only for x86_64, so
+  arm64 builds (Raspberry Pi 5) use Arch Linux ARM through the community image
+  `menci/archlinuxarm:base`, rebuilt daily. BuildKit picks the base from
+  `TARGETARCH`; the rest of the image assumes nothing about the architecture.
 - **Fixed UID/GID 1000:1000.** Same owner as on the host for the bind-mounted volumes.

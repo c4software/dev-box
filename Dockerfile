@@ -1,16 +1,40 @@
-FROM archlinux:latest
+# syntax=docker/dockerfile:1
+
+# Image de base selon l'architecture (BuildKit fournit TARGETARCH) :
+#   - amd64 : l'image officielle archlinux, qui n'existe qu'en x86_64 ;
+#   - arm64 : Arch Linux ARM via l'image communautaire menci/archlinuxarm,
+#     reconstruite chaque jour (Raspberry Pi 5).
+FROM archlinux:latest AS base-amd64
+FROM menci/archlinuxarm:base AS base-arm64
+
+# Déclaré avant le FROM final pour pouvoir servir dans son nom d'étape.
+ARG TARGETARCH
+FROM base-${TARGETARCH}
 
 ENV LANG=C.UTF-8
 
+# --disable-sandbox : pacman 7 isole ses téléchargements avec Landlock, absent
+# des noyaux qui ne l'activent pas et de l'émulation qemu (build arm64 croisé) ;
+# sans ce drapeau, le `-Sy` échoue avant même de télécharger quoi que ce soit.
+#
 # Paquets = ce que la conf de dotarchy/common-no-omarchy et ses scripts try/proj
 # appellent (zsh, tmux, LazyVim, gum, fzf, jq…) + le socle (tailscale, rsync…).
-RUN pacman -Syu --noconfirm --needed \
+RUN pacman -Syu --noconfirm --needed --disable-sandbox \
       base-devel git openssh sudo which less nano file lsof iptables python \
       tailscale zsh zsh-completions bash-completion tmux \
       rsync gum curl wget unzip \
       neovim luarocks tree-sitter-cli \
-      mise starship zoxide fzf eza bat ripgrep fd lazygit jq \
-    && pacman -Scc --noconfirm \
+      starship zoxide fzf eza bat ripgrep fd lazygit jq \
+    # mise n'est pas dans les dépôts Arch Linux ARM : on retombe sur
+    # l'installeur officiel, en posant le binaire dans le PATH de tout le monde
+    # (et pas dans le ~/.local/bin de root).
+    && if pacman -Si mise >/dev/null 2>&1; then \
+         pacman -S --noconfirm --needed --disable-sandbox mise; \
+       else \
+         curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh; \
+       fi \
+    && mise --version \
+    && pacman -Scc --noconfirm --disable-sandbox \
     && rm -rf /var/cache/pacman/pkg/*
 
 COPY rootfs/ /
