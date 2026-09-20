@@ -1,11 +1,11 @@
 import type { ExtensionAPI, ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 
-// Réglés par l'environnement du conteneur (LLM_PROXY_URL / LLM_PROXY_API_KEY
-// dans .env), pour ne rien mettre en dur dans le dépôt.
+// Set from the container environment (LLM_PROXY_URL / LLM_PROXY_API_KEY in
+// .env), so nothing is hardcoded in the repository.
 const ENDPOINT = process.env.LLM_PROXY_URL ?? "http://llmproxy";
 const API_KEY = process.env.LLM_PROXY_API_KEY ?? "unused";
 
-// Albert n'expose pas de cap de génération : on plafonne nous-mêmes.
+// Albert publishes no generation cap, so we cap it ourselves.
 const DEFAULT_MAX_TOKENS = 16384;
 const DEFAULT_CONTEXT = 128000;
 
@@ -25,7 +25,7 @@ interface ModelInfo {
   costs: { input: number; output: number };
 }
 
-/** Number(undefined) donne NaN, pas undefined : ?? ne rattrape rien. */
+/** Number(undefined) gives NaN, not undefined, so ?? catches nothing. */
 function num(value: unknown, fallback: number): number {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : fallback;
@@ -55,7 +55,7 @@ export default async function (pi: ExtensionAPI) {
     const payload = (await res.json()) as { data: AlbertModel[] };
 
     models = payload.data
-      // seuls les text-generation acceptent /v1/chat/completions
+      // only text-generation models accept /v1/chat/completions
       .filter((m) => m.type === "text-generation")
       .map((m) => {
         const contextWindow = num(m.max_context_length, DEFAULT_CONTEXT);
@@ -71,14 +71,14 @@ export default async function (pi: ExtensionAPI) {
       })
       .sort((a, b) => a.id.localeCompare(b.id));
   } catch (err) {
-    // Albert injoignable ou clé expirée : on n'enregistre rien plutôt que
-    // de bloquer le démarrage
-    console.error(`[albert] découverte impossible : ${err}`);
+    // Albert unreachable or the key expired: register nothing rather than
+    // block startup
+    console.error(`[albert] discovery failed: ${err}`);
     return;
   }
 
   if (models.length === 0) {
-    console.error("[albert] aucun modèle text-generation exposé");
+    console.error("[albert] no text-generation model published");
     return;
   }
 
@@ -91,7 +91,7 @@ export default async function (pi: ExtensionAPI) {
       id: m.id,
       name: m.id,
       input: ["text"],
-      // Albert facture en unités de budget par million de tokens.
+      // Albert bills in budget units per million tokens.
       cost: {
         input: m.costs.input,
         output: m.costs.output,

@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Sauvegarde la box : home filtré + dossier des projets, dans une archive
-# tar.zst déposée dans <dest_dir> (par défaut ./backups, ignoré par git).
+# Backs the box up: the filtered home and the projects directory, into a
+# tar.zst archive written into <dest_dir> (./backups by default, git-ignored).
 #
-# Usage : scripts/backup.sh [--with-tailscale] [dest_dir]
+# Usage: scripts/backup.sh [--with-tailscale] [dest_dir]
 #
-# Ce qui est gardé : data/home (sans les caches régénérables), le dossier des
-# projets (PROJECTS_DIR, dépôts git complets, .git/objects inclus), et une copie
-# de .env et compose.override.yaml s'ils existent.
-# Ce qui est exclu par défaut : data/tailscale (identité du nœud, on ne veut pas
-# la dupliquer sans le demander) — voir --with-tailscale.
+# What goes in: data/home (minus the caches that rebuild themselves), the
+# projects directory (PROJECTS_DIR, whole git repos, .git/objects included),
+# and a copy of .env and compose.override.yaml when they exist.
+# What stays out by default: data/tailscale (the node identity, we do not want
+# to duplicate it without being asked). See --with-tailscale.
 set -euo pipefail
 
-# On travaille toujours depuis la racine du dépôt : les chemins stockés dans
-# l'archive sont relatifs à celle-ci, ce qui rend la restauration triviale.
+# We always work from the root of the repo: the paths stored in the archive
+# are relative to it, which makes restoring trivial.
 cd "$(dirname "$0")/.."
 repo_root="$PWD"
 
@@ -27,7 +27,7 @@ for arg in "$@"; do
             exit 0
             ;;
         -*)
-            echo "Option inconnue : $arg" >&2
+            echo "Unknown option: $arg" >&2
             exit 1
             ;;
         *) dest_dir="$arg" ;;
@@ -36,26 +36,26 @@ done
 
 dest_dir="${dest_dir:-./backups}"
 
-# Valeurs issues de .env (TS_HOSTNAME pour nommer l'archive, PROJECTS_DIR pour
-# savoir quoi sauvegarder). set -a exporte tout ce qui est défini dans le fichier.
+# Values from .env (TS_HOSTNAME to name the archive, PROJECTS_DIR to know what
+# to back up). set -a exports everything the file defines.
 if [ -f .env ]; then
     set -a
-    # shellcheck disable=SC1091  # .env est généré par l'utilisateur
+    # shellcheck disable=SC1091  # .env is written by the user
     . ./.env
     set +a
 fi
 ts_hostname="${TS_HOSTNAME:-dev-box}"
 projects_dir="${PROJECTS_DIR:-./data/projets}"
 
-# tar délègue la compression au binaire zstd : il n'est pas toujours installé
-# (image Debian minimale d'un Raspberry Pi par exemple).
+# tar hands the compression to the zstd binary, which is not always installed
+# (a minimal Debian image on a Raspberry Pi, for instance).
 if ! command -v zstd >/dev/null 2>&1; then
-    echo "zstd introuvable : installez-le (pacman -S zstd / apt install zstd)." >&2
+    echo "zstd not found: install it (pacman -S zstd, or apt install zstd)." >&2
     exit 1
 fi
 
 if [ ! -d data/home ]; then
-    echo "data/home introuvable : rien à sauvegarder (mauvais dossier ?)" >&2
+    echo "data/home not found: nothing to back up (wrong directory?)" >&2
     exit 1
 fi
 
@@ -63,23 +63,23 @@ mkdir -p "$dest_dir"
 dest_dir="$(cd "$dest_dir" && pwd)"
 archive="$dest_dir/dev-box-${ts_hostname}-$(date +%Y%m%d-%H%M%S).tar.zst"
 
-# Membres de l'archive, en chemins relatifs à la racine du dépôt.
+# Members of the archive, as paths relative to the root of the repo.
 members=(data/home)
 
-# Le dossier des projets est normalement dans le dépôt (./data/projets). S'il
-# pointe ailleurs (autre disque), on le range sous projets-external/ dans
-# l'archive : la restauration ne doit pas l'écraser au mauvais endroit.
+# The projects directory normally lives in the repo (./data/projets). When it
+# points elsewhere (another disk), it goes under projets-external/ in the
+# archive: restoring must not overwrite it in the wrong place.
 transform=()
 projects_abs="$(cd "$projects_dir" 2>/dev/null && pwd || true)"
 if [ -z "$projects_abs" ]; then
-    echo "Attention : $projects_dir introuvable, projets non sauvegardés." >&2
+    echo "Warning: $projects_dir not found, the projects are not backed up." >&2
 elif [ "${projects_abs#"$repo_root"/}" != "$projects_abs" ]; then
     members+=("${projects_abs#"$repo_root"/}")
 else
     members+=("$projects_abs")
     transform+=(--transform "s,^${projects_abs#/},projets-external,")
-    echo "Note : PROJECTS_DIR est hors du dépôt ($projects_abs)."
-    echo "       Il sera archivé sous projets-external/ et devra être remis en place à la main."
+    echo "Note: PROJECTS_DIR is outside the repo ($projects_abs)."
+    echo "      It goes into the archive under projets-external/ and has to be moved back by hand."
 fi
 
 if [ -f .env ]; then members+=(.env); fi
@@ -88,8 +88,8 @@ if [ "$with_tailscale" -eq 1 ] && [ -d data/tailscale ]; then
     members+=(data/tailscale)
 fi
 
-# Caches et artefacts régénérables : inutiles, volumineux, et reconstruits au
-# premier démarrage ou au premier `mise install`.
+# Caches and artefacts that rebuild themselves: useless, bulky, and rebuilt on
+# the first start or the first `mise install`.
 excludes=(
     --exclude=data/home/.cache
     --exclude=data/home/.local/share/mise
@@ -103,12 +103,12 @@ excludes=(
     --exclude='*/node_modules'
 )
 
-# data/home peut contenir des fichiers root (et data/tailscale est root:root) :
-# on ne passe par sudo que si quelque chose n'est pas lisible tel quel.
-# Le test ignore ce que tar exclura de toute façon (les caches mise contiennent
-# des liens cassés) ainsi que les liens symboliques (tar les archive sans les
-# suivre). Le dossier ~/projets, point de montage créé par Docker, est un
-# répertoire root mais lisible : il ne pose pas de problème.
+# data/home can hold root-owned files (and data/tailscale is root:root), so we
+# only go through sudo when something is not readable as is.
+# The test skips what tar would exclude anyway (the mise caches hold broken
+# links) and symbolic links (tar archives them without following them). The
+# ~/projets directory, a mount point created by Docker, is a root-owned
+# directory but a readable one: it is not a problem.
 prune=()
 for e in "${excludes[@]}"; do
     pat="${e#--exclude=}"
@@ -129,31 +129,31 @@ for m in "${members[@]}"; do
 done
 if [ -n "$unreadable" ]; then
     if [ "$(id -u)" -eq 0 ]; then
-        : # déjà root
+        : # already root
     elif command -v sudo >/dev/null 2>&1; then
-        echo "Fichiers non lisibles dans $unreadable : passage par sudo."
+        echo "Unreadable files in $unreadable: going through sudo."
         sudo_cmd=(sudo)
     else
-        echo "Fichiers non lisibles dans $unreadable et sudo absent." >&2
+        echo "Unreadable files in $unreadable, and sudo is missing." >&2
         exit 1
     fi
 fi
 
-echo "Archive : $archive"
-# --numeric-owner : on conserve les UID/GID (1000:1000 côté box, root pour
-# tailscale) sans dépendre des noms d'utilisateurs de la machine de restauration.
+echo "Archive: $archive"
+# --numeric-owner: the UID/GID are kept (1000:1000 on the box side, root for
+# tailscale) without depending on the user names of the restoring machine.
 "${sudo_cmd[@]}" tar --zstd --numeric-owner \
     "${excludes[@]}" \
     "${transform[@]}" \
     -cf "$archive" \
     "${members[@]}"
 
-# L'archive créée sous sudo appartiendrait à root : on la rend à l'utilisateur.
+# An archive created under sudo would belong to root: we hand it back to the user.
 if [ "${#sudo_cmd[@]}" -gt 0 ]; then
     sudo chown "$(id -u):$(id -g)" "$archive"
 fi
 
-# Vérification : on relit l'archive de bout en bout (décompression incluse).
+# Check: the archive is read back end to end (decompression included).
 count="$(tar -tf "$archive" | wc -l)"
 size="$(du -h "$archive" | cut -f1)"
-echo "OK : $count entrées, $size"
+echo "OK: $count entries, $size"

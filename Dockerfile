@@ -1,31 +1,31 @@
 # syntax=docker/dockerfile:1
 
-# Image de base selon l'architecture (BuildKit fournit TARGETARCH) :
-#   - amd64 : l'image officielle archlinux, qui n'existe qu'en x86_64 ;
-#   - arm64 : Arch Linux ARM via l'image communautaire menci/archlinuxarm,
-#     reconstruite chaque jour (Raspberry Pi 5).
+# Base image per architecture (BuildKit provides TARGETARCH):
+#   - amd64: the official archlinux image, which only exists for x86_64;
+#   - arm64: Arch Linux ARM through the community image menci/archlinuxarm,
+#     rebuilt every day (Raspberry Pi 5).
 FROM archlinux:latest AS base-amd64
 FROM menci/archlinuxarm:base AS base-arm64
 
-# Déclaré avant le FROM final pour pouvoir servir dans son nom d'étape.
+# Declared before the final FROM so it can be used in its stage name.
 ARG TARGETARCH
 FROM base-${TARGETARCH}
 
 ENV LANG=C.UTF-8
 
-# --disable-sandbox : pacman 7 isole ses téléchargements avec Landlock, absent
-# des noyaux qui ne l'activent pas et de l'émulation qemu (build arm64 croisé) ;
-# sans ce drapeau, le `-Sy` échoue avant même de télécharger quoi que ce soit.
+# --disable-sandbox: pacman 7 isolates its downloads with Landlock, which is
+# missing from kernels that do not enable it and from qemu emulation (a cross
+# arm64 build); without that flag the `-Sy` fails before downloading anything.
 #
-# Paquets = ce que la conf de dotarchy/common-no-omarchy et ses scripts try/proj
-# appellent (zsh, tmux, LazyVim, gum, fzf, jq…) + le socle (tailscale, rsync…)
-# + podman rootless (cf. /etc/containers/ et « Containers inside the box »)
-# + libyaml, dont le ruby précompilé posé par dev-box-dev-env a besoin (psych)
-# + php, composer, php-sqlite, php-gd, php-sodium, xdebug : mise ne sait que compiler PHP (5 à 15 min
-#   et une pile de headers), donc PHP est le seul environnement de dev-box-dev-env
-#   qui vient de l'image, comme chez omarchy.
-# podman tire déjà passt, shadow, conmon et containers-common ; netavark tire
-# aardvark-dns : seuls les paquets qu'aucun autre n'apporte sont listés ici.
+# Packages = what the dotarchy/common-no-omarchy config and its try/proj scripts
+# call (zsh, tmux, LazyVim, gum, fzf, jq, ...) + the base (tailscale, rsync, ...)
+# + rootless podman (see /etc/containers/ and "Containers inside the box")
+# + libyaml, which the precompiled ruby laid down by dev-box-dev-env needs (psych)
+# + php, composer, php-sqlite, php-gd, php-sodium, xdebug: mise can only build PHP
+#   (5 to 15 minutes and a pile of headers), so PHP is the one dev-box-dev-env
+#   environment that comes from the image, as it does in omarchy.
+# podman already pulls passt, shadow, conmon and containers-common, and netavark
+# pulls aardvark-dns: only the packages no other one brings are listed here.
 RUN pacman -Syu --noconfirm --needed --disable-sandbox \
       base-devel git openssh sudo which less nano file lsof iptables python \
       tailscale zsh zsh-completions bash-completion tmux \
@@ -35,20 +35,21 @@ RUN pacman -Syu --noconfirm --needed --disable-sandbox \
       libyaml \
       php composer php-sqlite php-gd php-sodium xdebug \
       podman podman-docker docker-compose fuse-overlayfs crun netavark slirp4netns \
-    # mise n'est pas dans les dépôts Arch Linux ARM : on retombe sur
-    # l'installeur officiel, en posant le binaire dans le PATH de tout le monde
-    # (et pas dans le ~/.local/bin de root).
+    # mise is not in the Arch Linux ARM repositories: we fall back on the
+    # official installer, and put the binary on everyone's PATH (rather than in
+    # root's ~/.local/bin).
     && if pacman -Si mise >/dev/null 2>&1; then \
          pacman -S --noconfirm --needed --disable-sandbox mise; \
        else \
          curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh; \
        fi \
     && mise --version \
-    # Les images de base Arch perdent les capabilities de fichier (le tar qui
-    # les produit ne garde pas les xattrs) : sans elles, podman rootless échoue
-    # sur « newuidmap: Could not set caps ». On les repose explicitement.
-    # PHP prêt pour le dev : extensions courantes et xdebug activés (omarchy fait
-    # pareil dans omarchy-install-dev-env, ici c'est figé dans l'image).
+    # The Arch base images lose their file capabilities (the tar that produces
+    # them does not keep the xattrs): without them, rootless podman fails on
+    # "newuidmap: Could not set caps". We set them again explicitly.
+    # PHP ready for development: the usual extensions and xdebug enabled
+    # (omarchy does the same in omarchy-install-dev-env, here it is baked into
+    # the image).
     && sed -i -E 's/^;(extension=(bcmath|intl|iconv|openssl|pdo_sqlite|pdo_mysql|sqlite3|mysqli|zip|gd|sodium))$/\1/' /etc/php/php.ini \
     && sed -i -e 's/^;zend_extension=xdebug.so/zend_extension=xdebug.so/' \
               -e 's/^;xdebug.mode=debug/xdebug.mode=debug/' /etc/php/conf.d/xdebug.ini \
@@ -58,19 +59,19 @@ RUN pacman -Syu --noconfirm --needed --disable-sandbox \
     && rm -rf /var/cache/pacman/pkg/*
 
 COPY rootfs/ /
-# Commit du dépôt dev-box dont l'image est issue (build args, posés par le
-# justfile) : dev-box-check-updates le compare au dépôt distant.
+# Commit of the dev-box repo the image was built from (build args, set by the
+# justfile): dev-box-check-updates compares it with the remote repo.
 ARG DEVBOX_COMMIT=unknown
 ARG DEVBOX_REPO=
 ARG DEVBOX_BRANCH=main
 RUN printf 'DEVBOX_COMMIT=%s\nDEVBOX_REPO=%s\nDEVBOX_BRANCH=%s\n' \
       "$DEVBOX_COMMIT" "$DEVBOX_REPO" "$DEVBOX_BRANCH" > /etc/devbox/release \
     && chmod +x /usr/local/bin/* \
-    # podman-docker exporte DOCKER_HOST dans tous les shells de login, socket
-    # ou pas : on ne le garde que si le socket existe (cf. /etc/devbox/zshenv).
+    # podman-docker exports DOCKER_HOST in every login shell, socket or not:
+    # we keep it only when the socket exists (see /etc/devbox/zshenv).
     && rm -f /etc/profile.d/podman-docker.sh /etc/profile.d/podman-docker.csh \
-    # docker et podman passent par un wrapper qui explique quoi faire quand
-    # podman n'est pas activé (/usr/local/bin précède /usr/bin dans le PATH).
+    # docker and podman go through a wrapper that says what to do when podman
+    # is not enabled (/usr/local/bin comes before /usr/bin on the PATH).
     && ln -s dev-box-podman /usr/local/bin/docker \
     && ln -s dev-box-podman /usr/local/bin/podman \
     && mkdir -p /etc/zsh \
@@ -79,7 +80,7 @@ RUN printf 'DEVBOX_COMMIT=%s\nDEVBOX_REPO=%s\nDEVBOX_BRANCH=%s\n' \
     && echo '. /etc/devbox/updates-motd.sh' >> /etc/zsh/zshrc \
     && cat /etc/devbox/bashrc >> /etc/bash.bashrc
 
-# Sain quand Tailscale est connecté, ou quand sshd écoute (TS_DISABLE=true).
+# Healthy when Tailscale is connected, or when sshd listens (TS_DISABLE=true).
 HEALTHCHECK --interval=60s --timeout=5s --start-period=30s \
   CMD if [ "$TS_DISABLE" = "true" ]; then \
         bash -c '</dev/tcp/127.0.0.1/22' 2>/dev/null || exit 1; \

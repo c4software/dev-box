@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # devbox:name=update
-# devbox:summary=Met à jour dotfiles, outils mise et conf livrée
+# devbox:summary=Update dotfiles, mise tools and the shipped config
 # devbox:args=[dotfiles|tools|seed|all]
-# Mise à jour à la main de la box (rien n'est automatique) :
-#   devbox update [dotfiles|tools|seed|all]   (défaut : all)
+# Updating the box by hand (nothing is automatic):
+#   devbox update [dotfiles|tools|seed|all]   (default: all)
 #
-#   dotfiles  dotarchy-sync (conf, try/proj, alias git, surcouche locale)
-#   tools     mise install puis mise upgrade
-#   seed      conf livrée par l'image (agents, extensions, conf mise)
+#   dotfiles  dotarchy-sync (config, try/proj, git aliases, local overrides)
+#   tools     mise install, then mise upgrade
+#   seed      config shipped by the image (agents, extensions, mise config)
 #
-# À la fin, le drapeau de mises à jour est effacé et le contrôle relancé.
+# At the end, the update flag is cleared and the check runs again.
 set -euo pipefail
 
 WHAT="${1:-all}"
@@ -17,21 +17,21 @@ log() { echo "[dev-box-update] $*"; }
 rc=0
 
 do_dotfiles() {
-  log "dotfiles…"
-  dotarchy-sync || { log "⚠ dotarchy-sync a échoué"; rc=1; }
+  log "dotfiles..."
+  dotarchy-sync || { log "⚠ dotarchy-sync failed"; rc=1; }
 }
 
 do_tools() {
-  log "outils mise…"
-  # install : ce qui manque ; upgrade : monte de version les outils en « latest »
+  log "mise tools..."
+  # install: what is missing; upgrade: bumps the tools pinned to "latest"
   if ! { mise install && mise upgrade; }; then
-    log "⚠ mise a échoué"; rc=1
+    log "⚠ mise failed"; rc=1
   fi
 }
 
 do_seed() {
-  log "conf livrée…"
-  dev-box-seed || { log "⚠ dev-box-seed a échoué"; rc=1; }
+  log "shipped config..."
+  dev-box-seed || { log "⚠ dev-box-seed failed"; rc=1; }
 }
 
 case "$WHAT" in
@@ -40,13 +40,13 @@ case "$WHAT" in
   seed)     do_seed ;;
   all)      do_dotfiles; do_tools; do_seed ;;
   -h|--help) sed -n '5,12p' "$0" | sed 's/^# \?//'; exit 0 ;;
-  *) echo "usage : dev-box-update [dotfiles|tools|seed|all]" >&2; exit 2 ;;
+  *) echo "usage: dev-box-update [dotfiles|tools|seed|all]" >&2; exit 2 ;;
 esac
 
-# Le drapeau est recalculé tout de suite : plus de message au prochain login si
-# tout est à jour.
+# The flag is recomputed right away: no message at the next login when
+# everything is up to date.
 rm -f "$HOME/.cache/dev-box/updates"
-dev-box-check-updates || log "⚠ contrôle des mises à jour impossible"
+dev-box-check-updates || log "⚠ could not run the update check"
 
-log "terminé"
+log "done"
 exit "$rc"

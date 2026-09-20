@@ -1,78 +1,78 @@
 #!/usr/bin/env bash
 # devbox:name=status
-# devbox:summary=État de la box : accès, podman, outils, mises à jour
+# devbox:summary=State of the box: access, podman, tools, updates
 # devbox:args=
 #
-# Résumé en une page de ce que fait la box en ce moment. Lecture seule : rien
-# n'est installé, rien n'est modifié, aucun appel réseau long.
+# A one-page summary of what the box is doing right now. Read only: nothing is
+# installed, nothing is changed, and there is no slow network call.
 set -euo pipefail
 
 title() { printf '\n\033[1m%s\033[0m\n' "$*"; }
-# printf « %-12s » compte des octets : « état » ou « dépôt » décaleraient la
-# colonne. On complète sur ${#1}, qui compte bien des caractères.
+# printf "%-12s" counts bytes, so a multi-byte label would shift the column.
+# We pad on ${#1}, which does count characters.
 item() {
   local n=$(( 12 - ${#1} ))
   [ "$n" -lt 0 ] && n=0
   printf '  %s%*s %s\n' "$1" "$n" '' "$2"
 }
 
-# --- Image : commit et dépôt gravés au build par le justfile ------------------
+# --- Image: commit and repo baked in at build time by the justfile ------------
 title "Image"
 if [ -r /etc/devbox/release ]; then
   DEVBOX_COMMIT="unknown"; DEVBOX_REPO=""; DEVBOX_BRANCH="main"
   # shellcheck source=/dev/null
   . /etc/devbox/release
   item "commit" "${DEVBOX_COMMIT:-unknown}"
-  item "dépôt" "${DEVBOX_REPO:-inconnu} (${DEVBOX_BRANCH:-main})"
+  item "repo" "${DEVBOX_REPO:-unknown} (${DEVBOX_BRANCH:-main})"
 else
-  item "commit" "inconnu (/etc/devbox/release absent)"
+  item "commit" "unknown (/etc/devbox/release is missing)"
 fi
-# `hostname` n'est pas installé dans l'image : le noyau le donne aussi bien.
-item "hôte" "$(cat /proc/sys/kernel/hostname)"
+# `hostname` is not installed in the image: the kernel gives it just as well.
+item "host" "$(cat /proc/sys/kernel/hostname)"
 
-# --- Accès : Tailscale, ou le sshd de repli -----------------------------------
-title "Accès"
+# --- Access: Tailscale, or the fallback sshd ----------------------------------
+title "Access"
 if [ "${TS_DISABLE:-false}" = "true" ]; then
   if pgrep -x sshd >/dev/null 2>&1; then
-    item "sshd" "en écoute (TS_DISABLE=true)"
+    item "sshd" "listening (TS_DISABLE=true)"
   else
-    item "sshd" "arrêté (SSH_AUTHORIZED_KEYS vide ?)"
+    item "sshd" "stopped (SSH_AUTHORIZED_KEYS empty?)"
   fi
 else
   if ts="$(timeout 10 tailscale status --peers=false 2>&1)"; then
     printf '%s\n' "$ts" | sed 's/^/  /'
   else
-    item "tailscale" "indisponible : $(printf '%s' "$ts" | head -n 1)"
+    item "tailscale" "unavailable: $(printf '%s' "$ts" | head -n 1)"
   fi
 fi
 
-# --- Podman rootless : opt-in, état posé par l'entrypoint ---------------------
+# --- Rootless podman: opt-in, state written by the entrypoint -----------------
 title "Podman"
 state="disabled"
 [ -r /etc/devbox/podman.state ] && state="$(cat /etc/devbox/podman.state)"
 sock="/run/user/$(id -u)/podman/podman.sock"
-item "état" "$state"
+item "state" "$state"
 if [ -S "$sock" ]; then
   item "socket" "$sock"
 else
-  item "socket" "absent ($sock)"
+  item "socket" "missing ($sock)"
 fi
 
-# --- Outils mise : ce qui est réellement actif dans ce shell ------------------
-title "Outils mise"
+# --- mise tools: what is actually active in this shell ------------------------
+title "mise tools"
 if command -v mise >/dev/null 2>&1; then
-  # --current : les versions actives ici, pas tout ce qui traîne dans le cache.
+  # --current: the versions active here, not everything sitting in the cache.
   if tools="$(mise ls --current 2>/dev/null)" && [ -n "$tools" ]; then
     printf '%s\n' "$tools" | awk 'NF >= 2 { printf "  %-22s %s\n", $1, $2 }'
   else
-    item "aucun" "rien d'installé pour l'instant"
+    item "none" "nothing installed yet"
   fi
   item "config" "~/.config/mise/config.toml"
 else
-  item "mise" "absent du PATH"
+  item "mise" "not on the PATH"
 fi
 
-# --- Paquets pacman retenus par dev-box-pkg (réinstallés après un rebuild) ----
+# --- pacman packages kept by dev-box-pkg (reinstalled after a rebuild) --------
 pkg_list="$HOME/.config/dev-box/packages"
 if [ -s "$pkg_list" ]; then
   pkg_total=0; pkg_missing=0
@@ -81,16 +81,16 @@ if [ -s "$pkg_list" ]; then
     pkg_total=$((pkg_total + 1))
     pacman -Q "$p" >/dev/null 2>&1 || pkg_missing=$((pkg_missing + 1))
   done < "$pkg_list"
-  item "paquets" "persistants : $pkg_total ($pkg_missing manquants)"
+  item "packages" "persistent: $pkg_total ($pkg_missing missing)"
 fi
 
-# --- Drapeau de mises à jour, écrit par dev-box-check-updates -----------------
-title "Mises à jour"
+# --- Update flag, written by dev-box-check-updates ----------------------------
+title "Updates"
 flag="$HOME/.cache/dev-box/updates"
 if [ -s "$flag" ]; then
   sed 's/^/  /' "$flag"
   printf '  \033[2mdevbox update\033[0m\n'
 else
-  item "rien" "à jour au dernier contrôle (devbox check pour refaire)"
+  item "none" "up to date at the last check (devbox check to run it again)"
 fi
 echo

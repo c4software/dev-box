@@ -2,10 +2,10 @@
 # --- dev-box ---
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$HOME/.config/composer/vendor/bin:$PATH"
-# Podman rootless (PODMAN_ENABLE=true) : `docker` (shim podman-docker) et
-# `docker compose` parlent à son socket utilisateur, s'il a été lancé.
+# Rootless podman (PODMAN_ENABLE=true): `docker` (the podman-docker shim) and
+# `docker compose` talk to its user socket, when it was started.
 [ -S "/run/user/$(id -u)/podman/podman.sock" ] \
   && export DOCKER_HOST="${DOCKER_HOST:-unix:///run/user/$(id -u)/podman/podman.sock}"
-# Variables du conteneur (écrites par l'entrypoint) : ni Tailscale SSH ni sshd
-# n'héritent de l'environnement du PID 1.
+# Container variables (written by the entrypoint): neither Tailscale SSH nor
+# sshd inherits the environment of PID 1.
 [ -r /etc/devbox/env ] && . /etc/devbox/env

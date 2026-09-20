@@ -2,9 +2,9 @@ services:
   dev-box:
     build:
       context: .
-      # Commit du dépôt gravé dans l'image (/etc/devbox/release) : le contrôle
-      # des mises à jour dans la box compare avec le dépôt distant. Renseignés
-      # par le justfile ; « unknown » avec un docker compose build direct.
+      # Repo commit baked into the image (/etc/devbox/release): the update
+      # check inside the box compares it with the remote repo. Set by the
+      # justfile; a bare docker compose build records "unknown".
       args:
         DEVBOX_COMMIT: ${DEVBOX_COMMIT:-unknown}
         DEVBOX_REPO: ${DEVBOX_REPO:-}
@@ -14,8 +14,8 @@ services:
     init: true
     restart: unless-stopped
     env_file: .env
-    # Sert uniquement quand TS_DISABLE=true (sshd) ; sans listener, le port est
-    # simplement fermé. Par défaut lié à la loopback de l'hôte.
+    # Only used when TS_DISABLE=true (sshd); with no listener the port is
+    # simply closed. Bound to the host loopback by default.
     ports:
       - "${SSH_BIND:-127.0.0.1}:${SSH_PORT:-2222}:22"
     volumes:
@@ -23,13 +23,13 @@ services:
       - ${PROJECTS_DIR:-./data/projets}:/home/${USER_NAME:-dev}/projets
       - ./data/tailscale:/var/lib/tailscale
     devices:
-      # /dev/net/tun : tailscaled (userspace-networking désactivé)
+      # /dev/net/tun: tailscaled (userspace networking is off)
       - /dev/net/tun
     cap_add:
-      # tailscaled : interface tun, routes, filtrage
+      # tailscaled: tun interface, routes, filtering
       - NET_ADMIN
       - NET_RAW
-    # Podman rootless dans la box : désactivé par défaut, car il oblige à relâcher
-    # l'isolation du conteneur (seccomp, /proc/sys, AppArmor). Réglages et
-    # explications dans compose.override.example.yaml, à activer avec
-    # PODMAN_ENABLE=true dans .env.
+    # Rootless podman inside the box: off by default, because it forces the
+    # isolation of the container open (seccomp, /proc/sys, AppArmor). Settings
+    # and explanations in compose.override.example.yaml, turned on with
+    # PODMAN_ENABLE=true in .env.

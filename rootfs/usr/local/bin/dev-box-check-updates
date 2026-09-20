@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # devbox:name=check
-# devbox:summary=Cherche les mises à jour, sans rien installer
+# devbox:summary=Look for updates, install nothing
 # devbox:args=
-# Vérifie, sans rien installer, ce qui pourrait être mis à jour : dotfiles
-# (HEAD du clone vs branche distante), image dev-box (commit gravé au build vs
-# branche distante), outils mise, conf livrée par l'image.
-# Écrit ~/.cache/dev-box/updates (une ligne par élément) si quelque chose est
-# disponible, sinon supprime le fichier. Ne télécharge que des métadonnées et
-# ne doit jamais bloquer : tout est borné par un timeout et neutralisé en cas
-# d'échec.
+# Checks, without installing anything, what could be updated: dotfiles (HEAD of
+# the clone against the remote branch), the dev-box image (commit baked in at
+# build time against the remote branch), mise tools, config shipped by the image.
+# Writes ~/.cache/dev-box/updates (one line per item) when something is
+# available, and removes the file otherwise. It only downloads metadata and must
+# never block: everything is bounded by a timeout and neutralised on failure.
 set -euo pipefail
 
 FLAG_DIR="$HOME/.cache/dev-box"
@@ -21,30 +20,30 @@ SRC="$HOME/.local/share/dotarchy"
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
-# --- 1. Dotfiles : HEAD local vs HEAD distant (git ls-remote, aucun objet tiré) ---
+# --- 1. Dotfiles: local HEAD against remote HEAD (git ls-remote, no object pulled) ---
 if [ -d "$SRC/.git" ]; then
   local_head="$(git -C "$SRC" rev-parse HEAD 2>/dev/null || true)"
   remote_head="$(GIT_TERMINAL_PROMPT=0 timeout 30 \
       git -C "$SRC" ls-remote origin "$BRANCH" 2>/dev/null | awk 'NR==1{print $1}' || true)"
   if [ -n "$local_head" ] && [ -n "$remote_head" ] && [ "$local_head" != "$remote_head" ]; then
-    echo "dotfiles : nouvelle version (${local_head:0:7} → ${remote_head:0:7})" >> "$tmp"
+    echo "dotfiles: new version (${local_head:0:7} -> ${remote_head:0:7})" >> "$tmp"
   fi
 fi
 
-# --- 2. Image dev-box : commit gravé au build vs HEAD du dépôt distant ---
+# --- 2. dev-box image: commit baked in at build time against the remote repo HEAD ---
 if [ -r /etc/devbox/release ]; then
   DEVBOX_COMMIT=""; DEVBOX_REPO=""; DEVBOX_BRANCH="main"
   . /etc/devbox/release
   if [ -n "$DEVBOX_REPO" ] && [ "${DEVBOX_COMMIT:-unknown}" != "unknown" ]; then
-    # URL ssh (git@github.com:x/y.git) → https : la box n'a pas de clé pour ça
+    # ssh URL (git@github.com:x/y.git) becomes https: the box has no key for it
     repo_url="$DEVBOX_REPO"
     case "$repo_url" in
       git@*:*) repo_url="https://${repo_url#git@}"; repo_url="${repo_url/:/\/}" ;;
       ssh://git@*) repo_url="https://${repo_url#ssh://git@}" ;;
     esac
-    # Dépôt privé sur GitHub : GITHUB_TOKEN sert d'authentification s'il a le
-    # droit de lecture sur le dépôt (sinon l'appel échoue et le contrôle est
-    # simplement sauté ; `just status` sur l'hôte fait la même comparaison).
+    # Private GitHub repo: GITHUB_TOKEN is the authentication, when it can read
+    # the repo (otherwise the call fails and the check is simply skipped;
+    # `just status` on the host makes the same comparison).
     auth=()
     if [ -n "${GITHUB_TOKEN:-}" ]; then
       auth=(-c "http.extraheader=Authorization: Bearer $GITHUB_TOKEN")
@@ -52,43 +51,43 @@ if [ -r /etc/devbox/release ]; then
     image_remote="$(GIT_TERMINAL_PROMPT=0 timeout 30 \
         git "${auth[@]}" ls-remote "$repo_url" "refs/heads/$DEVBOX_BRANCH" 2>/dev/null | awk 'NR==1{print $1}' || true)"
     if [ -n "$image_remote" ] && [ "$image_remote" != "$DEVBOX_COMMIT" ]; then
-      echo "image dev-box : nouvelle version du dépôt (${DEVBOX_COMMIT:0:7} → ${image_remote:0:7}), just rebuild sur l'hôte" >> "$tmp"
+      echo "dev-box image: new version in the repo (${DEVBOX_COMMIT:0:7} -> ${image_remote:0:7}), just rebuild on the host" >> "$tmp"
     fi
   fi
 fi
 
-# --- 3. Outils mise (métadonnées des registres uniquement) ---
+# --- 3. mise tools (registry metadata only) ---
 if command -v mise >/dev/null 2>&1; then
-  # --json : sortie stable (le tableau n'a pas d'en-tête hors terminal) ;
-  # « rien à faire » = {} ou sortie vide.
+  # --json: stable output (the table has no header outside a terminal);
+  # "nothing to do" is {} or an empty output.
   outdated="$(timeout 120 mise outdated --json 2>/dev/null || true)"
   if [ -n "$outdated" ] && [ "$outdated" != "{}" ]; then
     if command -v jq >/dev/null 2>&1; then
       printf '%s' "$outdated" \
         | jq -r 'to_entries[] | select(.value.current != null)
-                 | "outil mise : \(.key) \(.value.current) → \(.value.latest // "?")"' \
+                 | "mise tool: \(.key) \(.value.current) -> \(.value.latest // "?")"' \
         2>/dev/null >> "$tmp" || true
     else
-      # Repli sans jq : colonnes « nom demandé actuel dernier source »
+      # Fallback without jq: columns "name requested current latest source"
       timeout 120 mise outdated 2>/dev/null \
-        | awk '$1 != "Tool" && NF >= 4 { print "outil mise : " $1 " " $3 " → " $4 }' \
+        | awk '$1 != "Tool" && NF >= 4 { print "mise tool: " $1 " " $3 " -> " $4 }' \
         >> "$tmp" || true
     fi
   fi
 fi
 
-# --- 4. Conf livrée par l'image (agents, extensions, conf mise) ---
+# --- 4. Config shipped by the image (agents, extensions, mise config) ---
 if command -v dev-box-seed >/dev/null 2>&1; then
   dev-box-seed --check 2>/dev/null >> "$tmp" || true
 fi
 
-# --- 5. Migrations en attente ---
-# L'entrypoint les joue au démarrage, donc il n'en reste normalement aucune.
-# Le contrôle couvre le cas où l'une a échoué, ou a été acquittée à la main.
+# --- 5. Pending migrations ---
+# The entrypoint plays them at start, so normally none is left.
+# This check covers the case where one failed, or was acknowledged by hand.
 if command -v dev-box-migrate >/dev/null 2>&1; then
   pending="$(dev-box-migrate --pending 2>/dev/null | grep -c . || true)"
   if [ "${pending:-0}" -gt 0 ] 2>/dev/null; then
-    echo "migrations en attente : $pending (devbox migrate)" >> "$tmp"
+    echo "pending migrations: $pending (devbox migrate)" >> "$tmp"
   fi
 fi
 

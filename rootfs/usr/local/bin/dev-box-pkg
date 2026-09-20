@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 # devbox:name=pkg
-# devbox:summary=Paquets pacman persistants (réinstallés au démarrage)
+# devbox:summary=Persistent pacman packages (reinstalled at start)
 # devbox:args=[add|drop|list|restore]
-# Paquets pacman qui survivent à un rebuild de l'image. pacman installe dans
-# l'image, qui est jetable : la liste des paquets ajoutés à la main est donc
-# gardée dans le home (~/.config/dev-box/packages) et réinstallée au démarrage
-# quand l'image est repartie de zéro.
+# pacman packages that survive an image rebuild. pacman installs into the
+# image, and the image is disposable, so the list of packages added by hand is
+# kept in the home (~/.config/dev-box/packages) and reinstalled at start when
+# the image started over from scratch.
 #
-#   dev-box-pkg add <paquets…>    installe et retient
-#   dev-box-pkg drop <paquets…>   désinstalle et oublie
-#   dev-box-pkg list              la liste, avec l'état de chacun
-#   dev-box-pkg install           sélecteur fuzzy (fzf) dans les dépôts Arch
-#   dev-box-pkg restore           réinstalle ce qui manque de la liste
+#   dev-box-pkg add <packages...>   install, and remember
+#   dev-box-pkg drop <packages...>  uninstall, and forget
+#   dev-box-pkg list                the list, with the state of each one
+#   dev-box-pkg install             fuzzy picker (fzf) over the Arch repositories
+#   dev-box-pkg restore             reinstall what is missing from the list
 #
-# Seuls les paquets passent : une conf éditée à la main dans /etc disparaît au
-# rebuild sans que rien ne la rattrape. Le durable reste le Dockerfile du dépôt.
+# Only packages come back: a config edited by hand in /etc disappears on the
+# rebuild with nothing to catch it. The durable answer stays the Dockerfile.
 set -euo pipefail
 
 LIST_DIR="$HOME/.config/dev-box"
@@ -25,12 +25,12 @@ usage() { sed -n '5,17p' "$0" | sed 's/^# \?//'; }
 
 installed() { pacman -Q "$1" >/dev/null 2>&1; }
 
-# La base pacman de l'image date du build : si elle est trop vieille pour les
-# miroirs, le téléchargement échoue et un -Sy la remet à niveau avant de
-# réessayer une fois.
+# The pacman database of the image dates from the build: when it is too old for
+# the mirrors, the download fails, so a -Sy brings it up to date and we try
+# once more.
 pac_install() {
   sudo pacman -S --needed --noconfirm "$@" && return 0
-  log "base pacman à rafraîchir…"
+  log "refreshing the pacman database..."
   sudo pacman -Sy --noconfirm || return 1
   sudo pacman -S --needed --noconfirm "$@"
 }
@@ -40,7 +40,7 @@ read_list() {
   grep -v '^[[:space:]]*$' "$LIST" | grep -v '^[[:space:]]*#' | sort -u
 }
 
-# Écrit la liste triée et dédoublonnée, à partir de l'entrée standard.
+# Writes the list sorted and deduplicated, from standard input.
 write_list() {
   mkdir -p "$LIST_DIR"
   sort -u > "$LIST.tmp"
@@ -58,40 +58,40 @@ remove_from_list() {
 }
 
 do_add() {
-  [ $# -gt 0 ] || { echo "usage : devbox pkg add <paquets…>" >&2; exit 2; }
-  log "installation : $*"
+  [ $# -gt 0 ] || { echo "usage: devbox pkg add <packages...>" >&2; exit 2; }
+  log "installing: $*"
   if ! pac_install "$@"; then
-    log "⚠ pacman a échoué, rien ajouté à la liste"
+    log "⚠ pacman failed, nothing added to the list"
     exit 1
   fi
-  # Second contrôle : pacman ne signale pas toujours une erreur par son code.
+  # Second check: pacman does not always report an error through its exit code.
   local ok=() pkg
   for pkg in "$@"; do
     if installed "$pkg"; then
       ok+=("$pkg")
     else
-      log "⚠ $pkg n'est pas installé, il n'entre pas dans la liste"
+      log "⚠ $pkg is not installed, it does not go into the list"
     fi
   done
   [ "${#ok[@]}" -gt 0 ] || exit 1
   add_to_list "${ok[@]}"
-  log "${#ok[@]} paquet(s) retenu(s) dans ~/.config/dev-box/packages"
+  log "${#ok[@]} package(s) kept in ~/.config/dev-box/packages"
 }
 
 do_drop() {
-  [ $# -gt 0 ] || { echo "usage : devbox pkg drop <paquets…>" >&2; exit 2; }
+  [ $# -gt 0 ] || { echo "usage: devbox pkg drop <packages...>" >&2; exit 2; }
   local here=() pkg
   for pkg in "$@"; do
     installed "$pkg" && here+=("$pkg")
   done
   if [ "${#here[@]}" -gt 0 ]; then
-    log "désinstallation : ${here[*]}"
-    sudo pacman -Rs --noconfirm "${here[@]}" || { log "⚠ pacman a échoué"; exit 1; }
+    log "uninstalling: ${here[*]}"
+    sudo pacman -Rs --noconfirm "${here[@]}" || { log "⚠ pacman failed"; exit 1; }
   else
-    log "aucun de ces paquets n'est installé"
+    log "none of those packages is installed"
   fi
   remove_from_list "$@"
-  log "liste mise à jour"
+  log "list updated"
 }
 
 do_list() {
@@ -100,35 +100,35 @@ do_list() {
     [ -n "$pkg" ] || continue
     count=$((count + 1))
     if installed "$pkg"; then
-      printf '  %-28s installé\n' "$pkg"
+      printf '  %-28s installed\n' "$pkg"
     else
-      printf '  %-28s absent\n' "$pkg"
+      printf '  %-28s missing\n' "$pkg"
       missing=$((missing + 1))
     fi
   done < <(read_list)
   if [ "$count" -eq 0 ]; then
-    echo "  aucun paquet persistant (devbox pkg add <paquets…>)"
+    echo "  no persistent package (devbox pkg add <packages...>)"
     return 0
   fi
   echo
-  log "$count paquet(s), $missing absent(s)"
-  [ "$missing" -gt 0 ] && log "devbox pkg restore pour les réinstaller"
+  log "$count package(s), $missing missing"
+  [ "$missing" -gt 0 ] && log "devbox pkg restore to put them back"
   return 0
 }
 
 do_install() {
-  command -v fzf >/dev/null 2>&1 || { echo "dev-box-pkg : fzf est absent" >&2; exit 1; }
+  command -v fzf >/dev/null 2>&1 || { echo "dev-box-pkg: fzf is missing" >&2; exit 1; }
   if [ ! -t 0 ] || [ ! -t 1 ]; then
-    echo "dev-box-pkg : le sélecteur a besoin d'un terminal." >&2
-    echo "Donnez les noms : devbox pkg add <paquets…>" >&2
+    echo "dev-box-pkg: the picker needs a terminal." >&2
+    echo "Give the names: devbox pkg add <packages...>" >&2
     exit 2
   fi
   local chosen sel=()
   chosen="$(pacman -Slq | fzf --multi \
       --preview 'pacman -Si {1}' \
       --preview-window 'down:60%:wrap' \
-      --header 'tab : sélection multiple, entrée : installer')" || true
-  [ -n "$chosen" ] || { log "rien de sélectionné"; exit 0; }
+      --header 'tab: pick several, enter: install')" || true
+  [ -n "$chosen" ] || { log "nothing selected"; exit 0; }
   mapfile -t sel <<< "$chosen"
   do_add "${sel[@]}"
 }
@@ -140,12 +140,12 @@ do_restore() {
     installed "$pkg" || missing+=("$pkg")
   done < <(read_list)
   if [ "${#missing[@]}" -eq 0 ]; then
-    log "rien à réinstaller, tout est en place"
+    log "nothing to reinstall, everything is in place"
     return 0
   fi
-  log "réinstallation : ${missing[*]}"
-  pac_install "${missing[@]}" || { log "⚠ pacman a échoué"; exit 1; }
-  log "${#missing[@]} paquet(s) réinstallé(s)"
+  log "reinstalling: ${missing[*]}"
+  pac_install "${missing[@]}" || { log "⚠ pacman failed"; exit 1; }
+  log "${#missing[@]} package(s) reinstalled"
 }
 
 cmd="${1:-}"
@@ -157,5 +157,5 @@ case "$cmd" in
   install) do_install ;;
   restore) do_restore ;;
   -h|--help|"") usage; [ -n "$cmd" ] || exit 2 ;;
-  *) echo "dev-box-pkg : sous-commande inconnue « $cmd »" >&2; usage >&2; exit 2 ;;
+  *) echo "dev-box-pkg: unknown subcommand '$cmd'" >&2; usage >&2; exit 2 ;;
 esac

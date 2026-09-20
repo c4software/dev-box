@@ -81,7 +81,7 @@ headers `devbox` reads:
 ```bash
 #!/usr/bin/env bash
 # devbox:name=<name>
-# devbox:summary=<one line, French, no final period>
+# devbox:summary=<one line, English, no final period>
 # devbox:args=[a|b|c]
 # devbox:hidden=true     # only if it is not a user-facing command
 ```
@@ -112,7 +112,7 @@ set -euo pipefail
 TARGET="$HOME/.config/something"
 
 if [ ! -f "$TARGET" ]; then
-  echo "  rien a reparer ici"
+  echo "  nothing to repair here"
   exit 0
 fi
 ...
@@ -127,7 +127,7 @@ Rules that matter:
   (`git log -p -- rootfs/etc/devbox/<file>` finds them), and say out loud why
   nothing was touched when that is the answer.
 - It runs as the user, not as root. `$HOME` is the box's home.
-- Output in French, two spaces of indent, since `dev-box-migrate` prints the
+- Output in English, two spaces of indent, since `dev-box-migrate` prints the
   name of the migration above it.
 - Exit non-zero only when the repair genuinely failed. That stops the run and
   leaves the migrations behind it pending.
@@ -154,8 +154,8 @@ linked into the home, so the guide is there on the next start.
 - bash, `set -euo pipefail`, no `eval`.
 - shellcheck clean:
   `docker run --rm -v "$PWD:/mnt:ro" koalaman/shellcheck:stable -e SC1091,SC2088 <files>`
-- Comments and script output in French. The README in English, plain prose, no
-  arrows and no typographic dashes.
+- Comments and script output in English, plain prose, no arrows and no
+  typographic dashes. Same for the README.
 - The commands say what they are doing and what to run next. They install
   nothing the user did not ask for.
 - Idempotent: running a command twice must not break anything.
@@ -174,7 +174,7 @@ docker run -d --name devbox-test \
   --device /dev/net/tun --cap-add NET_ADMIN --cap-add NET_RAW \
   dev-box-dev-box
 
-docker logs -f devbox-test          # wait for "mise : outils installés"
+docker logs -f devbox-test          # wait for "mise: tools installed"
 docker exec -u dev devbox-test zsh -lc 'devbox --help'
 docker exec -u dev devbox-test env -u TS_DISABLE zsh -lc 'devbox migrate --list'
 docker rm -f devbox-test && rm -rf "$scratch"

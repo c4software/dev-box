@@ -1,31 +1,31 @@
-# Surcharges locales, propres à cette machine (non versionnées) :
+# Local overrides, specific to this machine (not tracked by git):
 #   cp compose.override.example.yaml compose.override.yaml
-# Docker Compose le fusionne automatiquement avec compose.yaml.
-# Vide par défaut : décommenter ce qui sert.
+# Docker Compose merges it with compose.yaml automatically.
+# Empty by default: uncomment what you need.
 
 services:
   dev-box:
-    # Volumes supplémentaires (ajoutés à ceux de compose.yaml)
+    # Extra volumes (added to the ones from compose.yaml)
     # volumes:
     #   - /srv/partage:/home/dev/partage
     #
-    # Limites de ressources
+    # Resource limits
     # mem_limit: 8g
     # cpus: 4
     #
-    # Podman rootless dans la box (docker run/build/compose sans socket hôte).
-    # À activer avec PODMAN_ENABLE=true dans .env. Constaté à l'essai, en partant
-    # de rien et en n'ajoutant que ce qui débloquait :
-    #   - /dev/fuse : fuse-overlayfs, le stockage d'images de podman ;
-    #   - seccomp : le profil Docker par défaut refuse clone(CLONE_NEWUSER),
-    #     podman s'arrête sur « cannot clone: Operation not permitted » ;
-    #   - systempaths : Docker monte /proc/sys en lecture seule, crun n'arrive
-    #     pas à écrire net.ipv4.ping_group_range et netavark route_localnet,
-    #     donc aucun conteneur ne démarre et aucun port n'est publié ;
-    #   - apparmor : sans effet sur un hôte sans AppArmor, indispensable là où
-    #     il est actif (Debian, Raspberry Pi OS).
-    # Ni --privileged ni CAP_SYS_ADMIN. Prix à payer : l'isolation de la box
-    # elle-même est relâchée (échappement conteneur → hôte plus facile).
+    # Rootless podman inside the box (docker run/build/compose with no host
+    # socket). Turned on with PODMAN_ENABLE=true in .env. Found by trial,
+    # starting from nothing and adding only what unblocked something:
+    #   - /dev/fuse: fuse-overlayfs, podman's image storage;
+    #   - seccomp: the default Docker profile refuses clone(CLONE_NEWUSER), and
+    #     podman stops on "cannot clone: Operation not permitted";
+    #   - systempaths: Docker mounts /proc/sys read-only, crun cannot write
+    #     net.ipv4.ping_group_range nor netavark route_localnet, so no container
+    #     starts and no port is published;
+    #   - apparmor: no effect on a host without AppArmor, required where it is
+    #     active (Debian, Raspberry Pi OS).
+    # No --privileged and no CAP_SYS_ADMIN. The price: the isolation of the box
+    # itself is loosened (a container-to-host escape is easier).
     # devices:
     #   - /dev/net/tun
     #   - /dev/fuse

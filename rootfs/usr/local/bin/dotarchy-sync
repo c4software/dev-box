@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # devbox:name=sync
-# devbox:summary=Récupère les dotfiles dotarchy et les applique
+# devbox:summary=Pull the dotarchy dotfiles and apply them
 # devbox:args=
-# Récupère la conf de dotarchy/common-no-omarchy (config/ et default/) et les
-# scripts de base dont ses alias ont besoin (try, proj, alias git) — sans lancer
-# les scripts d'installation (bootstrap.sh, nvim.sh…).
-# Lancé au premier démarrage, ou à la main : `dotarchy-sync` (ou `devbox update`).
+# Pulls the config of dotarchy/common-no-omarchy (config/ and default/) and the
+# base scripts its aliases need (try, proj, git aliases), without running the
+# install scripts (bootstrap.sh, nvim.sh and friends).
+# Runs on the first start, or by hand: `dotarchy-sync` (or `devbox update`).
 set -euo pipefail
 
 [ -f /etc/devbox/dotarchy.env ] && . /etc/devbox/dotarchy.env
@@ -20,31 +20,31 @@ DEF="$SRC/$SUBDIR/default"
 
 log() { echo "[dotarchy-sync] $*"; }
 
-# --- 1. Clone ou mise à jour (miroir en lecture seule du repo) ---
+# --- 1. Clone or update (a read-only mirror of the repo) ---
 if [ -d "$SRC/.git" ]; then
   before=$(git -C "$SRC" rev-parse --short HEAD)
   git -C "$SRC" remote set-url origin "$REPO"
   git -C "$SRC" fetch -q --depth 1 origin "$BRANCH"
   git -C "$SRC" reset -q --hard FETCH_HEAD
   after=$(git -C "$SRC" rev-parse --short HEAD)
-  [ "$before" = "$after" ] && log "repo à jour ($after)" || log "repo mis à jour $before → $after"
+  [ "$before" = "$after" ] && log "repo up to date ($after)" || log "repo updated $before -> $after"
 else
   git clone -q --depth 1 --branch "$BRANCH" "$REPO" "$SRC"
-  log "repo cloné ($(git -C "$SRC" rev-parse --short HEAD))"
+  log "repo cloned ($(git -C "$SRC" rev-parse --short HEAD))"
 fi
 
-# --- 2. config/ → ~/.config (sauf nvim, traité à part) ---
+# --- 2. config/ into ~/.config (except nvim, handled apart) ---
 mkdir -p "$HOME/.config"
 rsync -a --exclude nvim "$CFG/" "$HOME/.config/"
-log "config/ copié dans ~/.config"
+log "config/ copied into ~/.config"
 
-# --- 3. default/ → dotfiles du home ---
+# --- 3. default/ into the home dotfiles ---
 for f in zshrc bashrc profile; do
   [ -f "$DEF/$f" ] && cp "$DEF/$f" "$HOME/.$f"
 done
-log "default/ copié (.zshrc, .bashrc, .profile)"
+log "default/ copied (.zshrc, .bashrc, .profile)"
 
-# --- 4. nvim : config/nvim est une surcouche LazyVim → posée sur le starter officiel ---
+# --- 4. nvim: config/nvim is a LazyVim overlay, laid on the official starter ---
 if [ -d "$CFG/nvim" ]; then
   [ -d "$STARTER/.git" ] || git clone -q --depth 1 https://github.com/LazyVim/starter "$STARTER"
   git -C "$STARTER" pull -q --ff-only || true
@@ -52,7 +52,7 @@ if [ -d "$CFG/nvim" ]; then
   NVIM_DIR="$HOME/.config/nvim"
   if [ -d "$NVIM_DIR" ] && [ ! -f "$NVIM_DIR/.dotarchy-managed" ]; then
     mv "$NVIM_DIR" "$NVIM_DIR.bak.$(date +%Y%m%d%H%M%S)"
-    log "ancien $NVIM_DIR sauvegardé en .bak"
+    log "old $NVIM_DIR saved as .bak"
   fi
 
   tmp=$(mktemp -d)
@@ -60,17 +60,17 @@ if [ -d "$CFG/nvim" ]; then
   rsync -a "$CFG/nvim/" "$tmp/"
   touch "$tmp/.dotarchy-managed"
   mkdir -p "$NVIM_DIR"
-  # lazy-lock.json appartient à la box (versions des plugins installés)
+  # lazy-lock.json belongs to the box (versions of the installed plugins)
   rsync -a --delete --exclude lazy-lock.json "$tmp/" "$NVIM_DIR/"
   rm -rf "$tmp"
-  log "nvim : starter LazyVim + config/nvim"
+  log "nvim: LazyVim starter + config/nvim"
 fi
 
-# --- 5. Scripts de base utilisés par les alias ---
-# try / proj : mêmes téléchargements que install/bootstrap.sh (lus dans le script,
-# donc tout nouvel outil ajouté de la même façon au repo suit automatiquement)
+# --- 5. Base scripts used by the aliases ---
+# try / proj: the same downloads as install/bootstrap.sh (read from the script,
+# so any new tool added to the repo the same way follows automatically)
 mkdir -p "$HOME/.local/bin"
-# (`|| true` : sans bootstrap.sh ou sans ligne trouvée, pipefail arrêterait le script)
+# (`|| true`: without bootstrap.sh, or with no line found, pipefail would stop the script)
 { grep -oE 'curl -sL https://[^ ]+ -o ~/.local/bin/[A-Za-z0-9._-]+' \
        "$SRC/$SUBDIR/install/bootstrap.sh" 2>/dev/null || true; } \
 | while read -r _ _ url _ dest; do
@@ -78,30 +78,30 @@ mkdir -p "$HOME/.local/bin"
     if curl -fsSL "$url" -o "$HOME/.local/bin/$name.tmp"; then
       mv "$HOME/.local/bin/$name.tmp" "$HOME/.local/bin/$name"
       chmod +x "$HOME/.local/bin/$name"
-      log "~/.local/bin/$name à jour"
+      log "~/.local/bin/$name up to date"
     else
       rm -f "$HOME/.local/bin/$name.tmp"
-      log "⚠ téléchargement de $name impossible"
+      log "⚠ could not download $name"
     fi
   done
 
-# Alias git : fonction setup() de install/git.sh (uniquement des `git config --global`)
+# Git aliases: the setup() function of install/git.sh (only `git config --global` calls)
 if [ -f "$SRC/$SUBDIR/install/git.sh" ]; then
-  ( . "$SRC/$SUBDIR/install/git.sh" && setup ) && log "alias git appliqués (git.sh)"
+  ( . "$SRC/$SUBDIR/install/git.sh" && setup ) && log "git aliases applied (git.sh)"
 fi
 
-# --- 6. Recharge tmux s'il tourne ---
+# --- 6. Reload tmux when it is running ---
 if tmux info &>/dev/null && [ -f "$HOME/.config/tmux/tmux.conf" ]; then
-  tmux source-file "$HOME/.config/tmux/tmux.conf" && log "tmux rechargé"
+  tmux source-file "$HOME/.config/tmux/tmux.conf" && log "tmux reloaded"
 fi
 
-# --- 7. Surcouche locale : ~/.config/dev-box/overrides reproduit l'arborescence
-#        du home et est réappliqué en dernier (après le rsync --delete de nvim) ---
+# --- 7. Local overrides: ~/.config/dev-box/overrides mirrors the home tree and
+#        is re-applied last (after the rsync --delete of nvim) ---
 OVERRIDES="$HOME/.config/dev-box/overrides"
 if [ -d "$OVERRIDES" ]; then
   n=$(find "$OVERRIDES" -type f | wc -l)
   if [ "$n" -gt 0 ]; then
     rsync -a "$OVERRIDES/" "$HOME/"
-    log "surcouche locale appliquée ($n fichier(s) depuis ~/.config/dev-box/overrides)"
+    log "local overrides applied ($n file(s) from ~/.config/dev-box/overrides)"
   fi
 fi

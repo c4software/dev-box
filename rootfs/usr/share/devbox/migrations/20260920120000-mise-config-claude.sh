@@ -1,41 +1,40 @@
 #!/usr/bin/env bash
-# Conf mise des boxes créées avant l'arrivée de claude et codex.
+# mise config of the boxes created before claude and codex arrived.
 #
-# La toute première version livrée déclarait node, pi (via
-# npm:@earendil-works/pi-coding-agent) et omp, mais ni claude ni codex. Le seed
-# ne peut pas la remplacer : elle est « identique à la référence » seulement
-# pour les boxes qui avaient déjà la référence, et sur les plus anciennes il
-# n'y en a pas, donc dev-box-seed l'adopte telle quelle et ne touche plus à
-# rien.
+# The very first shipped version declared node, pi (through
+# npm:@earendil-works/pi-coding-agent) and omp, but neither claude nor codex.
+# The seed cannot replace it: it is "identical to the reference" only for the
+# boxes that already had the reference, and the older ones have none, so
+# dev-box-seed adopts it as-is and never touches it again.
 #
-# Cette migration ne remplace le fichier que s'il est mot pour mot une des
-# versions livrées jadis : une conf modifiée à la main n'est jamais écrasée.
+# This migration only replaces the file when it is word for word one of the
+# versions shipped back then: a config changed by hand is never overwritten.
 set -euo pipefail
 
 CFG="$HOME/.config/mise/config.toml"
 
-# sha256 des versions livrées jadis qui ne déclarent ni claude ni codex.
+# sha256 of the versions shipped back then that declare neither claude nor codex.
 OLD_SUMS=(
   5f70393fcc9f39339bef540b9bbfae21e265837b0c484cb3313e70d5e7d8c3fe
 )
 
 if [ ! -f "$CFG" ]; then
-  echo "  ~/.config/mise/config.toml absent : rien à faire (dev-box-seed le posera)"
+  echo "  ~/.config/mise/config.toml is missing: nothing to do (dev-box-seed will lay it down)"
   exit 0
 fi
 
 if grep -Eq '^[[:space:]]*"?(claude|codex)"?[[:space:]]*=' "$CFG"; then
-  echo "  conf mise déjà à jour (claude ou codex déclaré) : rien à faire"
+  echo "  mise config already up to date (claude or codex declared): nothing to do"
   exit 0
 fi
 
 sum="$(sha256sum "$CFG" | awk '{print $1}')"
 if ! printf '%s\n' "${OLD_SUMS[@]}" | grep -qxF "$sum"; then
-  echo "  conf mise modifiée localement : rien écrasé"
-  echo "  pour prendre la version livrée : devbox seed --force ~/.config/mise/config.toml"
+  echo "  mise config changed locally: nothing overwritten"
+  echo "  to take the shipped version: devbox seed --force ~/.config/mise/config.toml"
   exit 0
 fi
 
 dev-box-seed --force "$CFG"
-echo "  conf mise remplacée par la version livrée (claude et codex déclarés)"
-echo "  installation : devbox update tools"
+echo "  mise config replaced by the shipped version (claude and codex declared)"
+echo "  to install them: devbox update tools"

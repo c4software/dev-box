@@ -1,45 +1,45 @@
 #!/usr/bin/env bash
 # devbox:name=dev-env
-# devbox:summary=Installe un environnement de dev (node, go, python…)
-# devbox:args=[env…]
+# devbox:summary=Install a dev environment (node, go, python, ...)
+# devbox:args=[env...]
 #
-# Installe un ou plusieurs environnements de développement dans le home, avec
-# mise uniquement : aucun paquet pacman, aucun `curl | sh`. Tout ce qui est posé
-# est donc déclaré dans ~/.config/mise/config.toml et survit aux rebuilds.
+# Installs one or more development environments in the home, through mise
+# only: no pacman package, no `curl | sh`. Everything it lays down is therefore
+# declared in ~/.config/mise/config.toml and survives a rebuild.
 #
-#   dev-box-dev-env              menu interactif (gum, sélection multiple)
-#   dev-box-dev-env node go      installe directement ces environnements
-#   dev-box-dev-env --list       liste les environnements disponibles
+#   dev-box-dev-env              interactive menu (gum, multiple selection)
+#   dev-box-dev-env node go      install these environments right away
+#   dev-box-dev-env --list       list the available environments
 #
-# Relancer sur un environnement déjà posé ne casse rien : `mise use -g` est
-# idempotent et se contente de réécrire la même ligne de config.
+# Running it again on an environment already installed breaks nothing: `mise
+# use -g` is idempotent and just rewrites the same config line.
 
-# Les fonctions install_* sont appelées indirectement, par « install_${name} ».
+# The install_* functions are called indirectly, through "install_${name}".
 # shellcheck disable=SC2329
 set -euo pipefail
 
-# Les releases toutes fraîches ne sont pas mises en quarantaine ici : quand on
-# demande un environnement, on le veut maintenant.
+# Brand new releases are not quarantined here: when you ask for an environment,
+# you want it now.
 export MISE_MINIMUM_RELEASE_AGE=0
 
-# <nom>|<description courte affichée dans le menu et dans --list>
+# <name>|<short description shown in the menu and in --list>
 ENVS=(
   "node|Node.js LTS (npm, npx)"
-  "bun|Bun, runtime et gestionnaire de paquets JavaScript"
-  "deno|Deno, runtime JavaScript et TypeScript"
-  "go|Go, dernière version stable"
-  "python|Python + uv (paquets et environnements virtuels)"
-  "php|PHP + composer + xdebug (paquets de l'image, prêts à l'emploi)"
-  "laravel|PHP + Node + installeur Laravel (composer global)"
+  "bun|Bun, JavaScript runtime and package manager"
+  "deno|Deno, JavaScript and TypeScript runtime"
+  "go|Go, latest stable version"
+  "python|Python + uv (packages and virtual environments)"
+  "php|PHP + composer + xdebug (image packages, ready to use)"
+  "laravel|PHP + Node + the Laravel installer (composer global)"
   "symfony|PHP + symfony-cli"
   "ruby|Ruby + Rails"
-  "rust|Rust (toolchain gérée par mise, sans rustup)"
-  "java|Java, dernier JDK"
-  "zig|Zig + zls (serveur de langage)"
+  "rust|Rust (toolchain managed by mise, no rustup)"
+  "java|Java, latest JDK"
+  "zig|Zig + zls (language server)"
   "dotnet|.NET SDK"
   "elixir|Erlang + Elixir + hex"
-  "phoenix|Elixir + hex + rebar + générateur phx_new"
-  "clojure|Clojure (CLI officielle)"
+  "phoenix|Elixir + hex + rebar + the phx_new generator"
+  "clojure|Clojure (official CLI)"
   "scala|Java + Scala + scala-cli"
 )
 
@@ -60,14 +60,14 @@ env_desc() {
 
 show_list() {
   local e
-  printf '\033[1mEnvironnements de dev\033[0m (devbox dev-env <nom>…)\n\n'
+  printf '\033[1mDev environments\033[0m (devbox dev-env <name>...)\n\n'
   for e in "${ENVS[@]}"; do
     printf '  \033[36m%-9s\033[0m %s\n' "${e%%|*}" "${e#*|}"
   done
-  printf '\nSans argument : menu de sélection multiple.\n'
+  printf '\nWithout arguments: a multiple selection menu.\n'
 }
 
-# --- Les environnements, un par fonction -------------------------------------
+# --- The environments, one per function --------------------------------------
 
 install_node()   { mise use -g node@lts; }
 install_bun()    { mise use -g bun@latest; }
@@ -76,57 +76,57 @@ install_go()     { mise use -g go@latest; }
 install_java()   { mise use -g java@latest; }
 install_dotnet() { mise use -g dotnet@latest; }
 install_rust() {
-  # mise gère la toolchain lui-même (pas de rustup) : une seule source de
-  # vérité pour les versions, et rien à nettoyer dans le home.
+  # mise handles the toolchain itself (no rustup): a single source of truth for
+  # the versions, and nothing to clean up in the home.
   mise use -g rust@latest
 }
 install_python() {
-  # uv vient du registre mise (aqua:astral-sh/uv) plutôt que de l'installeur
-  # astral.sh : pas de `curl | sh` dans la box.
+  # uv comes from the mise registry (aqua:astral-sh/uv) rather than the
+  # astral.sh installer: no `curl | sh` in the box.
   mise use -g python@latest uv@latest
 }
 install_zig() { mise use -g zig@latest zls@latest; }
 install_php() {
-  # Seule exception au « mise uniquement » : mise compile PHP depuis les sources
-  # (long, et il faudrait tous les headers dans l'image). php, composer,
-  # php-sqlite et xdebug sont donc des paquets de l'image, extensions déjà
-  # activées au build. Ici on vérifie et on montre ce qui est là.
+  # The one exception to "mise only": mise builds PHP from source (slow, and it
+  # would need every header in the image). php, composer, php-sqlite and xdebug
+  # are therefore packages of the image, with the extensions already enabled at
+  # build time. Here we only check and show what is there.
   command -v php >/dev/null 2>&1 || {
-    echo "php absent de l'image : ajouter php composer php-sqlite xdebug au Dockerfile, puis just rebuild" >&2
+    echo "php is missing from the image: add php composer php-sqlite xdebug to the Dockerfile, then just rebuild" >&2
     return 1
   }
   log "$(php -v | head -n 1)"
-  log "extensions : $(php -m | grep -iE '^(bcmath|intl|pdo_sqlite|pdo_mysql|xdebug|zip|gd)$' | tr '\n' ' ')"
-  log "composer $(composer --version 2>/dev/null | awk '{print $3}') ; paquets globaux dans ~/.config/composer (persistant)"
+  log "extensions: $(php -m | grep -iE '^(bcmath|intl|pdo_sqlite|pdo_mysql|xdebug|zip|gd)$' | tr '\n' ' ')"
+  log "composer $(composer --version 2>/dev/null | awk '{print $3}'), global packages in ~/.config/composer (persistent)"
 }
 install_laravel() {
   install_php
   install_node
   composer global require laravel/installer
-  log "laravel est prêt : laravel new mon-projet (~/.config/composer/vendor/bin est dans le PATH)"
+  log "laravel is ready: laravel new my-project (~/.config/composer/vendor/bin is on the PATH)"
 }
 install_symfony() {
   install_php
-  # symfony-cli publie des binaires linux amd64 et arm64 : le backend github de
-  # mise prend le bon asset.
+  # symfony-cli publishes linux amd64 and arm64 binaries: mise's github backend
+  # picks the right asset.
   mise use -g github:symfony-cli/symfony-cli@latest
-  log "symfony est prêt : symfony new --webapp mon-projet"
+  log "symfony is ready: symfony new --webapp my-project"
 }
 install_clojure() {
-  # Sans rlwrap (paquet pacman, donc perdu au rebuild) : `clj` reste utilisable,
-  # l'édition de ligne du REPL en moins. Ajouter rlwrap au Dockerfile si besoin.
+  # Without rlwrap (a pacman package, so lost on a rebuild) `clj` still works,
+  # minus the line editing in the REPL. Add rlwrap to the Dockerfile if needed.
   mise use -g clojure@latest
 }
 install_scala() { mise use -g java@latest scala@latest scala-cli@latest; }
 install_ruby() {
-  # ruby.compile=false : mise pose une build précompilée (jdx/ruby publie
-  # x86_64_linux et arm64_linux) au lieu de compiler pendant de longues minutes.
+  # ruby.compile=false: mise lays down a precompiled build (jdx/ruby publishes
+  # x86_64_linux and arm64_linux) instead of compiling for long minutes.
   mise settings add ruby.compile false
   mise settings add idiomatic_version_file_enable_tools ruby
   mise use -g ruby@latest
   echo "gem: --no-document" > "$HOME/.gemrc"
   mise x ruby -- gem install rails --no-document
-  log "rails est prêt : rails new mon-projet"
+  log "rails is ready: rails new my-project"
 }
 install_elixir() {
   mise use -g erlang@latest elixir@latest
@@ -136,17 +136,17 @@ install_phoenix() {
   install_elixir
   mise x elixir -- mix local.rebar --force
   mise x elixir -- mix archive.install hex phx_new --force
-  log "phoenix est prêt : mix phx.new mon_app"
+  log "phoenix is ready: mix phx.new my_app"
 }
 
 install_env() {
   local name="$1" desc
   desc="$(env_desc "$name")" || {
-    echo "dev-box-dev-env : environnement inconnu « $name »" >&2
-    echo "Environnements disponibles : $(env_names | tr '\n' ' ')" >&2
+    echo "dev-box-dev-env: unknown environment '$name'" >&2
+    echo "Available environments: $(env_names | tr '\n' ' ')" >&2
     return 1
   }
-  log "$name : $desc"
+  log "$name: $desc"
   "install_${name}"
 }
 
@@ -156,17 +156,17 @@ SELECTED=()
 case "${1:-}" in
   --list|-l) show_list; exit 0 ;;
   -h|--help) sed -n '6,15p' "$0" | sed 's/^# \?//'; exit 0 ;;
-  -*) echo "dev-box-dev-env : option inconnue « $1 »" >&2; exit 2 ;;
+  -*) echo "dev-box-dev-env: unknown option '$1'" >&2; exit 2 ;;
   "")
-    # Menu interactif : il faut un terminal des deux côtés, sinon gum n'a rien
-    # à lire ni où dessiner.
+    # Interactive menu: a terminal is needed on both sides, otherwise gum has
+    # nothing to read and nowhere to draw.
     if [ ! -t 0 ] || [ ! -t 1 ]; then
-      echo "dev-box-dev-env : pas de terminal, donnez les environnements en arguments." >&2
-      echo "Environnements disponibles : $(env_names | tr '\n' ' ')" >&2
+      echo "dev-box-dev-env: no terminal, give the environments as arguments." >&2
+      echo "Available environments: $(env_names | tr '\n' ' ')" >&2
       exit 2
     fi
     command -v gum >/dev/null 2>&1 || {
-      echo "dev-box-dev-env : gum est absent, donnez les environnements en arguments." >&2
+      echo "dev-box-dev-env: gum is missing, give the environments as arguments." >&2
       exit 1
     }
     menu=()
@@ -175,8 +175,8 @@ case "${1:-}" in
     done
     chosen="$(printf '%s\n' "${menu[@]}" \
       | gum choose --no-limit --height 16 \
-          --header "Environnements à installer (espace pour cocher, entrée pour valider)")" || true
-    [ -n "$chosen" ] || { echo "Rien de sélectionné."; exit 0; }
+          --header "Environments to install (space to tick, enter to confirm)")" || true
+    [ -n "$chosen" ] || { echo "Nothing selected."; exit 0; }
     while IFS= read -r line; do
       [ -n "$line" ] && SELECTED+=("${line%% *}")
     done <<< "$chosen"
@@ -184,22 +184,22 @@ case "${1:-}" in
   *) SELECTED=("$@") ;;
 esac
 
-# Les noms sont validés avant la première installation : mieux vaut refuser tout
-# de suite qu'échouer au milieu d'une liste.
+# The names are validated before the first install: better to refuse right away
+# than to fail in the middle of a list.
 rc=0
 for name in "${SELECTED[@]}"; do
   env_desc "$name" >/dev/null || {
-    echo "dev-box-dev-env : environnement inconnu « $name »" >&2
-    echo "Environnements disponibles : $(env_names | tr '\n' ' ')" >&2
+    echo "dev-box-dev-env: unknown environment '$name'" >&2
+    echo "Available environments: $(env_names | tr '\n' ' ')" >&2
     exit 1
   }
 done
 
 for name in "${SELECTED[@]}"; do
-  install_env "$name" || { log "⚠ $name a échoué"; rc=1; }
+  install_env "$name" || { log "⚠ $name failed"; rc=1; }
 done
 
 echo
-log "Outils déclarés dans ~/.config/mise/config.toml."
-log "Mise à jour plus tard : devbox update tools."
+log "Tools declared in ~/.config/mise/config.toml."
+log "Upgrade later: devbox update tools."
 exit "$rc"

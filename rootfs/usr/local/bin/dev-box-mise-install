@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
 # devbox:name=mise-install
-# devbox:summary=Pose un wrapper mise pour un outil dans ~/.local/bin
-# devbox:args=<paquet> [cmd [binaire]]
-# Générateur de wrappers, sur le modèle d'omarchy-mise-install : il écrit dans
-# ~/.local/bin un petit script qui installe l'outil au premier appel puis
-# l'exécute par mise. L'image livre déjà claude, pi, omp, codex et opencode ;
-# ceci sert pour tous les autres (gemini, crush, copilot…).
+# devbox:summary=Write a mise-backed wrapper for a tool into ~/.local/bin
+# devbox:args=<package> [cmd [binary]]
+# Wrapper generator, on the model of omarchy-mise-install: it writes a small
+# script into ~/.local/bin that installs the tool on the first call, then runs
+# it through mise. The image already ships claude, pi, omp, codex and
+# opencode; this is for everything else (gemini, crush, copilot and so on).
 #
-#   dev-box-mise-install <paquet> [commande [binaire]]
-#   dev-box-mise-install --list            les wrappers générés ici
-#   dev-box-mise-install --remove <cmd>    supprime l'un d'eux
+#   dev-box-mise-install <package> [command [binary]]
+#   dev-box-mise-install --list            the wrappers written here
+#   dev-box-mise-install --remove <cmd>    delete one of them
 #
-# Exemples :
+# Examples:
 #   dev-box-mise-install npm:@google/gemini-cli gemini
 #   dev-box-mise-install crush
 #
-# ~/.local/bin passe avant /usr/local/bin dans le PATH : un wrapper généré ici
-# prend le pas sur celui de l'image s'il porte le même nom.
+# ~/.local/bin comes before /usr/local/bin on the PATH: a wrapper written here
+# takes over from the one in the image when it carries the same name.
 set -euo pipefail
 
 BIN_DIR="$HOME/.local/bin"
-# Marqueur : c'est lui qui distingue nos wrappers des scripts de l'utilisateur.
+# Marker: this is what tells our wrappers from the user's own scripts.
 MARK="# dev-box-mise-install"
 
 usage() { sed -n '5,19p' "$0" | sed 's/^# \?//'; }
@@ -30,13 +30,13 @@ is_generated() {
   grep -qxF "$MARK" "$1"
 }
 
-# Le nom de la commande devient un nom de fichier : une barre oblique écrirait
-# (et supprimerait) ailleurs, un point initial cache le fichier ou remonte d'un
-# cran, un tiret initial donne un nom qui se lit comme une option.
+# The command name becomes a file name: a slash would write (and delete)
+# somewhere else, a leading dot hides the file or climbs a level, and a leading
+# dash gives a name that reads like an option.
 check_name() {
   case "$1" in
     */* | .* | -* | *[[:cntrl:]]*)
-      echo "dev-box-mise-install : « $1 » n'est pas un nom de commande utilisable" >&2
+      echo "dev-box-mise-install: '$1' is not a usable command name" >&2
       exit 1
       ;;
   esac
@@ -44,7 +44,7 @@ check_name() {
 
 do_list() {
   local f name pkg found=false
-  [ -d "$BIN_DIR" ] || { echo "aucun wrapper (pas de $BIN_DIR)"; return 0; }
+  [ -d "$BIN_DIR" ] || { echo "no wrapper (no $BIN_DIR)"; return 0; }
   for f in "$BIN_DIR"/*; do
     [ -f "$f" ] || continue
     is_generated "$f" || continue
@@ -53,7 +53,7 @@ do_list() {
     pkg="$(awk '/^mise use -g --quiet /{ gsub(/"/, "", $5); print $5; exit }' "$f")"
     printf '  %-20s %s\n' "$name" "$pkg"
   done
-  $found || echo "  aucun wrapper généré par dev-box-mise-install"
+  $found || echo "  no wrapper written by dev-box-mise-install"
 }
 
 do_remove() {
@@ -61,27 +61,27 @@ do_remove() {
   check_name "$cmd"
   f="$BIN_DIR/$cmd"
   if [ ! -e "$f" ]; then
-    echo "dev-box-mise-install : $f n'existe pas" >&2
+    echo "dev-box-mise-install: $f does not exist" >&2
     exit 1
   fi
   if ! is_generated "$f"; then
-    echo "dev-box-mise-install : $f n'a pas été généré ici, rien supprimé" >&2
+    echo "dev-box-mise-install: $f was not written here, nothing deleted" >&2
     exit 1
   fi
   rm -f "$f"
-  echo "[dev-box-mise-install] wrapper supprimé : ~/.local/bin/$cmd"
+  echo "[dev-box-mise-install] wrapper deleted: ~/.local/bin/$cmd"
 }
 
 case "${1:-}" in
   -h|--help) usage; exit 0 ;;
   --list)    do_list; exit 0 ;;
   --remove)
-    [ -n "${2:-}" ] || { echo "dev-box-mise-install : --remove attend un nom" >&2; exit 2; }
+    [ -n "${2:-}" ] || { echo "dev-box-mise-install: --remove expects a name" >&2; exit 2; }
     do_remove "$2"
     exit 0
     ;;
   "") usage >&2; exit 2 ;;
-  -*) echo "dev-box-mise-install : option inconnue « $1 »" >&2; exit 2 ;;
+  -*) echo "dev-box-mise-install: unknown option '$1'" >&2; exit 2 ;;
 esac
 
 package="$1"
@@ -89,14 +89,14 @@ command_name="${2:-$1}"
 bin_name="${3:-$command_name}"
 check_name "$command_name"
 
-# Le heredoc n'est pas protégé : ce qui suit est écrit tel quel dans le
-# wrapper, donc un nom de paquet portant des caractères du shell doit rester un
-# seul argument au lieu de s'exécuter.
+# The heredoc below is not quoted: what follows is written as-is into the
+# wrapper, so a package name carrying shell characters has to stay a single
+# argument instead of being executed.
 printf -v package_arg '%q' "$package"
 printf -v bin_arg '%q' "$bin_name"
-# Ce qui est inerte entre guillemets garde la forme lisible des wrappers de
-# l'image (npm:@scope/outil, github:auteur/dépôt), que %q échapperait pour rien.
-# shellcheck disable=SC1003  # le motif cherche une contre-oblique, pas un guillemet
+# What is inert between quotes keeps the readable shape of the image wrappers
+# (npm:@scope/tool, github:author/repo), which %q would escape for nothing.
+# shellcheck disable=SC1003  # the pattern looks for a backslash, not a quote
 case "$package" in
   *'$'* | *'`'* | *'"'* | *'\'* | *'!'* | *[[:cntrl:]]*) ;;
   *) package_arg="\"$package\"" ;;
@@ -109,15 +109,15 @@ esac
 
 target="$BIN_DIR/$command_name"
 if [ -e "$target" ] && ! is_generated "$target"; then
-  echo "dev-box-mise-install : ~/.local/bin/$command_name existe déjà et n'a pas" >&2
-  echo "  été généré ici, rien écrasé. Choisissez un autre nom de commande." >&2
+  echo "dev-box-mise-install: ~/.local/bin/$command_name already exists and was" >&2
+  echo "  not written here, nothing overwritten. Pick another command name." >&2
   exit 1
 fi
 
 mkdir -p "$BIN_DIR"
 rm -f "$target"
-# MISE_MINIMUM_RELEASE_AGE=0 : demander un outil par son nom, c'est le demander
-# maintenant, pas dans 24 h (mise met les nouvelles versions en quarantaine).
+# MISE_MINIMUM_RELEASE_AGE=0: asking for a tool by name means asking for it
+# now, not in 24 h (mise quarantines the new releases).
 cat > "$target" <<EOF
 #!/bin/bash
 $MARK
@@ -127,5 +127,5 @@ exec mise x $package_arg -- $bin_arg "\$@"
 EOF
 chmod +x "$target"
 
-echo "[dev-box-mise-install] wrapper posé : ~/.local/bin/$command_name ($package)"
-echo "  premier appel : mise installe l'outil, les suivants sont immédiats"
+echo "[dev-box-mise-install] wrapper written: ~/.local/bin/$command_name ($package)"
+echo "  first call: mise installs the tool, the next ones are instant"

@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # devbox:name=migrate
-# devbox:summary=Joue les migrations livrées par l'image, une fois chacune
+# devbox:summary=Run the migrations shipped by the image, once each
 # devbox:args=[--pending|--list]
-# Migrations de la box : de petits scripts livrés par l'image qui réparent un
-# home existant quand une nouvelle version change quelque chose que le seed ne
-# sait pas reprendre tout seul. Chacune est jouée une seule fois, dans l'ordre
-# de son nom, en tant qu'utilisateur.
+# Box migrations: small scripts shipped by the image that repair an existing
+# home when a new image version changes something the seed cannot pick up on
+# its own. Each migration runs once, in the order of its name, as your user,
+# never as root.
 #
-#   dev-box-migrate                 joue les migrations en attente
-#   dev-box-migrate --pending       liste ce qui reste à jouer, sans rien faire
-#   dev-box-migrate --list          toutes les migrations, avec leur état
-#   dev-box-migrate --mark-done X   acquitte une migration sans la jouer
-#   dev-box-migrate --mark-all-done acquitte tout (home neuf : rien à réparer)
+#   dev-box-migrate                 run the pending migrations
+#   dev-box-migrate --pending       list what is left, without doing anything
+#   dev-box-migrate --list          every migration, with its state
+#   dev-box-migrate --mark-done X   acknowledge a migration without running it
+#   dev-box-migrate --mark-all-done acknowledge all of them (new home: nothing to repair)
 #
-# Journal des migrations jouées : ~/.config/dev-box/migrations (un nom par
-# ligne). La première migration qui échoue arrête tout : les suivantes restent
-# en attente et seront rejouées au prochain appel.
+# Log of the migrations already run: ~/.config/dev-box/migrations, one name
+# per line. The first migration that fails stops the run: the ones behind it
+# stay pending and are tried again on the next call.
 set -euo pipefail
 
 MIG_DIR="${DEVBOX_MIGRATIONS_DIR:-/usr/share/devbox/migrations}"
@@ -24,14 +24,14 @@ STATE="$STATE_DIR/migrations"
 
 log() { echo "[dev-box-migrate] $*"; }
 
-# Les migrations écrivent dans le home : root les jouerait au mauvais endroit
-# et laisserait des fichiers que l'utilisateur ne peut plus modifier.
+# The migrations write in the home: root would run them in the wrong place and
+# leave behind files the user can no longer change.
 if [ "$(id -u)" = "0" ]; then
-  echo "dev-box-migrate : à lancer en tant qu'utilisateur, pas en root" >&2
+  echo "dev-box-migrate: run it as your user, not as root" >&2
   exit 1
 fi
 
-# Noms des migrations livrées, triés (le nom commence par un horodatage).
+# Names of the shipped migrations, sorted (the name starts with a timestamp).
 all_names() {
   local f
   [ -d "$MIG_DIR" ] || return 0
@@ -71,11 +71,11 @@ while [ $# -gt 0 ]; do
     --mark-done)
       MODE="mark"
       MARK="${2:-}"
-      [ -n "$MARK" ] || { echo "dev-box-migrate : --mark-done attend un nom" >&2; exit 2; }
+      [ -n "$MARK" ] || { echo "dev-box-migrate: --mark-done expects a name" >&2; exit 2; }
       shift 2
       ;;
     -h|--help) usage; exit 0 ;;
-    *) echo "dev-box-migrate : option inconnue « $1 »" >&2; exit 2 ;;
+    *) echo "dev-box-migrate: unknown option '$1'" >&2; exit 2 ;;
   esac
 done
 
@@ -89,24 +89,24 @@ case "$MODE" in
     while IFS= read -r name; do
       found=true
       if is_done "$name"; then
-        printf '  %-40s jouée\n' "$name"
+        printf '  %-40s played\n' "$name"
       else
-        printf '  %-40s en attente\n' "$name"
+        printf '  %-40s pending\n' "$name"
       fi
     done < <(all_names)
-    $found || echo "  aucune migration livrée par cette image"
+    $found || echo "  this image ships no migration"
     exit 0
     ;;
   mark)
-    # Le nom peut être donné avec ou sans .sh, et un chemin complet passe aussi.
+    # The name works with or without .sh, and a full path is fine too.
     MARK="$(basename "$MARK")"
     [ "${MARK%.sh}" = "$MARK" ] && MARK="$MARK.sh"
     if ! all_names | grep -qxF "$MARK"; then
-      echo "dev-box-migrate : « $MARK » n'est pas une migration de cette image" >&2
+      echo "dev-box-migrate: '$MARK' is not a migration of this image" >&2
       exit 1
     fi
     mark_done "$MARK"
-    log "migration acquittée sans être jouée : ${MARK%.sh}"
+    log "migration acknowledged without being run: ${MARK%.sh}"
     exit 0
     ;;
   mark-all)
@@ -116,28 +116,28 @@ case "$MODE" in
       mark_done "$name"
       count=$((count + 1))
     done < <(all_names)
-    log "$count migration(s) acquittée(s) sans être jouée(s)"
+    log "$count migration(s) acknowledged without being run"
     exit 0
     ;;
 esac
 
-# --- Exécution ---------------------------------------------------------------
+# --- Run ---------------------------------------------------------------------
 mapfile -t PENDING < <(pending_names)
 if [ "${#PENDING[@]}" -eq 0 ]; then
-  log "rien à faire, tout est à jour"
+  log "nothing to do, everything is up to date"
   exit 0
 fi
 
-log "${#PENDING[@]} migration(s) en attente"
+log "${#PENDING[@]} migration(s) pending"
 for name in "${PENDING[@]}"; do
-  log "→ ${name%.sh}"
+  log "-> ${name%.sh}"
   if bash "$MIG_DIR/$name"; then
     mark_done "$name"
   else
-    log "⚠ la migration ${name%.sh} a échoué, arrêt"
-    log "  les suivantes restent en attente (devbox migrate pour réessayer)"
-    log "  pour passer outre : devbox migrate --mark-done $name"
+    log "⚠ migration ${name%.sh} failed, stopping"
+    log "  the ones behind it stay pending (devbox migrate to try again)"
+    log "  to skip it: devbox migrate --mark-done $name"
     exit 1
   fi
 done
-log "terminé"
+log "done"

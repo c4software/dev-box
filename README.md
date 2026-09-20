@@ -262,7 +262,7 @@ and reads a comment header at the top of each one:
 
 ```bash
 # devbox:name=update
-# devbox:summary=Met à jour dotfiles, outils mise et conf livrée
+# devbox:summary=Update dotfiles, mise tools and the shipped config
 # devbox:args=[dotfiles|tools|seed|all]
 # devbox:hidden=true    # optional: out of the menu and the list, still routable
 ```
@@ -381,7 +381,7 @@ devbox pkg restore                # put back whatever is missing
 
 At every start the entrypoint reads that list and reinstalls what the image
 does not have, in the background, without holding up the login. The log line is
-`[dev-box] pkg : N paquet(s) réinstallé(s)`.
+`[dev-box] pkg: N package(s) reinstalled`.
 
 Only packages come back. A config file you edited by hand in `/etc`, a systemd
 unit, a file dropped in `/usr/local/bin`: none of that is tracked, and none of
@@ -584,7 +584,7 @@ down is kept in `~/.config/dev-box/seed/<path>`, which gives three cases per fil
 
 - **missing**: the shipped file is copied and recorded as the reference;
 - **untouched** (identical to the reference) and the shipped version changed: it is
-  updated in place (`conf mise à jour : ~/x`);
+  updated in place (`config updated: ~/x`);
 - **modified locally** and the shipped version changed: nothing is overwritten, the
   box tells you the new version exists and how to take it with
   `dev-box-seed --force ~/x`, also written `devbox seed --force ~/x`.
@@ -667,7 +667,7 @@ one line per item. When there is nothing left, the file is removed.
 Interactive shells print that file at login, once per tmux session, followed by a
 reminder to run `devbox update`. With no file, the cost is a single file test.
 
-![Login in the box with a pending update: a Mises a jour disponibles block lists the new dotfiles commit and the shipped config files that changed, followed by the devbox update reminder](docs/screenshots/updates-motd.png)
+![Login in the box with a pending update: an Updates available block lists the new dotfiles commit and the shipped config files that changed, followed by the devbox update reminder](docs/screenshots/updates-motd.png)
 
 ```bash
 devbox update            # all of the below

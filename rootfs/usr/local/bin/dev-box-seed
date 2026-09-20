@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 # devbox:name=seed
-# devbox:summary=Pose la conf livrée par l'image sans rien écraser
-# devbox:args=[--force|--check] [chemin]
-# Pose la conf livrée par l'image (agents, extensions, conf mise) dans le home,
-# sans jamais écraser une modification locale.
+# devbox:summary=Lay down the shipped config, overwriting nothing
+# devbox:args=[--force|--check] [path]
+# Lays down the config shipped by the image (agents, extensions, mise config)
+# in the home, without ever overwriting a local change.
 #
-# Une copie de référence de ce qui a été posé est gardée dans
-# ~/.config/dev-box/seed/<chemin> : elle sert à distinguer « fichier jamais
-# touché » (on peut le mettre à jour) de « fichier modifié par l'utilisateur »
-# (on prévient, on n'écrase pas).
+# A reference copy of what was laid down is kept in
+# ~/.config/dev-box/seed/<path>. It is what tells a file that was never
+# touched, which can be updated, from a file the user changed, which is
+# reported and never overwritten.
 #
-# Utilisable par root (entrypoint, avec DEVBOX_HOME + chown 1000:1000) ou par
-# l'utilisateur (`devbox update seed`, ou `devbox seed`).
+# Usable by root (the entrypoint, with DEVBOX_HOME + chown 1000:1000) or by
+# the user (`devbox update seed`, or `devbox seed`).
 #
-#   dev-box-seed                  applique la conf livrée
-#   dev-box-seed --force [chemin] écrase (tout, ou le seul chemin donné)
-#   dev-box-seed --check          n'écrit rien, liste les nouveautés livrées
+#   dev-box-seed                  apply the shipped config
+#   dev-box-seed --force [path]   overwrite (everything, or the given path)
+#   dev-box-seed --check          write nothing, list what is newly shipped
 set -euo pipefail
 
-# Table : <source dans l'image>:<chemin relatif au home>
+# Table: <source in the image>:<path relative to the home>
 SEEDS=(
   "/etc/devbox/claude/settings.json:.claude/settings.json"
   "/etc/devbox/claude/agents/pi.md:.claude/agents/pi.md"
@@ -36,22 +36,22 @@ while [ $# -gt 0 ]; do
     --force) FORCE=true; shift ;;
     --check) CHECK=true; shift ;;
     -h|--help) sed -n '5,18p' "$0" | sed 's/^# \?//'; exit 0 ;;
-    -*) echo "option inconnue : $1" >&2; exit 2 ;;
+    -*) echo "unknown option: $1" >&2; exit 2 ;;
     *)  ONLY="$1"; shift ;;
   esac
 done
 
-# Home cible : celui de l'appelant, ou DEVBOX_HOME quand l'entrypoint (root) l'appelle
+# Target home: the caller's, or DEVBOX_HOME when the entrypoint (root) calls it
 TARGET_HOME="${DEVBOX_HOME:-$HOME}"
 REF_DIR="$TARGET_HOME/.config/dev-box/seed"
-# Root pose les fichiers au nom de l'utilisateur de la box (UID/GID fixes)
+# Root lays the files down as the box user (fixed UID/GID)
 OWNER=""
 [ "$(id -u)" = "0" ] && OWNER="1000:1000"
 
-# shellcheck disable=SC2088  # le tilde est là pour l'affichage, pas pour le shell
+# shellcheck disable=SC2088  # the tilde is for display, not for the shell
 log() { $CHECK || echo "[dev-box-seed] $*"; }
 
-# ~/x, /home/dev/x, x → x
+# ~/x, /home/dev/x, x all become x
 normalize() {
   local p="$1"
   p="${p#"$TARGET_HOME"/}"
@@ -62,9 +62,9 @@ normalize() {
 ONLY="$(normalize "$ONLY")"
 
 # install_as <source> <destination>
-# Quand root appelle, tous les répertoires créés doivent revenir à l'utilisateur
-# (`install -d -o` ne traite que le dernier composant), sinon ~/.config/dev-box
-# resterait à root et l'utilisateur ne pourrait plus rien y écrire.
+# When root calls, every directory created has to end up owned by the user
+# (`install -d -o` only handles the last component), otherwise
+# ~/.config/dev-box would stay root's and the user could no longer write there.
 install_as() {
   local dir sub
   dir="$(dirname "$2")"
@@ -95,53 +95,53 @@ for entry in "${SEEDS[@]}"; do
   if $FORCE; then
     install_as "$src" "$dst"
     install_as "$src" "$ref"
-    log "conf remplacée : ~/$rel"
+    log "config replaced: ~/$rel"
     continue
   fi
 
-  # 1. Rien sur place : on pose et on enregistre la référence
+  # 1. Nothing there: lay it down and record the reference
   if [ ! -e "$dst" ]; then
     if $CHECK; then continue; fi
     install_as "$src" "$dst"
     install_as "$src" "$ref"
-    log "conf posée : ~/$rel"
+    log "config laid down: ~/$rel"
     continue
   fi
 
-  # 2. Pas de référence (box existante) : on adopte la version livrée comme
-  #    référence, sans rien écraser
+  # 2. No reference (existing box): adopt the shipped version as the
+  #    reference, without overwriting anything
   if [ ! -e "$ref" ]; then
     if $CHECK; then continue; fi
     install_as "$src" "$ref"
-    cmp -s "$dst" "$src" || log "~/$rel diffère de la version livrée (conservé, référence adoptée)"
+    cmp -s "$dst" "$src" || log "~/$rel differs from the shipped version (kept, reference adopted)"
     continue
   fi
 
-  # Version livrée inchangée depuis la dernière pose : rien à faire
+  # Shipped version unchanged since it was laid down: nothing to do
   if cmp -s "$src" "$ref"; then
     continue
   fi
 
   if cmp -s "$dst" "$ref"; then
-    # 3. Jamais modifié localement : mise à jour transparente
+    # 3. Never changed locally: updated in place
     if $CHECK; then
-      echo "conf livrée mise à jour : ~/$rel"
+      echo "shipped config updated: ~/$rel"
     else
       install_as "$src" "$dst"
       install_as "$src" "$ref"
-      log "conf mise à jour : ~/$rel"
+      log "config updated: ~/$rel"
     fi
   else
-    # 4. Modifié localement : on prévient, on n'écrase pas
+    # 4. Changed locally: we report it, we do not overwrite
     if $CHECK; then
-      echo "conf livrée mise à jour : ~/$rel (modifié localement)"
+      echo "shipped config updated: ~/$rel (changed locally)"
     else
-      log "~/$rel modifié localement, nouvelle version livrée disponible (dev-box-seed --force ~/$rel)"
+      log "~/$rel changed locally, a new shipped version is available (dev-box-seed --force ~/$rel)"
     fi
   fi
 done
 
 if [ -n "$ONLY" ] && ! $MATCHED; then
-  echo "dev-box-seed : ~/$ONLY ne fait pas partie de la conf livrée" >&2
+  echo "dev-box-seed: ~/$ONLY is not part of the shipped config" >&2
   exit 1
 fi

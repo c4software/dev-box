@@ -1,18 +1,18 @@
-# Outils de dev gérés par mise dans le home (persistants, indépendants de l'image).
-# Les paquets système viennent de pacman.
-# Comme omarchy-install-dev-env : `mise use -g go@latest`, `mise use -g python@latest`…
-# `dev-box-dev-env` (ou `devbox dev-env`) ajoute ici des environnements complets.
+# Dev tools managed by mise in the home (persistent, independent of the image).
+# System packages come from pacman.
+# Same idea as omarchy-install-dev-env: `mise use -g go@latest`, `mise use -g python@latest`.
+# `dev-box-dev-env` (or `devbox dev-env`) adds whole environments here.
 
 [tools]
 node = "lts"
 
-# Agents de code : mêmes noms que les wrappers de /usr/local/bin (claude, pi, omp,
-# codex ; opencode aussi, mais installé seulement au premier appel),
-# qui font un `mise use -g <outil>` à la volée s'il manque.
+# Coding agents: same names as the wrappers in /usr/local/bin (claude, pi, omp,
+# codex; opencode too, but installed only on the first call), which run a
+# `mise use -g <tool>` on the fly when the tool is missing.
 claude = "latest"
 pi = "latest"
 codex = "latest"
-# omp : le backend github de mise choisit l'asset de la release selon l'OS et
-# l'architecture (omp-linux-x64 en amd64, omp-linux-arm64 en arm64) ; rien à
-# régler pour le Raspberry Pi.
+# omp: mise's github backend picks the release asset for the OS and the
+# architecture (omp-linux-x64 on amd64, omp-linux-arm64 on arm64). Nothing to
+# set for the Raspberry Pi.
 "github:can1357/oh-my-pi" = "latest"   # omp

@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
-# Centre de commande de la box : une seule porte d'entrée pour les outils
-# dev-box-*, sur le modèle du dispatcher `omarchy` de l'hôte.
+# Command center of the box: a single front door to the dev-box-* tools, built
+# on the model of the `omarchy` dispatcher on the host.
 #
-#   devbox                 menu de sélection (gum), puis exécution
-#   devbox <cmd> [args…]   exécute la commande
-#   devbox <cmd> --help    résumé, usage, puis l'aide du binaire s'il en a une
-#   devbox --help          usage et tableau des commandes
-#   devbox commands        la même liste, sans en-tête (pour les complétions)
+#   devbox                 selection menu (gum), then it runs
+#   devbox <cmd> [args...] run the command
+#   devbox <cmd> --help    summary, usage, then the binary's own help if it has one
+#   devbox --help          usage and the table of commands
+#   devbox commands        the same list, without a header (for completions)
 #
-# Les commandes ne sont pas codées ici : elles sont découvertes en lisant les
-# en-têtes de commentaires des exécutables de /usr/local/bin.
+# The commands are not hardcoded here. They are discovered by reading the
+# comment headers of the executables of /usr/local/bin.
 #
 #   # devbox:name=update
-#   # devbox:summary=Met à jour dotfiles, outils mise et conf livrée
+#   # devbox:summary=Update dotfiles, mise tools and the shipped config
 #   # devbox:args=[dotfiles|tools|seed|all]
-#   # devbox:hidden=true     (facultatif : hors menu et hors liste, mais routable)
+#   # devbox:hidden=true     (optional: out of the menu and the list, still routable)
 #
-# Ajouter une commande, c'est donc poser un exécutable avec ces trois lignes.
+# Adding a command therefore means dropping an executable with those three lines.
 set -euo pipefail
 
 BIN_DIR="/usr/local/bin"
@@ -25,9 +25,9 @@ SCAN_LINES=30
 NAMES=()
 declare -A CMD_BIN CMD_SUMMARY CMD_ARGS CMD_HIDDEN
 
-# Lit les en-têtes « # devbox: » des exécutables de BIN_DIR. Les liens
-# symboliques sont ignorés : docker et podman pointent tous les deux sur
-# dev-box-podman et donneraient trois fois la même commande.
+# Reads the "# devbox:" headers of the executables of BIN_DIR. Symbolic links
+# are skipped: docker and podman both point at dev-box-podman and would give
+# the same command three times.
 discover() {
   local f header name summary args hidden line key value
   for f in "$BIN_DIR"/*; do
@@ -58,7 +58,7 @@ discover() {
     CMD_ARGS["$name"]="$args"
     CMD_HIDDEN["$name"]="$hidden"
   done
-  # Ordre stable, quel que soit l'ordre de lecture du répertoire.
+  # Stable order, whatever order the directory is read in.
   if [ "${#NAMES[@]}" -gt 0 ]; then
     mapfile -t NAMES < <(printf '%s\n' "${NAMES[@]}" | sort)
   fi
@@ -71,16 +71,16 @@ visible_names() {
   done
 }
 
-# printf « %-10s » compte des octets : un résumé accentué ou un « … » dans les
-# arguments décalerait les colonnes. On complète nous-mêmes, sur ${#s} qui compte
-# bien des caractères.
+# printf "%-10s" counts bytes: an accented summary, or a multi-byte character in
+# the arguments, would shift the columns. We pad by hand instead, on ${#s},
+# which does count characters.
 pad() {
   local s="$1" n=$(( $2 - ${#1} ))
   [ "$n" -lt 0 ] && n=0
   printf '%s%*s' "$s" "$n" ''
 }
 
-# Une ligne de tableau : nom, arguments, résumé.
+# One table row: name, arguments, summary.
 print_table() {
   local n
   while IFS= read -r n; do
@@ -91,33 +91,33 @@ print_table() {
 
 usage() {
   cat <<'EOT'
-devbox : commandes de la box de dev.
+devbox: the commands of the dev box.
 
-Usage :
-  devbox                 menu de sélection
-  devbox <cmd> [args…]   exécute une commande
-  devbox <cmd> --help    aide de la commande
-  devbox commands        liste brute des commandes
+Usage:
+  devbox                 selection menu
+  devbox <cmd> [args...] run a command
+  devbox <cmd> --help    help for that command
+  devbox commands        bare list of the commands
 
 EOT
-  printf '\033[1mCommandes\033[0m\n'
+  printf '\033[1mCommands\033[0m\n'
   print_table
 }
 
 unknown() {
-  echo "devbox : commande inconnue « $1 »" >&2
+  echo "devbox: unknown command '$1'" >&2
   echo >&2
   print_table >&2
   exit 2
 }
 
-# Aide d'une commande : l'en-tête d'abord (toujours disponible), puis l'aide du
-# binaire quand il en gère une. Le test reste une lecture du source, sans rien
-# exécuter à l'aveugle.
+# Help for a command: the header first (always there), then the binary's own
+# help when it handles one. The test stays a read of the source, nothing is run
+# blindly.
 cmd_help() {
   local name="$1" bin="${CMD_BIN[$1]}"
-  printf '\033[1m%s\033[0m : %s\n' "$name" "${CMD_SUMMARY[$name]}"
-  printf 'Usage : devbox %s %s\n' "$name" "${CMD_ARGS[$name]}"
+  printf '\033[1m%s\033[0m: %s\n' "$name" "${CMD_SUMMARY[$name]}"
+  printf 'Usage: devbox %s %s\n' "$name" "${CMD_ARGS[$name]}"
   if head -n 200 "$bin" 2>/dev/null | grep -qa -- '--help'; then
     echo
     "$bin" --help || true
@@ -131,30 +131,30 @@ menu() {
   done < <(visible_names)
 
   if [ "${#lines[@]}" -eq 0 ]; then
-    echo "devbox : aucune commande trouvée dans $BIN_DIR" >&2
+    echo "devbox: no command found in $BIN_DIR" >&2
     exit 1
   fi
   if [ ! -t 0 ] || [ ! -t 1 ]; then
-    echo "devbox : pas de terminal, le menu a besoin d'un tty." >&2
-    echo "Donnez une commande : devbox <cmd>." >&2
+    echo "devbox: no terminal, the menu needs a tty." >&2
+    echo "Give a command: devbox <cmd>." >&2
     echo >&2
     print_table >&2
     exit 2
   fi
   command -v gum >/dev/null 2>&1 || {
-    echo "devbox : gum est absent, donnez une commande : devbox <cmd>." >&2
+    echo "devbox: gum is missing, give a command: devbox <cmd>." >&2
     exit 1
   }
 
   chosen="$(printf '%s\n' "${lines[@]}" \
-    | gum choose --height 15 --header "Commandes de la box")" || true
+    | gum choose --height 15 --header "Box commands")" || true
   [ -n "$chosen" ] || exit 0
   chosen="${chosen%% *}"
   exec "${CMD_BIN[$chosen]}"
 }
 
 discover
-[ "${#NAMES[@]}" -gt 0 ] || { echo "devbox : aucune commande trouvée dans $BIN_DIR" >&2; exit 1; }
+[ "${#NAMES[@]}" -gt 0 ] || { echo "devbox: no command found in $BIN_DIR" >&2; exit 1; }
 
 case "${1:-}" in
   "")            menu ;;

@@ -1,71 +1,71 @@
-# Commandes côté hôte pour piloter la box (just >= 1.30).
-# Les variables de .env sont chargées et exportées dans l'environnement des
-# recettes : on les lit avec ${VAR:-defaut} directement dans le shell.
+# Host-side commands to drive the box (just >= 1.30).
+# The variables of .env are loaded and exported into the environment of the
+# recipes: read them with ${VAR:-default} straight from the shell.
 set dotenv-load
 
-# Nom du conteneur (container_name dans compose.yaml).
+# Container name (container_name in compose.yaml).
 container := "dev-box"
 
-# Commit du dépôt, gravé dans l'image au build (cf. compose.yaml) : le contrôle
-# des mises à jour dans la box sait alors si l'image est en retard sur le dépôt.
+# Repo commit, baked into the image at build time (see compose.yaml): the
+# update check inside the box then knows when the image lags the repo.
 export DEVBOX_COMMIT := `git rev-parse HEAD 2>/dev/null || echo unknown`
 export DEVBOX_REPO := `git remote get-url origin 2>/dev/null || true`
 export DEVBOX_BRANCH := `git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main`
 
-# Liste les commandes disponibles.
+# List the available commands.
 default:
     @just --list
 
-# Construit l'image si besoin et démarre la box.
+# Build the image if needed and start the box.
 up:
     docker compose up -d --build
 
-# --pull récupère un archlinux:latest plus récent, --no-cache force la
-# ré-exécution du `pacman -Syu` : sans lui la couche pacman reste en cache tant
-# que l'image de base n'a pas changé de digest, et les paquets resteraient figés
-# à la date du premier build.
+# --pull fetches a newer archlinux:latest, --no-cache forces the `pacman -Syu`
+# to run again: without it the pacman layer stays cached as long as the base
+# image keeps the same digest, and the packages would stay frozen at the date
+# of the first build.
 
-# Met à jour Arch (image de base + paquets) et redémarre la box.
+# Update Arch (base image and packages) and restart the box.
 rebuild:
     docker compose build --pull --no-cache
     docker compose up -d
 
-# Arrête et supprime le conteneur (les volumes ./data/ sont conservés).
+# Stop and remove the container (the ./data/ volumes are kept).
 down:
     docker compose down
 
-# Redémarre le conteneur sans reconstruire.
+# Restart the container without rebuilding.
 restart:
     docker compose restart
 
-# Suit les logs de l'entrypoint (dotarchy-sync, tailscale up, ...).
+# Follow the entrypoint logs (dotarchy-sync, tailscale up, ...).
 logs:
     docker compose logs -f --tail=100
 
-# État du conteneur, du healthcheck, et de l'image par rapport au dépôt.
+# State of the container, the healthcheck, and the image against the repo.
 status:
     #!/usr/bin/env bash
     set -euo pipefail
     docker compose ps
     docker inspect -f 'health: {{{{ .State.Health.Status }} ({{{{ len .State.Health.Log }} check(s))' {{ container }} 2>/dev/null \
-      || echo "health: n/a (conteneur arrêté ou sans healthcheck)"
-    # Commit gravé dans l'image (cf. compose.yaml) contre le dépôt local : c'est
-    # la comparaison que la box ne peut pas faire seule si le dépôt est privé.
+      || echo "health: n/a (container stopped, or no healthcheck)"
+    # The commit baked into the image (see compose.yaml) against the local
+    # checkout: the comparison the box cannot make alone when the repo is private.
     built="$(docker run --rm --entrypoint sh dev-box-dev-box -c '. /etc/devbox/release && echo "$DEVBOX_COMMIT"' 2>/dev/null || echo unknown)"
     head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
     if [ "$built" = unknown ]; then
-        echo "image : commit inconnu (construite sans just), just rebuild pour le graver"
+        echo "image: unknown commit (built without just), just rebuild to bake it in"
     elif [ "$built" = "$head" ]; then
-        echo "image : à jour (${built:0:7})"
+        echo "image: up to date (${built:0:7})"
     else
-        echo "image : construite sur ${built:0:7}, dépôt à ${head:0:7} → just rebuild"
+        echo "image: built on ${built:0:7}, repo at ${head:0:7}, run just rebuild"
     fi
 
-# Ouvre un shell zsh de login dans la box, en tant qu'utilisateur.
+# Open a zsh login shell inside the box, as your user.
 shell:
     docker exec -it -u "${USER_NAME:-dev}" {{ container }} zsh -l
 
-# Se connecte en SSH : via Tailscale, ou via le port publié si TS_DISABLE=true.
+# Connect over SSH: Tailscale, or the published port if TS_DISABLE=true.
 ssh:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -75,15 +75,14 @@ ssh:
         ssh "${USER_NAME:-dev}@${TS_HOSTNAME:-dev-box}"
     fi
 
-# Met à jour la box (dotfiles, outils mise, conf livrée) : dev-box-update
-# accepte dotfiles|tools|seed|all, all par défaut.
+# Update the box: dev-box-update takes dotfiles|tools|seed|all, all by default.
 update what="":
     docker exec -it -u "${USER_NAME:-dev}" {{ container }} zsh -lc "dev-box-update {{ what }}"
 
-# Sauvegarde le home filtré et les projets dans une archive tar.zst.
+# Back up the filtered home and the projects into a tar.zst archive.
 backup dest="":
     ./scripts/backup.sh "{{ dest }}"
 
-# Restaure une archive produite par `just backup`.
+# Restore an archive written by `just backup`.
 restore archive:
     ./scripts/restore.sh "{{ archive }}"

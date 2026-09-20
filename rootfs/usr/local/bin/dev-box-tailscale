@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # devbox:name=tailscale
-# devbox:summary=Taildrop : envoi, réception, état du tailnet
+# devbox:summary=Taildrop: send, receive, tailnet status
 # devbox:args=[send|receive|status]
-# Échange de fichiers avec les autres machines du tailnet, par Taildrop, plus
-# l'état du lien. Sur le modèle d'omarchy-tailscale-send et
-# d'omarchy-tailscale-receive, sans notifications de bureau.
+# Moving files to and from the other machines of the tailnet, over Taildrop,
+# plus the state of the link. Modelled on omarchy-tailscale-send and
+# omarchy-tailscale-receive, without the desktop notifications.
 #
-#   dev-box-tailscale send <machine> <fichier…>  envoie par Taildrop
-#   dev-box-tailscale receive [--once] [dossier] attend et range les fichiers
-#   dev-box-tailscale status                     état du lien et des pairs
+#   dev-box-tailscale send <machine> <file...>   send over Taildrop
+#   dev-box-tailscale receive [--once] [dir]     wait and store the files
+#   dev-box-tailscale status                     state of the link and the peers
 #
-# Le dossier de réception par défaut est ~/inbox, créé au besoin.
+# The default receive directory is ~/inbox, created if missing.
 set -euo pipefail
 
 INBOX_DEFAULT="$HOME/inbox"
@@ -18,37 +18,37 @@ INBOX_DEFAULT="$HOME/inbox"
 log() { echo "[dev-box-tailscale] $*"; }
 usage() { sed -n '5,13p' "$0" | sed 's/^# \?//'; }
 
-# L'aide reste lisible même quand Tailscale est coupé.
+# The help stays readable even when Tailscale is off.
 case "${1:-}" in -h|--help) usage; exit 0 ;; esac
 
-# TS_DISABLE n'est pas dans l'environnement d'une session SSH : l'entrypoint
-# l'écrit dans /etc/devbox/env, que les shells de connexion sourcent.
+# TS_DISABLE is not in the environment of an SSH session: the entrypoint writes
+# it into /etc/devbox/env, which login shells source.
 if [ -z "${TS_DISABLE:-}" ] && [ -r /etc/devbox/env ]; then
   # shellcheck source=/dev/null
   . /etc/devbox/env
 fi
 if [ "${TS_DISABLE:-false}" = "true" ]; then
-  echo "Tailscale désactivé sur cette box (TS_DISABLE=true)." >&2
-  echo "La box passe par son propre sshd : ni Taildrop ni tailnet ici." >&2
+  echo "Tailscale is off on this box (TS_DISABLE=true)." >&2
+  echo "The box goes through its own sshd: no Taildrop and no tailnet here." >&2
   exit 1
 fi
 command -v tailscale >/dev/null 2>&1 || {
-  echo "dev-box-tailscale : tailscale est absent du PATH" >&2
+  echo "dev-box-tailscale: tailscale is not on the PATH" >&2
   exit 1
 }
 
 do_send() {
-  [ $# -ge 2 ] || { echo "usage : devbox tailscale send <machine> <fichier…>" >&2; exit 2; }
+  [ $# -ge 2 ] || { echo "usage: devbox tailscale send <machine> <file...>" >&2; exit 2; }
   local machine="$1"; shift
   local f
   for f in "$@"; do
-    [ -e "$f" ] || { echo "dev-box-tailscale : $f n'existe pas" >&2; exit 1; }
+    [ -e "$f" ] || { echo "dev-box-tailscale: $f does not exist" >&2; exit 1; }
   done
-  log "envoi de $# fichier(s) vers ${machine%%.*}"
+  log "sending $# file(s) to ${machine%%.*}"
   if tailscale file cp --update-interval=0 -- "$@" "$machine:"; then
-    log "envoyé"
+    log "sent"
   else
-    log "⚠ l'envoi a échoué (machine hors ligne, ou Taildrop refusé par la politique)"
+    log "⚠ the send failed (machine offline, or Taildrop refused by the policy)"
     exit 1
   fi
 }
@@ -58,13 +58,13 @@ do_receive() {
   if [ "${1:-}" = "--once" ]; then once=true; shift; fi
   dir="${1:-$INBOX_DEFAULT}"
   mkdir -p "$dir"
-  log "réception dans $dir (Ctrl+C pour arrêter)"
+  log "receiving into $dir (Ctrl+C to stop)"
   while true; do
     if tailscale file get --wait --conflict=rename "$dir"; then
-      log "fichier(s) reçu(s) dans $dir"
+      log "file(s) received into $dir"
       $once && return 0
     else
-      $once && { log "⚠ rien reçu"; return 1; }
+      $once && { log "⚠ nothing received"; return 1; }
       sleep 10
     fi
   done
@@ -77,5 +77,5 @@ case "$cmd" in
   receive) do_receive "$@" ;;
   status)  exec tailscale status ;;
   -h|--help|"") usage; [ -n "$cmd" ] || exit 2 ;;
-  *) echo "dev-box-tailscale : sous-commande inconnue « $cmd »" >&2; usage >&2; exit 2 ;;
+  *) echo "dev-box-tailscale: unknown subcommand '$cmd'" >&2; usage >&2; exit 2 ;;
 esac

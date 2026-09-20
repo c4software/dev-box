@@ -1,3 +1,3 @@
-# dev-box : ~/.zshrc provisoire (même contenu que default/zshrc de dotarchy),
-# remplacé par celui du repo dès la première synchronisation.
+# dev-box: temporary ~/.zshrc (same contents as dotarchy's default/zshrc),
+# replaced by the one from the repo on the first sync.
 [ -f ~/.config/zsh/rc ] && source ~/.config/zsh/rc

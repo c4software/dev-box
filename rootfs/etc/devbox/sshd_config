@@ -1,6 +1,6 @@
-# dev-box : sshd utilisé uniquement quand TS_DISABLE=true (sinon c'est
-# Tailscale SSH qui ouvre le shell). Clé publique obligatoire.
-# Les clés d'hôte et AllowUsers sont passés en ligne de commande par l'entrypoint.
+# dev-box: sshd is used only when TS_DISABLE=true (otherwise Tailscale SSH
+# opens the shell). Public key only.
+# The host keys and AllowUsers are passed on the command line by the entrypoint.
 
 Port 22
 AddressFamily any

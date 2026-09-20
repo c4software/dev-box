@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # devbox:name=podman
-# devbox:summary=Wrapper docker/podman, explique quoi faire si podman est éteint
+# devbox:summary=docker/podman wrapper, says what to do when podman is off
 # devbox:args=
 # devbox:hidden=true
-# Wrapper devant `docker` et `podman` (liens dans /usr/local/bin, avant /usr/bin) :
-# quand podman rootless n'est pas activé sur cette box, il dit pourquoi et quoi
-# faire, au lieu de laisser podman échouer sur une erreur obscure.
-# Contournement : PODMAN_FORCE=1, ou /usr/bin/podman directement.
+# Wrapper in front of `docker` and `podman` (links in /usr/local/bin, ahead of
+# /usr/bin): when rootless podman is not enabled on this box, it says why and
+# what to do, instead of letting podman fail on an obscure error.
+# Bypass: PODMAN_FORCE=1, or /usr/bin/podman directly.
 set -euo pipefail
 
 sock="/run/user/$(id -u)/podman/podman.sock"
@@ -16,22 +16,22 @@ state="disabled"
 if [ "${PODMAN_FORCE:-0}" != "1" ] && [ ! -S "$sock" ]; then
   name="$(basename "$0")"
   {
-    echo "$name : podman n'est pas actif sur cette box."
+    echo "$name: podman is not active on this box."
     if [ "$state" != "enabled" ]; then
-      echo "  Podman rootless est désactivé (PODMAN_ENABLE absent ou false dans .env)."
-      echo "  Pour l'activer, sur l'hôte :"
-      echo "    1. décommenter le bloc podman de compose.override.example.yaml"
-      echo "       (/dev/fuse + security_opt) dans compose.override.yaml ;"
-      echo "    2. PODMAN_ENABLE=true dans .env ;"
+      echo "  Rootless podman is off (PODMAN_ENABLE missing or false in .env)."
+      echo "  To turn it on, on the host:"
+      echo "    1. uncomment the podman block of compose.override.example.yaml"
+      echo "       (/dev/fuse + security_opt) in compose.override.yaml;"
+      echo "    2. PODMAN_ENABLE=true in .env;"
       echo "    3. just up"
-      echo "  Ce bloc relâche l'isolation de la box : voir « Containers inside the box »"
-      echo "  dans le README."
+      echo "  That block loosens the isolation of the box: see 'Containers inside"
+      echo "  the box' in the README."
     else
-      echo "  PODMAN_ENABLE=true mais le socket $sock est absent :"
-      echo "  le service n'a pas démarré. Voir ~/.cache/dev-box-podman.log et vérifier"
-      echo "  que compose.override.yaml contient bien le bloc podman (/dev/fuse, security_opt)."
+      echo "  PODMAN_ENABLE=true but the socket $sock is missing:"
+      echo "  the service did not start. See ~/.cache/dev-box-podman.log and check"
+      echo "  that compose.override.yaml really has the podman block (/dev/fuse, security_opt)."
     fi
-    echo "  Forcer quand même : PODMAN_FORCE=1 $name …"
+    echo "  Force it anyway: PODMAN_FORCE=1 $name ..."
   } >&2
   exit 1
 fi

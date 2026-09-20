@@ -1,7 +1,7 @@
-# tmux automatique à l'arrivée en SSH (échappatoire : NO_TMUX=1)
-# La session porte le nom de la machine (TS_HOSTNAME), tronqué au premier point :
-# tmux refuse les points dans un nom de session.
-# /etc/hostname plutôt que `hostname` : l'image Arch n'a pas ce binaire.
+# Automatic tmux when you arrive over SSH (escape hatch: NO_TMUX=1)
+# The session is named after the machine (TS_HOSTNAME), cut at the first dot:
+# tmux refuses dots in a session name.
+# /etc/hostname rather than `hostname`: the Arch image has no such binary.
 if [ -z "${TMUX:-}" ] && [ "${NO_TMUX:-}" != "1" ] \
    && [ -n "${SSH_CONNECTION:-}${SSH_CLIENT:-}" ] \
    && command -v tmux >/dev/null 2>&1; then

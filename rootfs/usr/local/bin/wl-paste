@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Pendant de wl-copy : rend le buffer tmux courant (pas d'accès au presse-papier
-# du terminal distant, OSC 52 ne fait que l'écriture).
+# The other half of wl-copy: prints the current tmux buffer (there is no read
+# access to the remote terminal clipboard, OSC 52 only writes).
 set -euo pipefail
 
 if command -v tmux >/dev/null 2>&1 && tmux info >/dev/null 2>&1; then
   exec tmux save-buffer -
 fi
-echo "wl-paste : pas de session tmux, pas de buffer à lire" >&2
+echo "wl-paste: no tmux session, no buffer to read" >&2
 exit 1
