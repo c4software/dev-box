@@ -19,7 +19,7 @@ config as-is, and its dev tools are managed by [mise](https://mise.jdx.dev/).
 - Two persistent volumes, home and projects, that survive image rebuilds.
 - System packages come from pacman (image), dev tools from mise (home).
 
-![A tmux session in the box: devbox serve 3000 publishes a dev server on the tailnet and prints its URL, devbox serve off stops it, and devbox agent shows the Claude Code limit windows as bars with a countdown to the reset](docs/screenshots/serve-and-agent.png)
+![A tmux session in the box: devbox serve 3000 publishes a dev server on the tailnet and prints its URL, devbox serve off stops it, and devbox agent shows the Claude Code limit windows as bars with a countdown to the reset](docs/screenshots/serve-and-agent.jpg)
 
 ## Quick start
 
@@ -91,7 +91,7 @@ by hand. Install [just](https://just.systems) (`sudo pacman -S just` on Arch,
 `mise use -g just` anywhere else), then run `just` to list everything:
 
 | Command | Does |
-|---|---|
+| --- | --- |
 | `just up` | Build if needed and start the box |
 | `just rebuild` | Update Arch: rebuild from a fresh base image, then restart |
 | `just down` | Stop and remove the container (`./data/` is kept) |
@@ -119,7 +119,7 @@ The recipes read `.env`, so `just shell` and `just ssh` follow `USER_NAME`,
 All settings live in `.env` (see `.env.example`):
 
 | Variable | Default | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `USER_NAME` | `dev` | Unix user inside the box (UID/GID fixed at 1000:1000) |
 | `USER_SHELL` | `/bin/zsh` | Login shell |
 | `TZ` | `Europe/Paris` | Timezone |
@@ -304,7 +304,7 @@ Adding a command therefore means dropping a `dev-box-<name>` script in
 `rootfs/usr/local/bin/` with those three lines. Nothing to register anywhere.
 
 | `devbox` | Binary | Does |
-|---|---|---|
+| --- | --- | --- |
 | `status` | `dev-box-status` | image commit and repo, Tailscale or sshd, podman, mise tools, pending updates |
 | `check` | `dev-box-check-updates` | look for what could be updated, install nothing |
 | `update` | `dev-box-update` | `dotfiles`, `tools`, `seed`, or all of them |
@@ -422,7 +422,7 @@ box, its commands and where the coding accounts stand, is one command away:
 and takes only the config. It never runs the repo's install scripts.
 
 | Source in the repo | Destination in the home |
-|---|---|
+| --- | --- |
 | `config/` (zsh, tmux, starship, lazygit, btop, ...), except `nvim` | `~/.config/` |
 | `default/zshrc`, `default/bashrc`, `default/profile` | `~/.zshrc`, `~/.bashrc`, `~/.profile` |
 
@@ -638,7 +638,7 @@ devbox dbs --remove --purge redis   # drop the data too, asks for confirmation
 ![dev-box-dbs --list in the box: the six databases with their image, their port and their state, postgres and redis up](docs/screenshots/dev-box-dbs-list.png)
 
 | Name | Image | Port | Credentials |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `mysql` | `mysql:8.4` | 3306 | user `root`, empty password |
 | `postgres` | `postgres:18` | 5432 | user `postgres`, `trust`, no password |
 | `mariadb` | `mariadb:11.8` | 3306 | user `root`, empty password |
@@ -690,7 +690,7 @@ A box created before the reference existed simply adopts the shipped version as 
 reference on the next start, without overwriting anything.
 
 | File | From |
-|---|---|
+| --- | --- |
 | `~/.claude/settings.json` | `rootfs/etc/devbox/claude/settings.json` |
 | `~/.claude/agents/{pi,omp}.md` | `rootfs/etc/devbox/claude/agents/` |
 | `~/.pi/agent/extensions/llm-proxy.ts` | `rootfs/etc/devbox/llm-proxy.ts` |
@@ -719,7 +719,7 @@ way Omarchy ships one for the desktop. It lives in
 `/usr/share/devbox/skills/devbox/`, a `SKILL.md` plus four guides:
 
 | File | Covers |
-|---|---|
+| --- | --- |
 | `SKILL.md` | when the skill applies, the safety rules, command discovery, a decision framework |
 | `architecture.md` | what belongs to the image, what belongs to the home, what a start does, the seed, overrides, podman |
 | `commands.md` | `devbox` and every command it dispatches to |
@@ -816,7 +816,7 @@ For a private fork, the in-box check needs a `GITHUB_TOKEN` that can read the re
 Three bind mounts under `./data/` (git-ignored). A rebuild of the image loses nothing:
 
 | Host | Container | Contents |
-|---|---|---|
+| --- | --- | --- |
 | `./data/home` | `~` | config, mise toolchains, nvim plugins, pi/omp sessions, zsh history, SSH host keys, podman images |
 | `${PROJECTS_DIR:-./data/projets}` | `~/projets` | your repositories |
 | `./data/tailscale` | `/var/lib/tailscale` | tailscaled state (node identity) |
