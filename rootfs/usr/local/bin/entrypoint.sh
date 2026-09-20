@@ -28,6 +28,12 @@ usermod -p '*' "$USER_NAME"
 # XDG_RUNTIME_DIR (utilisé par la conf zsh de dotarchy : ssh-agent, sockets rsync)
 install -d -m 700 -o "$PUID" -g "$PGID" "/run/user/$PUID"
 
+# Plages d'UID/GID déléguées : sans elles, podman rootless refuse de démarrer
+# (« cannot find UID/GID for user »).
+for f in /etc/subuid /etc/subgid; do
+  grep -q "^${USER_NAME}:" "$f" 2>/dev/null || echo "${USER_NAME}:100000:65536" >> "$f"
+done
+
 # Réglages dotarchy-sync, lus aussi quand on le lance à la main
 {
   printf 'DOTARCHY_REPO=%q\n'   "${DOTARCHY_REPO:-https://github.com/c4software/dotarchy.git}"
@@ -72,7 +78,31 @@ fi
 # mise à jour si l'utilisateur n'y a pas touché, jamais écrasée sinon.
 DEVBOX_HOME="$HOME_DIR" dev-box-seed || log "⚠ dev-box-seed a échoué"
 
-# --- 3. Premier démarrage : dotfiles + outils. Ensuite : contrôle des mises à
+# --- 3. Socket podman compatible Docker (DOCKER_HOST des shells), opt-in ---
+# Lancé en tant qu'utilisateur, rootless : `docker run`, `docker build` et
+# `docker compose` dans la box passent par lui, sans socket Docker de l'hôte.
+# Demande /dev/fuse et les security_opt de compose.override.example.yaml.
+# Un échec est signalé mais ne bloque pas le démarrage de la box.
+if [ "${PODMAN_ENABLE:-false}" = "true" ]; then
+  PODMAN_SOCK="/run/user/$PUID/podman/podman.sock"
+  install -d -m 700 -o "$PUID" -g "$PGID" "/run/user/$PUID/podman"
+  rm -f "$PODMAN_SOCK"
+  as_user "mkdir -p ~/.cache && XDG_RUNTIME_DIR=/run/user/$PUID \
+           exec podman system service --time=0 unix://$PODMAN_SOCK \
+           >> ~/.cache/dev-box-podman.log 2>&1" &
+  (
+    for _ in $(seq 1 50); do
+      if [ -S "$PODMAN_SOCK" ]; then
+        log "podman : socket prêt sur $PODMAN_SOCK"
+        exit 0
+      fi
+      sleep 0.2
+    done
+    log "⚠ podman : socket absent, voir ~/.cache/dev-box-podman.log"
+  ) &
+fi
+
+# --- 4. Premier démarrage : dotfiles + outils. Ensuite : contrôle des mises à
 #        jour seulement (tout se met à jour à la main avec `dev-box-update`).
 #        En arrière-plan, avant Tailscale : `tailscale up` peut attendre un
 #        login interactif si TS_AUTHKEY est vide. ---
@@ -98,7 +128,7 @@ DEVBOX_HOME="$HOME_DIR" dev-box-seed || log "⚠ dev-box-seed a échoué"
   fi
 ) &
 
-# --- 4. Accès : Tailscale SSH, ou OpenSSH sur le port publié si TS_DISABLE=true ---
+# --- 5. Accès : Tailscale SSH, ou OpenSSH sur le port publié si TS_DISABLE=true ---
 if [ "${TS_DISABLE:-false}" = "true" ]; then
   log "Tailscale désactivé (TS_DISABLE=true) : démarrage d'OpenSSH"
 

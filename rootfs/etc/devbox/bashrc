@@ -3,6 +3,10 @@
 . /etc/devbox/tmux-auto.sh
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+# Podman rootless (PODMAN_ENABLE=true) : `docker` (shim podman-docker) et
+# `docker compose` parlent à son socket utilisateur, s'il a été lancé.
+[ -S "/run/user/$(id -u)/podman/podman.sock" ] \
+  && export DOCKER_HOST="${DOCKER_HOST:-unix:///run/user/$(id -u)/podman/podman.sock}"
 command -v mise >/dev/null && eval "$(mise activate bash)"
 # Variables du conteneur (écrites par l'entrypoint) : ni Tailscale SSH ni sshd
 # n'héritent de l'environnement du PID 1.

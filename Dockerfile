@@ -18,13 +18,17 @@ ENV LANG=C.UTF-8
 # sans ce drapeau, le `-Sy` échoue avant même de télécharger quoi que ce soit.
 #
 # Paquets = ce que la conf de dotarchy/common-no-omarchy et ses scripts try/proj
-# appellent (zsh, tmux, LazyVim, gum, fzf, jq…) + le socle (tailscale, rsync…).
+# appellent (zsh, tmux, LazyVim, gum, fzf, jq…) + le socle (tailscale, rsync…)
+# + podman rootless (cf. /etc/containers/ et « Containers inside the box »).
+# podman tire déjà passt, shadow, conmon et containers-common ; netavark tire
+# aardvark-dns : seuls les paquets qu'aucun autre n'apporte sont listés ici.
 RUN pacman -Syu --noconfirm --needed --disable-sandbox \
       base-devel git openssh sudo which less nano file lsof iptables python \
       tailscale zsh zsh-completions bash-completion tmux \
       rsync gum curl wget unzip \
       neovim luarocks tree-sitter-cli \
       starship zoxide fzf eza bat ripgrep fd lazygit jq \
+      podman podman-docker docker-compose fuse-overlayfs crun netavark slirp4netns \
     # mise n'est pas dans les dépôts Arch Linux ARM : on retombe sur
     # l'installeur officiel, en posant le binaire dans le PATH de tout le monde
     # (et pas dans le ~/.local/bin de root).
@@ -34,6 +38,11 @@ RUN pacman -Syu --noconfirm --needed --disable-sandbox \
          curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh; \
        fi \
     && mise --version \
+    # Les images de base Arch perdent les capabilities de fichier (le tar qui
+    # les produit ne garde pas les xattrs) : sans elles, podman rootless échoue
+    # sur « newuidmap: Could not set caps ». On les repose explicitement.
+    && setcap cap_setuid+ep /usr/bin/newuidmap \
+    && setcap cap_setgid+ep /usr/bin/newgidmap \
     && pacman -Scc --noconfirm --disable-sandbox \
     && rm -rf /var/cache/pacman/pkg/*
 
@@ -46,6 +55,9 @@ ARG DEVBOX_BRANCH=main
 RUN printf 'DEVBOX_COMMIT=%s\nDEVBOX_REPO=%s\nDEVBOX_BRANCH=%s\n' \
       "$DEVBOX_COMMIT" "$DEVBOX_REPO" "$DEVBOX_BRANCH" > /etc/devbox/release \
     && chmod +x /usr/local/bin/* \
+    # podman-docker exporte DOCKER_HOST dans tous les shells de login, socket
+    # ou pas : on ne le garde que si le socket existe (cf. /etc/devbox/zshenv).
+    && rm -f /etc/profile.d/podman-docker.sh /etc/profile.d/podman-docker.csh \
     && mkdir -p /etc/zsh \
     && cat /etc/devbox/zshenv >> /etc/zsh/zshenv \
     && echo '. /etc/devbox/tmux-auto.sh' >> /etc/zsh/zshrc \

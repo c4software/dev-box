@@ -12,3 +12,24 @@ services:
     # Limites de ressources
     # mem_limit: 8g
     # cpus: 4
+    #
+    # Podman rootless dans la box (docker run/build/compose sans socket hôte).
+    # À activer avec PODMAN_ENABLE=true dans .env. Constaté à l'essai, en partant
+    # de rien et en n'ajoutant que ce qui débloquait :
+    #   - /dev/fuse : fuse-overlayfs, le stockage d'images de podman ;
+    #   - seccomp : le profil Docker par défaut refuse clone(CLONE_NEWUSER),
+    #     podman s'arrête sur « cannot clone: Operation not permitted » ;
+    #   - systempaths : Docker monte /proc/sys en lecture seule, crun n'arrive
+    #     pas à écrire net.ipv4.ping_group_range et netavark route_localnet,
+    #     donc aucun conteneur ne démarre et aucun port n'est publié ;
+    #   - apparmor : sans effet sur un hôte sans AppArmor, indispensable là où
+    #     il est actif (Debian, Raspberry Pi OS).
+    # Ni --privileged ni CAP_SYS_ADMIN. Prix à payer : l'isolation de la box
+    # elle-même est relâchée (échappement conteneur → hôte plus facile).
+    # devices:
+    #   - /dev/net/tun
+    #   - /dev/fuse
+    # security_opt:
+    #   - seccomp=unconfined
+    #   - systempaths=unconfined
+    #   - apparmor=unconfined

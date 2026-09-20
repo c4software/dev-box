@@ -117,13 +117,16 @@ All settings live in `.env` (see `.env.example`):
 | `DOTARCHY_BRANCH` | `main` | Branch to track |
 | `DOTARCHY_SUBDIR` | `common-no-omarchy` | Subfolder holding `config/`, `default/`, `install/` |
 | `UPDATE_CHECK_INTERVAL` | `86400` | Update *check* period in seconds (`0` = off); it installs nothing |
+| `PODMAN_ENABLE` | `false` | Start the rootless podman socket at boot; needs the podman block of `compose.override.example.yaml` |
 | `MISE_INSTALL_ON_START` | `true` | Reinstall missing mise tools in the background at start (no version bump) |
 | `GITHUB_TOKEN` | empty | Token with no scopes, avoids GitHub API rate limits during mise installs |
 | `LLM_PROXY_URL` | `http://llmproxy` | Endpoint used by the `llm-proxy.ts` extension of pi/omp |
 | `LLM_PROXY_API_KEY` | `unused` | Its API key |
 
-The container needs `/dev/net/tun` plus the `NET_ADMIN` and `NET_RAW` capabilities
-(already set in `compose.yaml`).
+`compose.yaml` already carries what the box needs from the host: `/dev/net/tun` plus
+the `NET_ADMIN` and `NET_RAW` capabilities for `tailscaled`. No `privileged`, no host
+Docker socket. Rootless podman needs more (see *Containers inside the box*) and is
+therefore opt-in.
 
 ## Headscale setup
 
@@ -226,7 +229,8 @@ here if they live in `config/nvim`.
 
 **pacman (image).** Everything the common-no-omarchy config and `try`/`proj` call
 (zsh, tmux, mise, gum, starship, zoxide, fzf, eza, bat, ripgrep, fd, lazygit, jq,
-neovim, luarocks, tree-sitter-cli) plus the base (tailscale, rsync, base-devel, ...).
+neovim, luarocks, tree-sitter-cli), the base (tailscale, rsync, base-devel, ...) and
+rootless podman (see *Containers inside the box*).
 
 - Update Arch: `docker compose build --pull && docker compose up -d`.
 - A `sudo pacman -S` inside the box is lost on rebuild: add the package to the
@@ -252,6 +256,59 @@ They are installed in the background on first start; follow progress with
 e.g. `mise use -g go@latest`. Set `GITHUB_TOKEN` (no scopes needed) to avoid GitHub
 API rate limits.
 
+
+### Containers inside the box
+
+`docker run`, `docker build` and `docker compose` can work inside the box, without
+the host's Docker socket and without a privileged container. What answers is
+[podman](https://podman.io/) running rootless as your user. It is **off by
+default**, because nesting it forces the box's own isolation open: the seccomp
+profile, the read-only `/proc/sys` and AppArmor all have to be lifted for the
+container, which makes a container-to-host escape easier than it is otherwise.
+To turn it on:
+
+1. uncomment the podman block (`/dev/fuse` and the three `security_opt`) in
+   `compose.override.example.yaml`, copied to `compose.override.yaml`;
+2. set `PODMAN_ENABLE=true` in `.env`;
+3. `just up`.
+
+Then:
+
+- `podman-docker` provides `/usr/bin/docker` as a shim over the `podman` CLI;
+- the entrypoint starts `podman system service` as your user on
+  `/run/user/1000/podman/podman.sock`, and login shells export
+  `DOCKER_HOST=unix:///run/user/1000/podman/podman.sock`, so Compose v2 (the
+  `docker-compose` package, a real Docker plugin) and anything else that talks to
+  the socket finds it;
+- images live in `~/.local/share/containers`, in the persistent home — and outside
+  the backup, they re-pull.
+
+```bash
+docker run --rm alpine echo ok
+docker build -t mine .
+docker compose up -d && docker compose ps
+```
+
+With `PODMAN_ENABLE=false` no socket is started and `DOCKER_HOST` is not set.
+The `docker` shim and `podman` are still there, but without the override they
+fail as soon as a container has to start. The socket's own log is
+`~/.cache/dev-box-podman.log`.
+
+Known limits:
+
+- Containers started here are rootless: no `--privileged` inside the box,
+  publishing a port below 1024 is refused (it would need
+  `net.ipv4.ip_unprivileged_port_start` lowered), and UIDs are mapped — a file
+  written as root in a container belongs to `100000` on the host side of the
+  bind mount.
+- Networking goes through pasta/slirp4netns rather than a host bridge. Published
+  ports are reachable from inside the box (`curl localhost:8080`); reaching them
+  from your laptop means going through the box's own address (Tailscale).
+- Storage uses `fuse-overlayfs`, since overlayfs cannot always stack on the
+  overlay the box itself runs on: correct everywhere, slower than native overlay
+  on heavy I/O.
+- Docker on the host still owns the box itself: `just up`, `just rebuild` and
+  friends run on the host, not in here.
 
 ## Agent configuration
 
@@ -326,7 +383,7 @@ Three bind mounts under `./data/` (git-ignored); a rebuild of the image loses no
 
 | Host | Container | Contents |
 |---|---|---|
-| `./data/home` | `~` | config, mise toolchains, nvim plugins, pi/omp sessions, zsh history, SSH host keys |
+| `./data/home` | `~` | config, mise toolchains, nvim plugins, pi/omp sessions, zsh history, SSH host keys, podman images |
 | `${PROJECTS_DIR:-./data/projets}` | `~/projets` | your repositories |
 | `./data/tailscale` | `/var/lib/tailscale` | tailscaled state (node identity) |
 
@@ -345,7 +402,8 @@ What goes in:
 
 - `data/home`, minus the caches that rebuild themselves: `.cache`,
   `.local/share/{mise,nvim,dotarchy,lazyvim-starter}`, `.local/state/nvim`,
-  `.npm`, `.bun`.
+  `.npm`, `.bun`, and `.local/share/containers` (the podman image store: bulky,
+  re-pullable, and full of files owned by mapped UIDs).
 - The projects directory (`PROJECTS_DIR`), minus every `node_modules`.
   `.git/objects` is **kept**: your repositories come back whole, with their history.
 - A copy of `.env` and `compose.override.yaml` when they exist. `.env` holds
@@ -391,11 +449,16 @@ yourself, the script will not write outside the repo.
   and a `grants`/`acls` rule allowing traffic to the box are required.
 - **Healthcheck.** Every 60 s: `tailscale status --peers=false`, or a connection to
   port 22 when `TS_DISABLE=true`.
+- **`docker` says it cannot reach the API.** The podman socket did not start: see
+  `~/.cache/dev-box-podman.log`, and check `PODMAN_ENABLE` and the podman block
+  of `compose.override.yaml`.
 
 ## Design choices
 
-- **No Docker inside the box.** No client, no host socket, on purpose: access to the
-  host's Docker socket amounts to root on the host.
+- **No host Docker socket.** Mounting it would amount to root on the host. When
+  containers are needed inside the box, rootless podman with the `docker` shim
+  answers instead, as an opt-in: it costs part of the box's own isolation, so the
+  default keeps the container as tight as Docker makes it.
 - **Tailscale inside the container.** The box is only reachable from the tailnet;
   nothing is published on the host, and Tailscale SSH handles authentication.
 - **amd64 and arm64.** The official `archlinux` image exists only for x86_64, so

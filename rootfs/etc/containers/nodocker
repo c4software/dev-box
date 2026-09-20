@@ -1,0 +1,2 @@
+# La présence de ce fichier suffit : elle coupe le « Emulate Docker CLI using
+# podman » que le shim podman-docker affiche à chaque appel de `docker`.

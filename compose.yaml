@@ -23,7 +23,13 @@ services:
       - ${PROJECTS_DIR:-./data/projets}:/home/${USER_NAME:-dev}/projets
       - ./data/tailscale:/var/lib/tailscale
     devices:
+      # /dev/net/tun : tailscaled (userspace-networking désactivé)
       - /dev/net/tun
     cap_add:
+      # tailscaled : interface tun, routes, filtrage
       - NET_ADMIN
       - NET_RAW
+    # Podman rootless dans la box : désactivé par défaut, car il oblige à relâcher
+    # l'isolation du conteneur (seccomp, /proc/sys, AppArmor). Réglages et
+    # explications dans compose.override.example.yaml, à activer avec
+    # PODMAN_ENABLE=true dans .env.

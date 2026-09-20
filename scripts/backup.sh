@@ -96,6 +96,7 @@ excludes=(
     --exclude=data/home/.local/share/nvim
     --exclude=data/home/.local/state/nvim
     --exclude=data/home/.local/share/dotarchy
+    --exclude=data/home/.local/share/containers
     --exclude=data/home/.local/share/lazyvim-starter
     --exclude=data/home/.npm
     --exclude=data/home/.bun
