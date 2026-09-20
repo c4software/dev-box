@@ -52,9 +52,11 @@ write_agent() {
 }
 
 # The gum menu. Without a terminal we refuse rather than wait for nothing.
+# The callers capture the result with $(...), so stdout is never a terminal
+# here: the test looks at stdin and stderr, which gum draws on.
 choose_agent() {
   local chosen
-  if [ ! -t 0 ] || [ ! -t 1 ]; then
+  if [ ! -t 0 ] || [ ! -t 2 ]; then
     echo "dev-box-agent: no terminal for the menu." >&2
     echo "Give a name: devbox agent set <name>" >&2
     echo "On offer: $(available_sorted | tr '\n' ' ')" >&2
