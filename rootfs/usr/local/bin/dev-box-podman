@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# devbox:name=podman
+# devbox:summary=Wrapper docker/podman, explique quoi faire si podman est éteint
+# devbox:args=
+# devbox:hidden=true
 # Wrapper devant `docker` et `podman` (liens dans /usr/local/bin, avant /usr/bin) :
 # quand podman rootless n'est pas activé sur cette box, il dit pourquoi et quoi
 # faire, au lieu de laisser podman échouer sur une erreur obscure.

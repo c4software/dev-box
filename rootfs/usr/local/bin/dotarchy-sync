@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
+# devbox:name=sync
+# devbox:summary=Récupère les dotfiles dotarchy et les applique
+# devbox:args=
 # Récupère la conf de dotarchy/common-no-omarchy (config/ et default/) et les
 # scripts de base dont ses alias ont besoin (try, proj, alias git) — sans lancer
 # les scripts d'installation (bootstrap.sh, nvim.sh…).
-# Lancé au premier démarrage, ou à la main : `dotarchy-sync` (ou `dev-box-update`).
+# Lancé au premier démarrage, ou à la main : `dotarchy-sync` (ou `devbox update`).
 set -euo pipefail
 
 [ -f /etc/devbox/dotarchy.env ] && . /etc/devbox/dotarchy.env

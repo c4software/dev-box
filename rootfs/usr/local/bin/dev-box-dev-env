@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+# devbox:name=dev-env
+# devbox:summary=Installe un environnement de dev (node, go, python…)
+# devbox:args=[env…]
+#
+# Installe un ou plusieurs environnements de développement dans le home, avec
+# mise uniquement : aucun paquet pacman, aucun `curl | sh`. Tout ce qui est posé
+# est donc déclaré dans ~/.config/mise/config.toml et survit aux rebuilds.
+#
+#   dev-box-dev-env              menu interactif (gum, sélection multiple)
+#   dev-box-dev-env node go      installe directement ces environnements
+#   dev-box-dev-env --list       liste les environnements disponibles
+#
+# Relancer sur un environnement déjà posé ne casse rien : `mise use -g` est
+# idempotent et se contente de réécrire la même ligne de config.
+
+# Les fonctions install_* sont appelées indirectement, par « install_${name} ».
+# shellcheck disable=SC2329
+set -euo pipefail
+
+# Les releases toutes fraîches ne sont pas mises en quarantaine ici : quand on
+# demande un environnement, on le veut maintenant.
+export MISE_MINIMUM_RELEASE_AGE=0
+
+# <nom>|<description courte affichée dans le menu et dans --list>
+ENVS=(
+  "node|Node.js LTS (npm, npx)"
+  "bun|Bun, runtime et gestionnaire de paquets JavaScript"
+  "deno|Deno, runtime JavaScript et TypeScript"
+  "go|Go, dernière version stable"
+  "python|Python + uv (paquets et environnements virtuels)"
+  "ruby|Ruby + Rails"
+  "rust|Rust (toolchain gérée par mise, sans rustup)"
+  "java|Java, dernier JDK"
+  "zig|Zig + zls (serveur de langage)"
+  "dotnet|.NET SDK"
+  "elixir|Erlang + Elixir + hex"
+  "phoenix|Elixir + hex + rebar + générateur phx_new"
+  "clojure|Clojure (CLI officielle)"
+  "scala|Java + Scala + scala-cli"
+)
+
+log() { printf '\033[1m[dev-box-dev-env]\033[0m %s\n' "$*"; }
+
+env_names() {
+  local e
+  for e in "${ENVS[@]}"; do printf '%s\n' "${e%%|*}"; done
+}
+
+env_desc() {
+  local e
+  for e in "${ENVS[@]}"; do
+    [ "${e%%|*}" = "$1" ] && { printf '%s' "${e#*|}"; return 0; }
+  done
+  return 1
+}
+
+show_list() {
+  local e
+  printf '\033[1mEnvironnements de dev\033[0m (devbox dev-env <nom>…)\n\n'
+  for e in "${ENVS[@]}"; do
+    printf '  \033[36m%-9s\033[0m %s\n' "${e%%|*}" "${e#*|}"
+  done
+  printf '\nSans argument : menu de sélection multiple.\n'
+}
+
+# --- Les environnements, un par fonction -------------------------------------
+
+install_node()   { mise use -g node@lts; }
+install_bun()    { mise use -g bun@latest; }
+install_deno()   { mise use -g deno@latest; }
+install_go()     { mise use -g go@latest; }
+install_java()   { mise use -g java@latest; }
+install_dotnet() { mise use -g dotnet@latest; }
+install_rust() {
+  # mise gère la toolchain lui-même (pas de rustup) : une seule source de
+  # vérité pour les versions, et rien à nettoyer dans le home.
+  mise use -g rust@latest
+}
+install_python() {
+  # uv vient du registre mise (aqua:astral-sh/uv) plutôt que de l'installeur
+  # astral.sh : pas de `curl | sh` dans la box.
+  mise use -g python@latest uv@latest
+}
+install_zig() { mise use -g zig@latest zls@latest; }
+install_clojure() {
+  # Sans rlwrap (paquet pacman, donc perdu au rebuild) : `clj` reste utilisable,
+  # l'édition de ligne du REPL en moins. Ajouter rlwrap au Dockerfile si besoin.
+  mise use -g clojure@latest
+}
+install_scala() { mise use -g java@latest scala@latest scala-cli@latest; }
+install_ruby() {
+  # ruby.compile=false : mise pose une build précompilée (jdx/ruby publie
+  # x86_64_linux et arm64_linux) au lieu de compiler pendant de longues minutes.
+  mise settings add ruby.compile false
+  mise settings add idiomatic_version_file_enable_tools ruby
+  mise use -g ruby@latest
+  echo "gem: --no-document" > "$HOME/.gemrc"
+  mise x ruby -- gem install rails --no-document
+  log "rails est prêt : rails new mon-projet"
+}
+install_elixir() {
+  mise use -g erlang@latest elixir@latest
+  mise x elixir -- mix local.hex --force
+}
+install_phoenix() {
+  install_elixir
+  mise x elixir -- mix local.rebar --force
+  mise x elixir -- mix archive.install hex phx_new --force
+  log "phoenix est prêt : mix phx.new mon_app"
+}
+
+install_env() {
+  local name="$1" desc
+  desc="$(env_desc "$name")" || {
+    echo "dev-box-dev-env : environnement inconnu « $name »" >&2
+    echo "Environnements disponibles : $(env_names | tr '\n' ' ')" >&2
+    return 1
+  }
+  log "$name : $desc"
+  "install_${name}"
+}
+
+# --- Arguments ---------------------------------------------------------------
+
+SELECTED=()
+case "${1:-}" in
+  --list|-l) show_list; exit 0 ;;
+  -h|--help) sed -n '6,15p' "$0" | sed 's/^# \?//'; exit 0 ;;
+  -*) echo "dev-box-dev-env : option inconnue « $1 »" >&2; exit 2 ;;
+  "")
+    # Menu interactif : il faut un terminal des deux côtés, sinon gum n'a rien
+    # à lire ni où dessiner.
+    if [ ! -t 0 ] || [ ! -t 1 ]; then
+      echo "dev-box-dev-env : pas de terminal, donnez les environnements en arguments." >&2
+      echo "Environnements disponibles : $(env_names | tr '\n' ' ')" >&2
+      exit 2
+    fi
+    command -v gum >/dev/null 2>&1 || {
+      echo "dev-box-dev-env : gum est absent, donnez les environnements en arguments." >&2
+      exit 1
+    }
+    menu=()
+    for e in "${ENVS[@]}"; do
+      menu+=("$(printf '%-9s %s' "${e%%|*}" "${e#*|}")")
+    done
+    chosen="$(printf '%s\n' "${menu[@]}" \
+      | gum choose --no-limit --height 16 \
+          --header "Environnements à installer (espace pour cocher, entrée pour valider)")" || true
+    [ -n "$chosen" ] || { echo "Rien de sélectionné."; exit 0; }
+    while IFS= read -r line; do
+      [ -n "$line" ] && SELECTED+=("${line%% *}")
+    done <<< "$chosen"
+    ;;
+  *) SELECTED=("$@") ;;
+esac
+
+# Les noms sont validés avant la première installation : mieux vaut refuser tout
+# de suite qu'échouer au milieu d'une liste.
+rc=0
+for name in "${SELECTED[@]}"; do
+  env_desc "$name" >/dev/null || {
+    echo "dev-box-dev-env : environnement inconnu « $name »" >&2
+    echo "Environnements disponibles : $(env_names | tr '\n' ' ')" >&2
+    exit 1
+  }
+done
+
+for name in "${SELECTED[@]}"; do
+  install_env "$name" || { log "⚠ $name a échoué"; rc=1; }
+done
+
+echo
+log "Outils déclarés dans ~/.config/mise/config.toml."
+log "Mise à jour plus tard : devbox update tools."
+exit "$rc"

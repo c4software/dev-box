@@ -14,7 +14,7 @@ if [ -f "$HOME/.cache/dev-box/updates" ]; then
   if [ "$_devbox_motd" = 1 ]; then
     printf '\n\033[1;33mMises à jour disponibles\033[0m\n'
     sed 's/^/  /' "$HOME/.cache/dev-box/updates"
-    printf '\033[2m→ dev-box-update\033[0m\n\n'
+    printf '\033[2m→ devbox update\033[0m\n\n'
   fi
   unset _devbox_motd
 fi

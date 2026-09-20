@@ -1,15 +1,17 @@
 # Outils de dev gérés par mise dans le home (persistants, indépendants de l'image).
 # Les paquets système viennent de pacman.
 # Comme omarchy-install-dev-env : `mise use -g go@latest`, `mise use -g python@latest`…
+# `dev-box-dev-env` (ou `devbox dev-env`) ajoute ici des environnements complets.
 
 [tools]
 node = "lts"
 
-# Agents de code : mêmes noms que les wrappers de /usr/local/bin (claude, pi, omp ;
-# opencode aussi, mais installé seulement au premier appel),
+# Agents de code : mêmes noms que les wrappers de /usr/local/bin (claude, pi, omp,
+# codex ; opencode aussi, mais installé seulement au premier appel),
 # qui font un `mise use -g <outil>` à la volée s'il manque.
 claude = "latest"
 pi = "latest"
+codex = "latest"
 # omp : le backend github de mise choisit l'asset de la release selon l'OS et
 # l'architecture (omp-linux-x64 en amd64, omp-linux-arm64 en arm64) ; rien à
 # régler pour le Raspberry Pi.

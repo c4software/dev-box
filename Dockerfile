@@ -19,7 +19,8 @@ ENV LANG=C.UTF-8
 #
 # Paquets = ce que la conf de dotarchy/common-no-omarchy et ses scripts try/proj
 # appellent (zsh, tmux, LazyVim, gum, fzf, jq…) + le socle (tailscale, rsync…)
-# + podman rootless (cf. /etc/containers/ et « Containers inside the box »).
+# + podman rootless (cf. /etc/containers/ et « Containers inside the box »)
+# + libyaml, dont le ruby précompilé posé par dev-box-dev-env a besoin (psych).
 # podman tire déjà passt, shadow, conmon et containers-common ; netavark tire
 # aardvark-dns : seuls les paquets qu'aucun autre n'apporte sont listés ici.
 RUN pacman -Syu --noconfirm --needed --disable-sandbox \
@@ -28,6 +29,7 @@ RUN pacman -Syu --noconfirm --needed --disable-sandbox \
       rsync gum curl wget unzip \
       neovim luarocks tree-sitter-cli \
       starship zoxide fzf eza bat ripgrep fd lazygit jq \
+      libyaml \
       podman podman-docker docker-compose fuse-overlayfs crun netavark slirp4netns \
     # mise n'est pas dans les dépôts Arch Linux ARM : on retombe sur
     # l'installeur officiel, en posant le binaire dans le PATH de tout le monde

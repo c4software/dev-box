@@ -12,7 +12,8 @@ config as-is, and its dev tools are managed by [mise](https://mise.jdx.dev/).
   `dev-box` by default), in your home directory.
 - Dotfiles are pulled from a git repo and applied without running its install scripts.
 - Nothing updates behind your back. There is a background check every 24 h, a message at
-  login, and `dev-box-update` when you decide.
+  login, and `devbox update` when you decide.
+- One command, `devbox`, gathers everything the box can do for you.
 - Two persistent volumes, home and projects, that survive image rebuilds.
 - System packages come from pacman (image), dev tools from mise (home).
 
@@ -62,7 +63,8 @@ official installer from `mise.run`. Everything else comes from pacman as usual.
 
 What was actually tested: the arm64 build and first start were validated under QEMU
 emulation. mise installs through the `mise.run` installer, the arm64 assets for
-`claude`, `pi` and `omp` are picked automatically, and LazyVim compiles its parsers.
+`claude`, `pi`, `codex` and `omp` are picked automatically, and LazyVim compiles its
+parsers.
 Rootless podman could not be tested under emulation, because user namespaces fail
 under qemu-user. It still has to be confirmed on a real Pi, together with `/dev/fuse`
 and the AppArmor setup of Raspberry Pi OS.
@@ -94,7 +96,7 @@ by hand. Install [just](https://just.systems) (`sudo pacman -S just` on Arch,
 | `just status` | Container state, healthcheck, and whether the image lags the repo |
 | `just shell` | `zsh -l` inside the box, as your user |
 | `just ssh` | SSH in, through Tailscale or the published port |
-| `just update [what]` | Run `dev-box-update` in the box (`dotfiles`, `tools`, `seed`, `all`) |
+| `just update [what]` | Run `dev-box-update` in the box, same as `devbox update` (`dotfiles`, `tools`, `seed`, `all`) |
 | `just backup [dest]` | Write a backup archive (see *Backup*) |
 | `just restore <archive>` | Restore one |
 
@@ -219,6 +221,53 @@ clipboard of the machine you are connected from over SSH, as long as its termina
 supports OSC 52. Alacritty, Ghostty, Kitty and foot do. Outside tmux the shim sends
 OSC 52 directly. `wl-paste` prints the tmux buffer back.
 
+## The devbox command
+
+`devbox` is the front door to everything the box can do. It is modelled on the
+`omarchy` command of the Omarchy desktop, in a much smaller shape.
+
+```bash
+devbox                 # menu of commands, pick one and it runs
+devbox status          # what the box is doing right now
+devbox update tools    # run a command with its arguments
+devbox seed --help     # summary, usage, then the command's own help
+devbox --help          # usage and the table of commands
+devbox commands        # bare list, one name per line, for completions
+```
+
+![devbox --help in the box: usage, then the table of commands with their arguments and a one line summary each](docs/screenshots/devbox-help.png)
+
+There is no hardcoded list. `devbox` scans the executables of `/usr/local/bin`
+and reads a comment header at the top of each one:
+
+```bash
+# devbox:name=update
+# devbox:summary=Met à jour dotfiles, outils mise et conf livrée
+# devbox:args=[dotfiles|tools|seed|all]
+# devbox:hidden=true    # optional: out of the menu and the list, still routable
+```
+
+Adding a command therefore means dropping a `dev-box-<name>` script in
+`rootfs/usr/local/bin/` with those three lines. Nothing to register anywhere.
+
+| `devbox` | Binary | Does |
+|---|---|---|
+| `status` | `dev-box-status` | image commit and repo, Tailscale or sshd, podman, mise tools, pending updates |
+| `check` | `dev-box-check-updates` | look for what could be updated, install nothing |
+| `update` | `dev-box-update` | `dotfiles`, `tools`, `seed`, or all of them |
+| `seed` | `dev-box-seed` | lay down the config shipped by the image |
+| `sync` | `dotarchy-sync` | pull the dotfiles and apply them |
+| `dev-env` | `dev-box-dev-env` | install a dev environment with mise |
+
+Every one of them keeps its own name on `PATH`, so `dev-box-update dotfiles` and
+`devbox update dotfiles` are the same thing. The `justfile` and the entrypoint
+call the binaries directly. `dev-box-podman` carries `hidden=true`: it is the
+wrapper behind the `docker` and `podman` symlinks, not a command you call.
+
+Without arguments, `devbox` opens a gum menu listing the commands with their
+summary, and runs the one you pick, which may then be interactive itself. With
+no terminal it says so and prints the list instead of hanging.
+
 ## Dotfiles sync
 
 `dotarchy-sync` clones or updates the dotfiles repo into `~/.local/share/dotarchy`
@@ -239,8 +288,8 @@ and takes only the config. It never runs the repo's install scripts.
   function of `install/git.sh`, which only makes `git config --global` calls.
 - tmux is reloaded if it is running.
 
-It runs on the very first start, then only when you ask for it: `dotarchy-sync`, or
-`dev-box-update dotfiles`. There is no periodic sync.
+It runs on the very first start, then only when you ask for it: `devbox sync`, or
+`devbox update dotfiles`. There is no periodic sync.
 
 Edit the config in the repo, not in the box. Copied files are overwritten on every
 pass. For box-only tweaks, put them in `~/.config/dev-box/overrides/`, a mirror of the
@@ -267,20 +316,52 @@ rootless podman (see *Containers inside the box*).
 - `node` (LTS)
 - `claude` (Claude Code, `aqua:anthropics/claude-code`)
 - `pi` (`aqua:earendil-works/pi`)
+- `codex` (OpenAI Codex CLI, `aqua:openai/codex`)
 - `omp` (`github:can1357/oh-my-pi`, via mise's github backend)
 
-`claude`, `pi`, `omp` and `opencode` are wrapped in `/usr/local/bin`. Each wrapper runs
-`mise use -g <tool>`, a no-op once the tool is declared, then `mise x <tool> -- <cmd>`.
-The command therefore works on first call, even before the background install finished,
-or after the tool was removed from `~/.config/mise/config.toml`. `opencode` is not
-pre-installed: its first call installs it.
+`claude`, `pi`, `omp`, `codex` and `opencode` are wrapped in `/usr/local/bin`. Each
+wrapper runs `mise use -g <tool>`, a no-op once the tool is declared, then
+`mise x <tool> -- <cmd>`. The command therefore works on first call, even before the
+background install finished, or after the tool was removed from
+`~/.config/mise/config.toml`. `opencode` is not pre-installed: its first call
+installs it.
 
 They are installed in the background on first start. Follow progress with
 `tail -f ~/.cache/dev-box-install.log`. Later starts only reinstall what is missing
 (`MISE_INSTALL_ON_START`), and never bump a version. Upgrading is explicit:
-`dev-box-update tools` runs `mise install` then `mise upgrade`. Add more on demand,
+`devbox update tools` runs `mise install` then `mise upgrade`. Add more on demand,
 for example `mise use -g go@latest`. Set `GITHUB_TOKEN`, no scopes needed, to avoid
 GitHub API rate limits.
+
+### Dev environments
+
+`devbox dev-env` installs a whole language environment in one call, through mise and
+nothing else. No pacman, no `curl | sh`. Whatever it installs is therefore declared in
+`~/.config/mise/config.toml`, survives a rebuild, and is upgraded by
+`devbox update tools` like the rest.
+
+```bash
+devbox dev-env --list      # what is on offer
+devbox dev-env node go     # install these two
+devbox dev-env             # menu, several at a time
+```
+
+![dev-box-dev-env --list in the box: the fourteen environments with a one line description each](docs/screenshots/dev-env-list.png)
+
+Without arguments it opens a gum menu with multiple selection, the environments on
+the left and their description on the right. Running it again on an environment
+already installed changes nothing.
+
+A few of them do more than pull a runtime. `python` also installs `uv`. `ruby` writes
+`~/.gemrc`, turns off `ruby.compile` so mise takes a precompiled build instead of
+spending minutes on a compiler, and installs Rails. `elixir` runs `mix local.hex`,
+and `phoenix` adds rebar and the `phx_new` generator. `rust` is the mise toolchain,
+not rustup, so there is a single place where versions are declared.
+
+PHP, Laravel, Symfony and OCaml are not offered. Upstream, in Omarchy's
+`omarchy-install-dev-env`, they come from pacman packages or from the opam installer.
+Either would be wiped by the next image rebuild, which is exactly what this command
+is meant to avoid. Install PHP through the `Dockerfile` if you need it.
 
 ### Containers inside the box
 
@@ -350,7 +431,7 @@ down is kept in `~/.config/dev-box/seed/<path>`, which gives three cases per fil
   updated in place (`conf mise à jour : ~/x`);
 - **modified locally** and the shipped version changed: nothing is overwritten, the
   box tells you the new version exists and how to take it with
-  `dev-box-seed --force ~/x`.
+  `dev-box-seed --force ~/x`, also written `devbox seed --force ~/x`.
 
 ![dev-box-seed with two shipped files changed: the untouched one is updated in place, the locally modified one is left alone with the dev-box-seed --force command to take the new version](docs/screenshots/dev-box-seed.png)
 
@@ -380,6 +461,43 @@ Login shells get those two variables from `/etc/devbox/env`, written at start an
 sourced by `/etc/devbox/zshenv`. Neither Tailscale SSH nor sshd inherits the
 environment of PID 1.
 
+### Agent skill
+
+The image also ships a skill that teaches a coding agent how this box works, the same
+way Omarchy ships one for the desktop. It lives in
+`/usr/share/devbox/skills/devbox/`, a `SKILL.md` plus four guides:
+
+| File | Covers |
+|---|---|
+| `SKILL.md` | when the skill applies, the safety rules, command discovery, a decision framework |
+| `architecture.md` | what belongs to the image, what belongs to the home, what a start does, the seed, overrides, podman |
+| `commands.md` | `devbox` and every command it dispatches to |
+| `extending.md` | how to change the box for good, through the repository |
+| `updates.md` | what updates, when, and on whose command |
+
+The entrypoint links it into the home at every start, so it follows the image without
+going through the seed:
+
+```
+~/.claude/skills/devbox     -> /usr/share/devbox/skills/devbox
+~/.pi/agent/skills/devbox   -> same
+~/.omp/agent/skills/devbox  -> same
+```
+
+Claude Code reads `~/.claude/skills`, and pi and omp read the `skills` directory of
+their own agent folder. All three pick the skill up on their own. `codex` has no
+equivalent skill directory, so it is not linked anywhere.
+
+The point is the rule it carries: never edit `/usr/local/bin`, `/etc/devbox` or
+`/usr/share/devbox` inside the box, because those come from the image and a change
+there disappears silently on the next rebuild. Reading them is encouraged. Changes go
+to `~/.config/dev-box/overrides/`, to `~/.config/mise/config.toml`, or to this
+repository followed by `just rebuild`.
+
+Adding a guide means dropping an `.md` file in
+`rootfs/usr/share/devbox/skills/devbox/` and listing it in the Topic Guides section of
+`SKILL.md`. There is nothing else to register.
+
 ## Updates
 
 Nothing is updated automatically. A background check runs at start and every
@@ -391,20 +509,23 @@ version changed. What it finds goes into `~/.cache/dev-box/updates`,
 one line per item. When there is nothing left, the file is removed.
 
 Interactive shells print that file at login, once per tmux session, followed by a
-reminder to run `dev-box-update`. With no file, the cost is a single file test.
+reminder to run `devbox update`. With no file, the cost is a single file test.
 
-![Login in the box with a pending update: a Mises a jour disponibles block lists the new dotfiles commit and the shipped config files that changed, followed by the dev-box-update reminder](docs/screenshots/updates-motd.png)
+![Login in the box with a pending update: a Mises a jour disponibles block lists the new dotfiles commit and the shipped config files that changed, followed by the devbox update reminder](docs/screenshots/updates-motd.png)
 
 ```bash
-dev-box-update            # all of the below
-dev-box-update dotfiles   # dotarchy-sync
-dev-box-update tools      # mise install, then mise upgrade
-dev-box-update seed       # shipped config (see above)
+devbox update            # all of the below
+devbox update dotfiles   # dotarchy-sync
+devbox update tools      # mise install, then mise upgrade
+devbox update seed       # shipped config (see above)
 ```
+
+`dev-box-update` is the binary and keeps working under that name. `devbox update` is
+the form to remember.
 
 It clears the flag and re-runs the check when it is done.
 
-![A full dev-box-update run: dotarchy-sync updates the repo and copies the config, mise installs and upgrades the tools, then the shipped config is checked](docs/screenshots/dev-box-update.png)
+![A full devbox update run: dotarchy-sync updates the repo and copies the config, mise installs and upgrades the tools, then the shipped config is checked](docs/screenshots/dev-box-update.png)
 
 The one item it cannot act on is the image itself. That line points to `just rebuild`,
 or `just up`, on the host. The image knows its commit only when built through `just`,
@@ -469,7 +590,7 @@ by one. Nothing outside the archive is ever deleted, so a home restored over a
 newer one keeps whatever the archive does not mention. Add `--yes` to skip the
 prompt. Outside a terminal the script refuses to run without it. Then bring the
 box back with `just up`. The mise toolchains were not in the archive, so the start
-reinstalls them, or you run `just update tools`.
+reinstalls them, or you run `just update tools` (`devbox update tools` from inside).
 
 If `PROJECTS_DIR` points outside the repo, on another disk, the projects are stored
 under `projets-external/` in the archive and restored there. Move them back
@@ -480,6 +601,8 @@ yourself, the script will not write outside the repo.
 - **Run without Tailscale.** See *SSH without Tailscale* above. With no
   `SSH_AUTHORIZED_KEYS` set, sshd does not start, the container stays up and reports
   unhealthy. Get in with `docker exec -it -u dev dev-box zsh -l`.
+- **What is the box doing?** `devbox status` in one call: the commit the image was
+  built from, Tailscale or sshd, podman, the active mise tools, and anything pending.
 - **Logs.** `docker compose logs -f` shows the entrypoint, `dotarchy-sync`, `dev-box-seed`
   and `tailscale up` output, including the login URL when `TS_AUTHKEY` is empty.
 - **mise install failed.** See `~/.cache/dev-box-install.log`. Rate-limit errors

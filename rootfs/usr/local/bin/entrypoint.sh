@@ -46,6 +46,8 @@ done
   for v in TZ GITHUB_TOKEN LLM_PROXY_URL LLM_PROXY_API_KEY; do
     [ -n "${!v:-}" ] && printf 'export %s=%q\n' "$v" "${!v}" || true
   done
+  # Mode d'accès, lu par dev-box-status (une session SSH ne voit pas l'env du PID 1)
+  printf 'export TS_DISABLE=%q\n' "${TS_DISABLE:-false}"
 } > /etc/devbox/env
 chown "$PUID:$PGID" /etc/devbox/env
 chmod 600 /etc/devbox/env
@@ -77,6 +79,24 @@ fi
 # Conf livrée par l'image (agents, extensions, conf mise) : posée si absente,
 # mise à jour si l'utilisateur n'y a pas touché, jamais écrasée sinon.
 DEVBOX_HOME="$HOME_DIR" dev-box-seed || log "⚠ dev-box-seed a échoué"
+
+# Skill « devbox » pour les agents de code (claude, pi, omp) : un lien vers
+# l'image plutôt qu'une copie, donc il suit les rebuilds sans passer par le seed.
+# claude lit ~/.claude/skills, pi et omp lisent <dir de conf>/agent/skills.
+for skills_dir in "$HOME_DIR/.claude/skills" \
+                  "$HOME_DIR/.pi/agent/skills" \
+                  "$HOME_DIR/.omp/agent/skills"; do
+  mkdir -p "$skills_dir"
+  # mkdir -p en root laisserait des répertoires inaccessibles à l'utilisateur :
+  # on remonte toute la chaîne jusqu'au home.
+  sub="$skills_dir"
+  while [ "$sub" != "$HOME_DIR" ] && [ "$sub" != "/" ]; do
+    chown "$PUID:$PGID" "$sub"
+    sub="$(dirname "$sub")"
+  done
+  ln -sfn /usr/share/devbox/skills/devbox "$skills_dir/devbox"
+  chown -h "$PUID:$PGID" "$skills_dir/devbox"
+done
 
 # --- 3. Socket podman compatible Docker (DOCKER_HOST des shells), opt-in ---
 # Lancé en tant qu'utilisateur, rootless : `docker run`, `docker build` et

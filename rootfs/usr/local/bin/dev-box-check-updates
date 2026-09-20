@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# devbox:name=check
+# devbox:summary=Cherche les mises à jour, sans rien installer
+# devbox:args=
 # Vérifie, sans rien installer, ce qui pourrait être mis à jour : dotfiles
 # (HEAD du clone vs branche distante), image dev-box (commit gravé au build vs
 # branche distante), outils mise, conf livrée par l'image.

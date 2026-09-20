@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# devbox:name=seed
+# devbox:summary=Pose la conf livrée par l'image sans rien écraser
+# devbox:args=[--force|--check] [chemin]
 # Pose la conf livrée par l'image (agents, extensions, conf mise) dans le home,
 # sans jamais écraser une modification locale.
 #
@@ -8,7 +11,7 @@
 # (on prévient, on n'écrase pas).
 #
 # Utilisable par root (entrypoint, avec DEVBOX_HOME + chown 1000:1000) ou par
-# l'utilisateur (dev-box-update seed).
+# l'utilisateur (`devbox update seed`, ou `devbox seed`).
 #
 #   dev-box-seed                  applique la conf livrée
 #   dev-box-seed --force [chemin] écrase (tout, ou le seul chemin donné)
@@ -32,7 +35,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --force) FORCE=true; shift ;;
     --check) CHECK=true; shift ;;
-    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) sed -n '5,18p' "$0" | sed 's/^# \?//'; exit 0 ;;
     -*) echo "option inconnue : $1" >&2; exit 2 ;;
     *)  ONLY="$1"; shift ;;
   esac
