@@ -36,10 +36,10 @@ rsync -a --exclude nvim "$CFG/" "$HOME/.config/"
 log "config/ copié dans ~/.config"
 
 # --- 3. default/ → dotfiles du home ---
-for f in zshrc profile; do
+for f in zshrc bashrc profile; do
   [ -f "$DEF/$f" ] && cp "$DEF/$f" "$HOME/.$f"
 done
-log "default/ copié (.zshrc, .profile)"
+log "default/ copié (.zshrc, .bashrc, .profile)"
 
 # --- 4. nvim : config/nvim est une surcouche LazyVim → posée sur le starter officiel ---
 if [ -d "$CFG/nvim" ]; then

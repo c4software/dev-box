@@ -8,7 +8,8 @@ config applied as-is and dev tools managed by [mise](https://mise.jdx.dev/).
 - `tailscaled` runs inside the container and Tailscale SSH opens the shell; nothing
   is published on the host. Without Tailscale (`TS_DISABLE=true`), the box falls back
   to its own OpenSSH server on a published port, public key only.
-- SSH lands you in zsh inside a tmux session (`dev-box`), in your home directory.
+- SSH lands you in zsh inside a tmux session named after the box (`TS_HOSTNAME`,
+  `dev-box` by default), in your home directory.
 - Dotfiles pulled from a git repo and kept in sync, without running its install scripts.
 - Two persistent volumes (home and projects) that survive image rebuilds.
 - System packages via pacman (image), dev tools via mise (home).
@@ -34,7 +35,7 @@ config applied as-is and dev tools managed by [mise](https://mise.jdx.dev/).
 3. From any machine on your tailnet:
 
    ```bash
-   ssh dev@devbox
+   ssh dev@dev-box
    ```
 
 Machine-specific settings (extra volumes, resource limits) go in a local override
@@ -54,7 +55,7 @@ All settings live in `.env` (see `.env.example`):
 | `USER_SHELL` | `/bin/zsh` | Login shell |
 | `TZ` | `Europe/Paris` | Timezone |
 | `PROJECTS_DIR` | `./data/projets` | Host directory mounted at `~/projets` (separate from the home) |
-| `TS_HOSTNAME` | `devbox` | Tailscale hostname (also the container hostname) |
+| `TS_HOSTNAME` | `dev-box` | Tailscale hostname; also the container hostname and the tmux session name |
 | `TS_LOGIN_SERVER` | `https://headscale.example.com` | Control server; empty = Tailscale's own |
 | `TS_AUTHKEY` | empty | Auth key; empty = the login URL is printed in the logs |
 | `TS_EXTRA_ARGS` | empty | Extra arguments appended to `tailscale up` |
@@ -127,14 +128,16 @@ and reports unhealthy) — use `docker exec -it -u dev dev-box zsh -l`.
 ## Connecting
 
 ```bash
-ssh dev@devbox
+ssh dev@dev-box
 ```
 
-The login shell runs `exec tmux new-session -A -s dev-box -c ~`: you always land in the
-same tmux session, which starts in your home directory. To get a plain shell instead:
+The login shell runs `exec tmux new-session -A -s "$(hostname)" -c ~`: you always land
+in the same tmux session, named after the box, starting in your home directory. Running
+several boxes side by side therefore gives each one a session of its own. To get a plain
+shell instead:
 
 ```bash
-ssh -t dev@devbox env NO_TMUX=1 zsh
+ssh -t dev@dev-box env NO_TMUX=1 zsh
 ```
 
 The user is created at container start (if missing) with UID/GID 1000:1000, zsh as
@@ -146,8 +149,7 @@ shell and passwordless sudo. The home itself is persistent.
 and takes **only the config**. It never runs the repo's install scripts.
 
 - `config/` → `~/.config/` (zsh, tmux, starship, lazygit, btop, ...), except `nvim`.
-- `default/{zshrc,profile}` → `~/.zshrc`, `~/.profile`. zsh only: the box has no bash
-  config of its own, `USER_SHELL` is expected to stay `/bin/zsh`.
+- `default/{zshrc,bashrc,profile}` → `~/.zshrc`, `~/.bashrc`, `~/.profile`.
 - `config/nvim` is a LazyVim overlay: it is applied on top of the official LazyVim
   starter and rebuilt on each pass. `lazy-lock.json` belongs to the box and is kept.
   A pre-existing `~/.config/nvim` not managed by the sync is renamed to `.bak.<timestamp>`.

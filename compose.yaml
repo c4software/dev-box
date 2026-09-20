@@ -2,7 +2,7 @@ services:
   dev-box:
     build: .
     container_name: dev-box
-    hostname: ${TS_HOSTNAME:-devbox}
+    hostname: ${TS_HOSTNAME:-dev-box}
     init: true
     restart: unless-stopped
     env_file: .env

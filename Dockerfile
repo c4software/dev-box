@@ -17,7 +17,8 @@ COPY rootfs/ /
 RUN chmod +x /usr/local/bin/* \
     && mkdir -p /etc/zsh \
     && cat /etc/devbox/zshenv >> /etc/zsh/zshenv \
-    && echo '. /etc/devbox/tmux-auto.sh' >> /etc/zsh/zshrc
+    && echo '. /etc/devbox/tmux-auto.sh' >> /etc/zsh/zshrc \
+    && cat /etc/devbox/bashrc >> /etc/bash.bashrc
 
 # Sain quand Tailscale est connecté, ou quand sshd écoute (TS_DISABLE=true).
 HEALTHCHECK --interval=60s --timeout=5s --start-period=30s \
