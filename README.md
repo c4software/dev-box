@@ -313,7 +313,7 @@ Adding a command therefore means dropping a `dev-box-<name>` script in
 | `dev-env` | `dev-box-dev-env` | install a dev environment with mise |
 | `dbs` | `dev-box-dbs` | start a development database in a podman container |
 | `agent` | `dev-box-agent` | the default coding agent: run it, pick it, read its usage |
-| `motd` | `dev-box-motd` | the login message: one command drawn at random, pending updates |
+| `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates |
 | `migrate` | `dev-box-migrate` | run the migrations shipped by the image, once each |
 | `mise-install` | `dev-box-mise-install` | write a mise-backed wrapper into `~/.local/bin` |
 | `pkg` | `dev-box-pkg` | pacman packages that survive an image rebuild |
@@ -398,29 +398,23 @@ proxy does not answer, the section says so in one line and nothing else.
 
 ## The login message
 
-Landing in the box prints a small frame, once per tmux session and once per
-shell outside tmux: the box name, one command of the box drawn at random with
-what it does, and a line when an update is waiting. It is `devbox motd`. It
-reads nothing but the box itself, no network and no cache, and the frame is
-one `gum style` call, so it costs under a tenth of a second.
+Landing in the box prints one line, once per tmux session and once per shell
+outside tmux: a command of the box drawn at random, and what it does. A second
+line, in yellow, appears when an update is waiting. It is `devbox motd`. It
+reads nothing but the box itself, no network and no cache, and costs a few
+milliseconds.
 
 ```
-╭─────────────────────────────────────────────────────╮
-│  dev-box                                            │
-│                                                     │
-│  Try  devbox dbs postgres redis                     │
-│       start these databases, data kept in a volume  │
-│                                                     │
-│  Updates  2 available, run devbox update            │
-╰─────────────────────────────────────────────────────╯
+Tips: devbox dbs postgres redis  start these databases, data kept in a volume
+2 updates available, run devbox update
 ```
 
-The commands come from the `TIPS` list at the top of the script; the ones that
-need Tailscale stay out when `TS_DISABLE=true`. The updates line folds
-`~/.cache/dev-box/updates` into a count; the detail of what is waiting stays in
-`devbox check` and `devbox status`. Everything else, the box, its commands and
-where the coding accounts stand, is one command away: `devbox`, `devbox status`
-and `devbox agent usage`.
+The commands come from the `TIPS` list at the top of the script, drawn with
+`shuf`; the ones that need Tailscale stay out when `TS_DISABLE=true`. The
+updates line folds `~/.cache/dev-box/updates` into a count; the detail of what
+is waiting stays in `devbox check` and `devbox status`. Everything else, the
+box, its commands and where the coding accounts stand, is one command away:
+`devbox`, `devbox status` and `devbox agent usage`.
 
 ## Dotfiles sync
 
@@ -765,8 +759,8 @@ the image was built from, `mise outdated`, and the shipped config files whose
 version changed. What it finds goes into `~/.cache/dev-box/updates`,
 one line per item. When there is nothing left, the file is removed.
 
-The login message folds that file into one line, `Updates: 2 available, devbox
-update`, once per tmux session. The detail stays one command away, in `devbox
+The login message folds that file into one line, `2 updates available, run
+devbox update`, once per tmux session. The detail stays one command away, in `devbox
 check` and in `devbox status`. With no file, there is no such line. See *The
 login message* above.
 

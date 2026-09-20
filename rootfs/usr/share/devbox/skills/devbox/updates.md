@@ -32,7 +32,7 @@ there is nothing left, the file is deleted.
 
 Interactive shells source `/etc/devbox/updates-motd.sh`, which calls
 `dev-box-motd` once per tmux session, and once per shell outside tmux. It
-folds the flag file into one line, `Updates: 2 available, devbox update`.
+folds the flag file into one line, `2 updates available, run devbox update`.
 The detail of what is waiting stays in `devbox check` and `devbox status`.
 With no flag file there is no such line. The message itself is covered in
 `commands.md`, under `motd`.
