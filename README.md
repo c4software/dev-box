@@ -374,9 +374,9 @@ It clears the flag and re-runs the check when it is done. The one item it cannot
 act on is the image itself: that line points to `just rebuild` (or `just up`) on the
 host. The image knows its commit only when built through `just`, which passes it as
 a build argument; a bare `docker compose build` records `unknown` and that check is
-skipped. A private dev-box repo is only reachable from the box if `GITHUB_TOKEN`
-can read it; otherwise `just status` on the host makes the same comparison, image
-commit against the local checkout.
+skipped. `just status` on the host makes the same comparison, image commit against
+the local checkout; for a private fork, the in-box check needs a `GITHUB_TOKEN`
+that can read the repo.
 
 ## Persistence
 
