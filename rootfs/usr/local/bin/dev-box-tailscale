@@ -2,6 +2,7 @@
 # devbox:name=tailscale
 # devbox:summary=Taildrop: send, receive, tailnet status
 # devbox:args=[send|receive|status]
+# devbox:requires=tailscale
 # Moving files to and from the other machines of the tailnet, over Taildrop,
 # plus the state of the link. Modelled on omarchy-tailscale-send and
 # omarchy-tailscale-receive, without the desktop notifications.

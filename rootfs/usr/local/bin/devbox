@@ -15,6 +15,7 @@
 #   # devbox:summary=Update dotfiles, mise tools and the shipped config
 #   # devbox:args=[dotfiles|tools|seed|all]
 #   # devbox:hidden=true     (optional: out of the menu and the list, still routable)
+#   # devbox:requires=tailscale   (optional: hidden too when that feature is off)
 #
 # Adding a command therefore means dropping an executable with those three lines.
 set -euo pipefail
@@ -25,11 +26,29 @@ SCAN_LINES=30
 NAMES=()
 declare -A CMD_BIN CMD_SUMMARY CMD_ARGS CMD_HIDDEN
 
+# A command can depend on a feature of the box. When that feature is off, the
+# command leaves the menu and the list, but stays callable by name: it then
+# prints its own explanation. TS_DISABLE is not in the environment of an SSH
+# session, the entrypoint writes it to /etc/devbox/env.
+feature_available() {
+  case "$1" in
+    tailscale)
+      local ts="${TS_DISABLE:-}"
+      if [ -z "$ts" ] && [ -r /etc/devbox/env ]; then
+        ts="$(sed -n 's/^export TS_DISABLE=//p' /etc/devbox/env | tail -n 1)"
+      fi
+      [ "${ts:-false}" != "true" ]
+      ;;
+    podman) [ -S "/run/user/$(id -u)/podman/podman.sock" ] ;;
+    *) return 0 ;;
+  esac
+}
+
 # Reads the "# devbox:" headers of the executables of BIN_DIR. Symbolic links
 # are skipped: docker and podman both point at dev-box-podman and would give
 # the same command three times.
 discover() {
-  local f header name summary args hidden line key value
+  local f header name summary args hidden requires line key value
   for f in "$BIN_DIR"/*; do
     [ -f "$f" ] || continue
     [ -L "$f" ] && continue
@@ -37,7 +56,7 @@ discover() {
     header="$(head -n "$SCAN_LINES" "$f" 2>/dev/null | grep -a '^# devbox:' || true)"
     [ -n "$header" ] || continue
 
-    name=""; summary=""; args=""; hidden="false"
+    name=""; summary=""; args=""; hidden="false"; requires=""
     while IFS= read -r line; do
       line="${line#\# devbox:}"
       key="${line%%=*}"
@@ -47,6 +66,7 @@ discover() {
         summary) summary="$value" ;;
         args)    args="$value" ;;
         hidden)  hidden="$value" ;;
+        requires) requires="$value" ;;
       esac
     done <<< "$header"
 
@@ -57,6 +77,9 @@ discover() {
     CMD_SUMMARY["$name"]="$summary"
     CMD_ARGS["$name"]="$args"
     CMD_HIDDEN["$name"]="$hidden"
+    if [ -n "$requires" ] && ! feature_available "$requires"; then
+      CMD_HIDDEN["$name"]="true"
+    fi
   done
   # Stable order, whatever order the directory is read in.
   if [ "${#NAMES[@]}" -gt 0 ]; then

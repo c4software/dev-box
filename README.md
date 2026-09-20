@@ -265,6 +265,7 @@ and reads a comment header at the top of each one:
 # devbox:summary=Update dotfiles, mise tools and the shipped config
 # devbox:args=[dotfiles|tools|seed|all]
 # devbox:hidden=true    # optional: out of the menu and the list, still routable
+# devbox:requires=tailscale   # optional: hidden too while that feature is off
 ```
 
 Adding a command therefore means dropping a `dev-box-<name>` script in
@@ -289,6 +290,8 @@ Every one of them keeps its own name on `PATH`, so `dev-box-update dotfiles` and
 `devbox update dotfiles` are the same thing. The `justfile` and the entrypoint
 call the binaries directly. `dev-box-podman` carries `hidden=true`: it is the
 wrapper behind the `docker` and `podman` symlinks, not a command you call.
+`dev-box-tailscale` carries `requires=tailscale`: with `TS_DISABLE=true` it leaves
+the menu and the list, but `devbox tailscale` still answers, with the reason.
 
 Without arguments, `devbox` opens a gum menu listing the commands with their
 summary, and runs the one you pick, which may then be interactive itself. With

@@ -84,6 +84,7 @@ headers `devbox` reads:
 # devbox:summary=<one line, English, no final period>
 # devbox:args=[a|b|c]
 # devbox:hidden=true     # only if it is not a user-facing command
+# devbox:requires=tailscale   # hidden while the feature is off (tailscale, podman)
 ```
 
 There is nothing to register anywhere. `devbox` finds it on the next start.
