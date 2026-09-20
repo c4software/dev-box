@@ -33,7 +33,7 @@ the same binary.
 | `sync` | `dotarchy-sync` | clones or updates the dotfiles repo and applies the config. Never runs its install scripts. |
 | `dev-env` | `dev-box-dev-env` | installs a dev environment with mise. `--list`, or names as arguments, or a menu. |
 | `dbs` | `dev-box-dbs` | starts a development database in a podman container. `--list`, `--start`, `--stop`, `--remove [--purge]`, or names, or a menu. |
-| `agent` | `dev-box-agent` | the default coding agent. `set`, `which`, `prompt <text>`, `usage [claude\|codex]`, or bare to run it. |
+| `agent` | `dev-box-agent` | the default coding agent. `set`, `which`, `prompt <text>`, `usage [claude\|codex]`, or bare for a menu (run, pick, usage). |
 | `migrate` | `dev-box-migrate` | runs the migrations shipped by the image, once each. `--pending`, `--list`, `--mark-done <name>`. |
 | `mise-install` | `dev-box-mise-install` | writes a mise-backed wrapper into `~/.local/bin`. `--list`, `--remove <cmd>`. |
 | `pkg` | `dev-box-pkg` | pacman packages that survive a rebuild. `add`, `drop`, `list`, `install`, `restore`. |
@@ -111,11 +111,11 @@ arm64 image. Nothing restarts on its own after a restart of the box.
 `~/.config/dev-box/agent`, and runs it in the current directory.
 
 ```bash
-devbox agent                    # run the default, or pick one first
+devbox agent                    # menu: run the default, pick one, usage
 devbox agent set [name]         # change it, gum menu when no name is given
 devbox agent which              # print it
 devbox agent prompt <text...>   # run it with an instruction
-devbox agent usage [claude|codex]
+devbox agent usage [claude|codex]   # no name: both accounts
 ```
 
 The choices are what the image ships (`claude`, `pi`, `omp`, `opencode`,

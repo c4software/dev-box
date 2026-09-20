@@ -5,7 +5,7 @@
 # One default agent for the box, remembered in ~/.config/dev-box/agent, on the
 # model of omarchy-default-agent and omarchy-agent.
 #
-#   dev-box-agent                  run the default agent here
+#   dev-box-agent                  menu: run the default agent, pick one, usage
 #   dev-box-agent set [name]       change the default agent (menu with no name)
 #   dev-box-agent which            print the default agent
 #   dev-box-agent prompt <text...> run the agent with an instruction
@@ -221,13 +221,13 @@ usage_codex() {
 }
 
 do_usage() {
-  local which="${1:-}"
+  local which="${1:-}" rc=0
+  # No name: both accounts, each one saying by itself when it is not logged in.
   if [ -z "$which" ]; then
-    which="$(read_agent || true)"
-    case "$which" in
-      claude|codex) ;;
-      *) echo "usage: devbox agent usage [claude|codex]" >&2; exit 2 ;;
-    esac
+    printf '\033[1mClaude Code\033[0m\n'; usage_claude || rc=1
+    echo
+    printf '\033[1mCodex\033[0m\n'; usage_codex || rc=1
+    return "$rc"
   fi
   case "$which" in
     claude) printf '\033[1mClaude Code\033[0m\n'; usage_claude ;;
@@ -261,9 +261,25 @@ case "${1:-}" in
   usage)
     shift
     do_usage "${1:-}"
-    exit 0
+    exit $?
     ;;
   "")
+    # With a terminal: a menu of actions. Without one: run the default agent.
+    if [ -t 0 ] && [ -t 2 ] && command -v gum >/dev/null 2>&1; then
+      default="$(read_agent || true)"
+      entries=()
+      [ -n "$default" ] && entries+=("Run $default here")
+      entries+=("Pick the default agent" "Usage: Claude Code" "Usage: Codex" "Usage: both")
+      choice="$(printf '%s\n' "${entries[@]}" | gum choose --height 8 --header "Coding agent")" || exit 0
+      case "$choice" in
+        "Run "*)           exec "$default" ;;
+        "Pick "*)          set_agent ""; exit 0 ;;
+        "Usage: Claude"*)  do_usage claude; exit $? ;;
+        "Usage: Codex")    do_usage codex; exit $? ;;
+        "Usage: both")     do_usage; exit $? ;;
+        *) exit 0 ;;
+      esac
+    fi
     agent="$(current_agent)" || exit 1
     exec "$agent"
     ;;

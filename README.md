@@ -303,17 +303,20 @@ no terminal it says so and prints the list instead of hanging.
 and launches it in the current directory.
 
 ```bash
-devbox agent                 # run the default agent here
+devbox agent                 # menu: run the default, pick one, see the usage
 devbox agent set             # gum menu, then remember the choice
 devbox agent set codex       # or name it outright
 devbox agent which           # print the current default
 devbox agent prompt "review this project"
 devbox agent usage claude    # what is left of the account limits
+devbox agent usage           # both accounts, Claude Code and Codex
 ```
 
-With no default set yet, a bare `devbox agent` opens the menu, records what you
-pick and starts it. The menu lists what the image ships, `claude`, `pi`, `omp`,
-`opencode` and `codex`, plus any wrapper `devbox mise-install` has written.
+In a terminal, a bare `devbox agent` opens a small menu: run the default agent
+here, pick the default, or show the usage of Claude Code, of Codex, or of both.
+Without a terminal it runs the default agent directly. The list of agents is what
+the image ships, `claude`, `pi`, `omp`, `opencode` and `codex`, plus any wrapper
+`devbox mise-install` has written.
 
 `devbox agent usage` prints the account limits as plain text and keeps them
 there: nothing is cached on disk and nothing is sent anywhere. For Claude Code
