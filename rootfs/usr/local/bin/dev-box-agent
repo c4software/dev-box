@@ -17,6 +17,9 @@
 #                                  from the local transcripts. With no name:
 #                                  the three of them, Claude Code, Codex and
 #                                  the LLM proxy, read from its usage route.
+#                                  The proxy block prints the cache hit rate of
+#                                  each model next to its share bar, under a
+#                                  header line naming the columns.
 #
 # The agents on offer are the ones shipped by the image (claude, pi, omp,
 # opencode, codex) plus the wrappers written by `devbox mise-install`.
@@ -26,7 +29,7 @@ CONF_DIR="$HOME/.config/dev-box"
 CONF="$CONF_DIR/agent"
 BUILTIN=(claude pi omp opencode codex)
 
-usage() { sed -n '5,19p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '5,22p' "$0" | sed 's/^# \?//'; }
 
 # Early, so that `devbox agent --help` really finds a help to print.
 case "${1:-}" in -h|--help) usage; exit 0 ;; esac
@@ -142,7 +145,7 @@ repeat() { local i s=""; for (( i = 0; i < $2; i++ )); do s+="$1"; done; printf 
 # Colors, once for every renderer below, and only on a terminal, so the output
 # stays greppable in a pipe. C_BAR is the neutral one, for a bar that shows a
 # share rather than how close a limit is.
-C_OFF=""; C_GREEN=""; C_YELLOW=""; C_RED=""; C_BAR=""; C_BOLD=""
+C_OFF=""; C_GREEN=""; C_YELLOW=""; C_RED=""; C_BAR=""; C_BOLD=""; C_DIM=""
 setup_colors() {
   [ -t 1 ] || return 0
   command -v tput >/dev/null 2>&1 || return 0
@@ -152,6 +155,7 @@ setup_colors() {
   C_RED="$(tput setaf 1 2>/dev/null || true)"
   C_BAR="$(tput setaf 6 2>/dev/null || true)"
   C_BOLD="$(tput bold 2>/dev/null || true)"
+  C_DIM="$(tput dim 2>/dev/null || true)"
 }
 setup_colors
 
@@ -525,21 +529,30 @@ tokens_proxy() {
 # --- the tokens renderer -----------------------------------------------------
 # Reads the lines of the contract above on stdin and prints the block: a title
 # carrying the totals of the window, one line per model with its share as a bar,
-# the share, the tokens, the requests and a sparkline of its seven days, then
-# the input and output totals and what today weighs. Sorted by share, largest
+# a percentage, the tokens, the requests and a sparkline of its seven days, then
+# the input and output totals and what today weighs. Sorted by tokens, largest
 # first, everything past the eighth model folded into one line, so the block
 # stays a glance and not a log. Lines are 80 columns at most, which is what caps
 # the name column. $1 is the title, $2 is "bold" when that title is also the
 # heading of its section, as it is for the proxy.
+#
+# $3 is the mode of the percentage next to the bar. The bar is always the share
+# of the window's tokens. "share", the default, prints that share as the
+# number, which is what Claude Code and Codex show. The proxy asks for "cache",
+# the cache hit rate of the model, the part of its input served from the cache:
+# red below 50, yellow below 80, green above, and "?" for a model that read no
+# input at all. That mode also prints a header line naming the columns, right
+# under the title.
 render_tokens() {
-  local title="${1:-Tokens, last 7 days}" weight="${2:-plain}"
-  local -A tokens=() reqs=() days=()
+  local title="${1:-Tokens, last 7 days}" weight="${2:-plain}" mode="${3:-share}"
+  local -A tokens=() reqs=() days=() ins=() cacheds=()
   local -a msgs=() order=() names=() totals=() counts=() sparks=()
+  local -a m_in=() m_cached=()
   local g_req=0 g_tok=0 g_in=0 g_cached=0 g_out=0 t_req=0 t_tok=0
   local model d r i c o line sum name maxw=27 width=0 keep=8
-  local o_total=0 o_req=0 o_n=0
+  local o_total=0 o_req=0 o_n=0 o_in=0 o_cached=0
   local -a o_days=(0 0 0 0 0 0 0)
-  local idx pct n right pad head
+  local idx pct n right pad head color bar
 
   while IFS=$'\t' read -r model d r i c o; do
     case "$model" in
@@ -550,6 +563,8 @@ render_tokens() {
     [ -n "${tokens[$model]:-}" ] || order+=("$model")
     tokens[$model]=$(( ${tokens[$model]:-0} + sum ))
     reqs[$model]=$(( ${reqs[$model]:-0} + r ))
+    ins[$model]=$(( ${ins[$model]:-0} + i ))
+    cacheds[$model]=$(( ${cacheds[$model]:-0} + c ))
     days["$model/$d"]=$(( ${days["$model/$d"]:-0} + sum ))
     g_req=$(( g_req + r )); g_tok=$(( g_tok + sum ))
     g_in=$(( g_in + i )); g_cached=$(( g_cached + c )); g_out=$(( g_out + o ))
@@ -567,8 +582,16 @@ render_tokens() {
 
   # Without a request count worth showing, the column goes rather than print
   # zeroes; the name column takes the room it leaves.
-  local fmt='  %-*s %s %3s%% %7s %4s req %s\n'
-  if [ "$g_req" -eq 0 ]; then fmt='  %-*s %s %3s%% %7s %s\n'; maxw=36; fi
+  # The percent sign travels with the number, so that a model with no rate to
+  # show can print a bare "?" in that column.
+  local fmt='  %-*s %s %s %7s %4s req %s\n'
+  # The header of the cache mode: "share" over the bar, "cache" over the
+  # percentage, and "req" on the right edge of the count it names.
+  local hfmt="  ${C_DIM}%-*s %-20s %5s %7s %8s %s${C_OFF}\n"
+  if [ "$g_req" -eq 0 ]; then
+    fmt='  %-*s %s %s %7s %s\n'; maxw=36
+    hfmt="  ${C_DIM}%-*s %-20s %5s %7s %s${C_OFF}\n"
+  fi
 
   # Sorted on the tokens, largest first, then folded past the eighth model.
   # A fold of one line would save nothing: nine models are printed as nine.
@@ -576,11 +599,13 @@ render_tokens() {
   while read -r sum model; do
     if [ "${#names[@]}" -lt "$keep" ]; then
       names+=("$(fit_name "$model" "$maxw")"); totals+=("$sum"); counts+=("${reqs[$model]}")
+      m_in+=("${ins[$model]}"); m_cached+=("${cacheds[$model]}")
       sparks+=("$(spark_line "${days["$model/0"]:-0}" "${days["$model/1"]:-0}" \
         "${days["$model/2"]:-0}" "${days["$model/3"]:-0}" "${days["$model/4"]:-0}" \
         "${days["$model/5"]:-0}" "${days["$model/6"]:-0}")")
     else
       o_n=$(( o_n + 1 )); o_total=$(( o_total + sum )); o_req=$(( o_req + reqs[$model] ))
+      o_in=$(( o_in + ins[$model] )); o_cached=$(( o_cached + cacheds[$model] ))
       for idx in 0 1 2 3 4 5 6; do
         o_days[idx]=$(( o_days[idx] + ${days["$model/$idx"]:-0} ))
       done
@@ -589,6 +614,7 @@ render_tokens() {
 
   if [ "$o_n" -gt 0 ]; then
     names+=("others ($o_n $(plural "$o_n" model))"); totals+=("$o_total"); counts+=("$o_req")
+    m_in+=("$o_in"); m_cached+=("$o_cached")
     sparks+=("$(spark_line "${o_days[@]}")")
   fi
   for name in "${names[@]}"; do
@@ -602,14 +628,43 @@ render_tokens() {
   [ "$pad" -ge 1 ] || pad=1
   printf '%s%*s%s\n' "$head" "$pad" "" "$right"
 
+  if [ "$mode" = "cache" ]; then
+    local -a hcells=("$width" "model" "share" "cache" "tokens")
+    [ "$g_req" -gt 0 ] && hcells+=("req")
+    hcells+=("7 days")
+    # shellcheck disable=SC2059  # hfmt is one of the two headers chosen above
+    printf "$hfmt" "${hcells[@]}"
+  fi
+
   local -a cells
   for idx in "${!names[@]}"; do
+    # The bar is always the share of the window's tokens.
     pct=$(( totals[idx] * 100 / g_tok ))
-    # A share below one percent has no cell to fill, but the line is still
-    # there, and says so rather than showing a rounded zero.
-    n="$pct"
-    [ "$pct" -lt 1 ] && n="<1"
-    cells=("$width" "${names[$idx]}" "$(draw_bar "$pct" "$C_BAR")" "$n"
+    bar="$(draw_bar "$pct" "$C_BAR")"
+    if [ "$mode" = "cache" ]; then
+      # Next to it, the cache hit rate, the part of the input this model read
+      # from the cache. A model that read nothing has no rate to show, only a
+      # "?". The thresholds of render_usage, upside down: a high rate is good.
+      if [ "${m_in[$idx]}" -le 0 ]; then
+        n="?"
+      else
+        pct=$(( m_cached[idx] * 100 / m_in[idx] ))
+        [ "$pct" -le 100 ] || pct=100
+        if [ "$pct" -lt 50 ]; then color="$C_RED"
+        elif [ "$pct" -lt 80 ]; then color="$C_YELLOW"
+        else color="$C_GREEN"; fi
+        n="$color$(printf '%4s' "$pct%")$C_OFF"
+      fi
+    else
+      # A share below one percent has no cell to fill, but the line is still
+      # there, and says so rather than showing a rounded zero.
+      n="$pct%"
+      [ "$pct" -lt 1 ] && n="<1%"
+    fi
+    # Padded here and not by the format, since the cache rate carries colour
+    # codes that a printf width would count as characters.
+    n="$(printf '%4s' "$n")"
+    cells=("$width" "${names[$idx]}" "$bar" "$n"
            "$(human_tokens "${totals[$idx]}")")
     [ "$g_req" -gt 0 ] && cells+=("$(human_tokens "${counts[$idx]}")")
     cells+=("${sparks[$idx]}")
@@ -785,7 +840,7 @@ section_codex() {
 }
 
 section_proxy() {
-  tokens_proxy | render_tokens "LLM proxy, last 7 days" bold
+  tokens_proxy | render_tokens "LLM proxy, last 7 days" bold cache
   return "${PIPESTATUS[0]}"
 }
 

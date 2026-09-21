@@ -148,8 +148,10 @@ eighth model the rest is folded into one `others` line. Those counts are read
 from the local transcripts, `~/.claude/projects` for Claude Code and
 `~/.codex/sessions` for Codex, so they still work when the account is not
 logged in. `usage proxy` (alias `llmproxy`) prints the same block for the LLM
-proxy, from its usage route on `LLM_PROXY_URL`. Cached tokens are the part of
-the input served from a cache and are never counted twice.
+proxy, from its usage route on `LLM_PROXY_URL`, except that the percentage next
+to the share bar is the cache hit rate of each model, the part of its input
+served from the cache, under a header line naming the columns. Cached tokens are the
+part of the input served from a cache and are never counted twice.
 
 ## motd
 

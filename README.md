@@ -389,12 +389,28 @@ event for Codex. The days are cut at local midnight in the box's timezone, and
 counts are printed short, `12.3k` or `4.5M`, exact below a thousand.
 
 `devbox agent usage proxy` is the same block for the LLM proxy, under its own
-heading. Those figures do not come from a transcript but from the proxy's own
-usage route, `/v1/organization/usage/completions` on `LLM_PROXY_URL`, called
-with `LLM_PROXY_API_KEY`, in hourly buckets so the days line up with the box's.
-The cached tokens are the part of the input that was served from a cache, in
-every account, so they are counted inside the input and never twice. When the
-proxy does not answer, the section says so in one line and nothing else.
+heading, with one difference: the bar is still the share of the window, but the
+percentage next to it is the cache hit rate of the model, the part of its input
+served from the cache. Red below 50, yellow below 80, green above, and a bare
+`?` for a model that read no input at all. A header line names the columns:
+
+```
+LLM proxy, last 7 days                            3 300 requests   734.9M tokens
+  model         share                cache  tokens      req 7 days
+  claude-opus-5 ██████████████░░░░░░  88%  513.1M 2.2k req ▃▁▁▇▁▁█
+  gpt-5-codex   ██████░░░░░░░░░░░░░░  66%  211.6M  920 req ▁▁▇▁▁▁█
+  mistral-large ░░░░░░░░░░░░░░░░░░░░  15%   10.2M  100 req ▁▁▁▁█▁▆
+  in 730.0M, of which 594.5M from the cache, out 4.9M
+  today: 1 760 requests, 386.5M tokens
+```
+
+The models are still sorted by tokens, largest first. Those figures do not come
+from a transcript but from the proxy's own usage route,
+`/v1/organization/usage/completions` on `LLM_PROXY_URL`, called with
+`LLM_PROXY_API_KEY`, in hourly buckets so the days line up with the box's. The
+cached tokens are the part of the input that was served from a cache, in every
+account, so they are counted inside the input and never twice. When the proxy
+does not answer, the section says so in one line and nothing else.
 
 ## The login message
 
