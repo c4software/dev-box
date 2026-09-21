@@ -53,7 +53,10 @@ db_names() {
 db_field() {
   local d
   for d in "${DBS[@]}"; do
-    [ "${d%%|*}" = "$1" ] && { printf '%s' "$(echo "$d" | cut -d'|' -f"$2")"; return 0; }
+    [ "${d%%|*}" = "$1" ] && {
+      printf '%s' "$(echo "$d" | cut -d'|' -f"$2")"
+      return 0
+    }
   done
   return 1
 }
@@ -88,7 +91,7 @@ require_podman() {
 # --- State of the containers --------------------------------------------------
 
 container_of() { printf 'devbox-%s' "$1"; }
-volume_of()    { printf 'devbox-%s' "$1"; }
+volume_of() { printf 'devbox-%s' "$1"; }
 
 container_exists() { "$PODMAN" container exists "$(container_of "$1")" 2>/dev/null; }
 
@@ -105,12 +108,12 @@ container_status() {
 
 # --- The options of each image, taken from omarchy ----------------------------
 
-env_mysql()   { printf '%s\n' -e "MYSQL_ROOT_PASSWORD=" -e "MYSQL_ALLOW_EMPTY_PASSWORD=true"; }
+env_mysql() { printf '%s\n' -e "MYSQL_ROOT_PASSWORD=" -e "MYSQL_ALLOW_EMPTY_PASSWORD=true"; }
 env_mariadb() { printf '%s\n' -e "MARIADB_ROOT_PASSWORD=" -e "MARIADB_ALLOW_EMPTY_ROOT_PASSWORD=true"; }
-env_postgres(){ printf '%s\n' -e "POSTGRES_HOST_AUTH_METHOD=trust"; }
-env_redis()   { :; }
+env_postgres() { printf '%s\n' -e "POSTGRES_HOST_AUTH_METHOD=trust"; }
+env_redis() { :; }
 env_mongodb() { printf '%s\n' -e "MONGO_INITDB_ROOT_USERNAME=admin" -e "MONGO_INITDB_ROOT_PASSWORD=admin123"; }
-env_mssql()   { printf '%s\n' -e "MSSQL_PID=Developer" -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=@dmin123"; }
+env_mssql() { printf '%s\n' -e "MSSQL_PID=Developer" -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=@dmin123"; }
 
 # --- Actions ------------------------------------------------------------------
 
@@ -140,7 +143,10 @@ port_taken_by() {
     other="${d%%|*}"
     [ "$other" = "$name" ] && continue
     [ "$(echo "$d" | cut -d'|' -f3)" = "$port" ] || continue
-    container_running "$other" && { printf '%s' "$other"; return 0; }
+    container_running "$other" && {
+      printf '%s' "$other"
+      return 0
+    }
   done
   return 1
 }
@@ -186,7 +192,10 @@ start_db() {
 
 stop_db() {
   local name="$1"
-  container_exists "$name" || { err "$name: no container $(container_of "$name")."; return 1; }
+  container_exists "$name" || {
+    err "$name: no container $(container_of "$name")."
+    return 1
+  }
   "$PODMAN" stop "$(container_of "$name")" >/dev/null
   log "$name: stopped (data kept)."
 }
@@ -198,7 +207,10 @@ restart_db() {
     err "$name: no container $(container_of "$name"), create it with: devbox dbs $name"
     return 1
   }
-  container_running "$name" && { log "$name: already running."; return 0; }
+  container_running "$name" && {
+    log "$name: already running."
+    return 0
+  }
   if busy="$(port_taken_by "$name" "$port")"; then
     err "$name and $busy share port $port, and $busy is already running."
     err "Stop the other one first: devbox dbs --stop $busy"
@@ -250,14 +262,38 @@ SELECTED=()
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --list|-l)  show_list; exit 0 ;;
-    -h|--help)  show_help; exit 0 ;;
-    --stop)     ACTION="stop"; shift ;;
-    --start)    ACTION="restart"; shift ;;
-    --remove)   ACTION="remove"; shift ;;
-    --purge)    PURGE="true"; shift ;;
-    -*)         err "unknown option '$1'"; exit 2 ;;
-    *)          SELECTED+=("$1"); shift ;;
+  --list | -l)
+    show_list
+    exit 0
+    ;;
+  -h | --help)
+    show_help
+    exit 0
+    ;;
+  --stop)
+    ACTION="stop"
+    shift
+    ;;
+  --start)
+    ACTION="restart"
+    shift
+    ;;
+  --remove)
+    ACTION="remove"
+    shift
+    ;;
+  --purge)
+    PURGE="true"
+    shift
+    ;;
+  -*)
+    err "unknown option '$1'"
+    exit 2
+    ;;
+  *)
+    SELECTED+=("$1")
+    shift
+    ;;
   esac
 done
 
@@ -288,13 +324,16 @@ if [ "${#SELECTED[@]}" -eq 0 ]; then
   for d in "${DBS[@]}"; do
     menu+=("$(printf '%-9s %s' "${d%%|*}" "$(echo "$d" | cut -d'|' -f5)")")
   done
-  chosen="$(printf '%s\n' "${menu[@]}" \
-    | gum choose --no-limit --height 10 \
-        --header "Databases to start (space to tick, enter to confirm)")" || true
-  [ -n "$chosen" ] || { echo "Nothing selected."; exit 0; }
+  chosen="$(printf '%s\n' "${menu[@]}" |
+    gum choose --no-limit --height 10 \
+      --header "Databases to start (x to tick, enter to confirm)")" || true
+  [ -n "$chosen" ] || {
+    echo "Nothing selected."
+    exit 0
+  }
   while IFS= read -r line; do
     [ -n "$line" ] && SELECTED+=("${line%% *}")
-  done <<< "$chosen"
+  done <<<"$chosen"
 fi
 
 # The names are validated before the first action: better to refuse right away
@@ -310,10 +349,10 @@ done
 rc=0
 for name in "${SELECTED[@]}"; do
   case "$ACTION" in
-    start)   start_db "$name"   || rc=1 ;;
-    restart) restart_db "$name" || rc=1 ;;
-    stop)    stop_db "$name"    || rc=1 ;;
-    remove)  remove_db "$name"  || rc=1 ;;
+  start) start_db "$name" || rc=1 ;;
+  restart) restart_db "$name" || rc=1 ;;
+  stop) stop_db "$name" || rc=1 ;;
+  remove) remove_db "$name" || rc=1 ;;
   esac
 done
 exit "$rc"

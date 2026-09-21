@@ -60,7 +60,10 @@ env_names() {
 env_desc() {
   local e
   for e in "${ENVS[@]}"; do
-    [ "${e%%|*}" = "$1" ] && { printf '%s' "${e#*|}"; return 0; }
+    [ "${e%%|*}" = "$1" ] && {
+      printf '%s' "${e#*|}"
+      return 0
+    }
   done
   return 1
 }
@@ -76,11 +79,11 @@ declared() {
 
 is_installed() {
   case "$1" in
-    php)     command -v php >/dev/null 2>&1 ;;
-    laravel) composer global show laravel/installer >/dev/null 2>&1 ;;
-    symfony) declared "github:symfony-cli/symfony-cli" ;;
-    phoenix) compgen -G "$HOME/.mix/archives/phx_new*" >/dev/null ;;
-    *)       declared "$1" ;;
+  php) command -v php >/dev/null 2>&1 ;;
+  laravel) composer global show laravel/installer >/dev/null 2>&1 ;;
+  symfony) declared "github:symfony-cli/symfony-cli" ;;
+  phoenix) compgen -G "$HOME/.mix/archives/phx_new*" >/dev/null ;;
+  *) declared "$1" ;;
   esac
 }
 
@@ -102,11 +105,11 @@ show_list() {
 # another environment (laravel on php and node, phoenix on elixir, scala on
 # java), the base stays and the message says how to remove it.
 
-install_node()   { mise use -g node@lts; }
-install_bun()    { mise use -g bun@latest; }
-install_deno()   { mise use -g deno@latest; }
-install_go()     { mise use -g go@latest; }
-install_java()   { mise use -g java@latest; }
+install_node() { mise use -g node@lts; }
+install_bun() { mise use -g bun@latest; }
+install_deno() { mise use -g deno@latest; }
+install_go() { mise use -g go@latest; }
+install_java() { mise use -g java@latest; }
 install_dotnet() { mise use -g dotnet@latest; }
 install_rust() {
   # mise handles the toolchain itself (no rustup): a single source of truth for
@@ -157,7 +160,7 @@ install_ruby() {
   mise settings add ruby.compile false
   mise settings add idiomatic_version_file_enable_tools ruby
   mise use -g ruby@latest
-  echo "gem: --no-document" > "$HOME/.gemrc"
+  echo "gem: --no-document" >"$HOME/.gemrc"
   mise x ruby -- gem install rails --no-document
   log "rails is ready: rails new my-project"
 }
@@ -187,14 +190,29 @@ remove_node() {
   unuse node || return 1
   log "node is part of the box's base mise config: devbox dev-env node brings it back."
 }
-remove_bun()    { unuse bun || return 1; }
-remove_deno()   { unuse deno || return 1; }
-remove_go()     { unuse go || return 1; log "~/go (modules, GOPATH binaries) is left in place."; }
-remove_java()   { unuse java || return 1; log "~/.m2 and ~/.gradle are left in place."; }
-remove_dotnet() { unuse dotnet || return 1; log "~/.nuget is left in place."; }
-remove_rust()   { unuse rust || return 1; log "~/.cargo (registry, cargo install binaries) is left in place."; }
-remove_python() { unuse python uv || return 1; log "~/.cache/uv and the virtual environments are left in place."; }
-remove_zig()    { unuse zig zls || return 1; }
+remove_bun() { unuse bun || return 1; }
+remove_deno() { unuse deno || return 1; }
+remove_go() {
+  unuse go || return 1
+  log "~/go (modules, GOPATH binaries) is left in place."
+}
+remove_java() {
+  unuse java || return 1
+  log "~/.m2 and ~/.gradle are left in place."
+}
+remove_dotnet() {
+  unuse dotnet || return 1
+  log "~/.nuget is left in place."
+}
+remove_rust() {
+  unuse rust || return 1
+  log "~/.cargo (registry, cargo install binaries) is left in place."
+}
+remove_python() {
+  unuse python uv || return 1
+  log "~/.cache/uv and the virtual environments are left in place."
+}
+remove_zig() { unuse zig zls || return 1; }
 remove_php() {
   log "php, composer and xdebug are packages of the image: nothing to remove from the home."
   log "~/.config/composer (global packages) is left in place."
@@ -211,7 +229,10 @@ remove_symfony() {
   unuse github:symfony-cli/symfony-cli || return 1
   log "php stays (image package)."
 }
-remove_clojure() { unuse clojure || return 1; log "~/.m2 and ~/.clojure are left in place."; }
+remove_clojure() {
+  unuse clojure || return 1
+  log "~/.m2 and ~/.clojure are left in place."
+}
 remove_scala() {
   unuse scala scala-cli || return 1
   log "java stays: devbox dev-env --remove java."
@@ -261,11 +282,26 @@ ACTION="install"
 SELECTED=()
 while [ $# -gt 0 ]; do
   case "$1" in
-    --list|-l) show_list; exit 0 ;;
-    -h|--help) sed -n '6,18p' "$0" | sed 's/^# \?//'; exit 0 ;;
-    --remove)  ACTION="remove"; shift ;;
-    -*)        err "unknown option '$1'"; exit 2 ;;
-    *)         SELECTED+=("$1"); shift ;;
+  --list | -l)
+    show_list
+    exit 0
+    ;;
+  -h | --help)
+    sed -n '6,18p' "$0" | sed 's/^# \?//'
+    exit 0
+    ;;
+  --remove)
+    ACTION="remove"
+    shift
+    ;;
+  -*)
+    err "unknown option '$1'"
+    exit 2
+    ;;
+  *)
+    SELECTED+=("$1")
+    shift
+    ;;
   esac
 done
 
@@ -291,9 +327,18 @@ menu() {
     mode="$(gum choose --header "devbox dev-env: what do you want to do?" \
       "Install environments" "Remove environments")" || true
     case "$mode" in
-      Install*) mode="Install"; ACTION="install" ;;
-      Remove*)  mode="Remove";  ACTION="remove" ;;
-      *) echo "Nothing selected."; exit 0 ;;
+    Install*)
+      mode="Install"
+      ACTION="install"
+      ;;
+    Remove*)
+      mode="Remove"
+      ACTION="remove"
+      ;;
+    *)
+      echo "Nothing selected."
+      exit 0
+      ;;
     esac
   fi
 
@@ -311,13 +356,16 @@ menu() {
     exit 0
   fi
 
-  chosen="$(printf '%s\n' "${menu[@]}" \
-    | gum choose --no-limit --height 18 \
-        --header "Environments to ${mode,,} (space to tick, enter to confirm)")" || true
-  [ -n "$chosen" ] || { echo "Nothing selected."; exit 0; }
+  chosen="$(printf '%s\n' "${menu[@]}" |
+    gum choose --no-limit --height 18 \
+      --header "Environments to ${mode,,} (x to tick, enter to confirm)")" || true
+  [ -n "$chosen" ] || {
+    echo "Nothing selected."
+    exit 0
+  }
   while IFS= read -r line; do
     [ -n "$line" ] && SELECTED+=("${line%% *}")
-  done <<< "$chosen"
+  done <<<"$chosen"
 }
 
 [ "${#SELECTED[@]}" -gt 0 ] || menu
@@ -334,7 +382,10 @@ done
 
 rc=0
 for name in "${SELECTED[@]}"; do
-  run_env "$ACTION" "$name" || { log "⚠ $name failed"; rc=1; }
+  run_env "$ACTION" "$name" || {
+    log "⚠ $name failed"
+    rc=1
+  }
 done
 
 echo
