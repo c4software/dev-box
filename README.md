@@ -253,6 +253,22 @@ clipboard of the machine you are connected from over SSH, as long as its termina
 supports OSC 52. Alacritty, Ghostty, Kitty and foot do. Outside tmux the shim sends
 OSC 52 directly. `wl-paste` prints the tmux buffer back.
 
+### Desktop notifications
+
+The image also ships `/usr/local/bin/notify-send`. There is no D-Bus in the box, so
+the shim writes the notification to the terminal as OSC 777 instead, wrapped in a
+tmux passthrough sequence when it runs inside tmux. SSH carries it like any other
+output and the terminal you are connected from shows it as a desktop notification.
+foot, Kitty, Ghostty and WezTerm support OSC 777; Alacritty does not. The usual
+`notify-send` options are accepted and ignored, only the summary and the body are
+sent. Only the terminal attached to the tmux session receives it, a detached session
+notifies nobody, and a pane that is not visible needs `allow-passthrough all` in the
+tmux config rather than `on`.
+
+```bash
+notify-send "Build finished" "42 tests passed"
+```
+
 ### Taildrop
 
 `devbox tailscale` moves files between the box and the other machines of your
