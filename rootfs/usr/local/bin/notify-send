@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Stand-in for notify-send in the box: there is no D-Bus and no desktop here,
+# so the notification goes to the terminal showing the session instead, over
+# OSC 777 (title and body). SSH carries it like any other output, tmux relays
+# it through a passthrough sequence (allow-passthrough on, the dotarchy
+# default), and the terminal on the other side turns it into a desktop
+# notification: foot, Kitty, Ghostty and WezTerm do, Alacritty does not.
+# Usage: notify-send [notify-send options] SUMMARY [BODY]
+# The options of the real notify-send (-a, -u, -i, -t, -c, -h, ...) are
+# accepted and ignored: nothing here has an icon or an urgency to show.
+set -euo pipefail
+
+summary=""
+body=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -a|--app-name|-u|--urgency|-i|--icon|-t|--expire-time|-c|--category|-h|--hint|-A|--action|-r|--replace-id)
+      shift 2 ;;
+    --app-name=*|--urgency=*|--icon=*|--expire-time=*|--category=*|--hint=*|--action=*|--replace-id=*)
+      shift ;;
+    -p|--print-id|-w|--wait|-e|--transient)
+      shift ;;
+    -v|--version)
+      echo "notify-send (dev-box terminal shim)"; exit 0 ;;
+    -\?|--help)
+      echo "Usage: notify-send [OPTIONS] SUMMARY [BODY]"
+      echo "Sends the notification to the terminal (OSC 777), SSH and tmux included."
+      exit 0 ;;
+    --) shift; break ;;
+    -*) shift ;;
+    *) break ;;
+  esac
+done
+[ $# -gt 0 ] && { summary="$1"; shift; }
+[ $# -gt 0 ] && { body="$*"; }
+
+if [ -z "$summary" ]; then
+  echo "notify-send: no summary specified" >&2
+  exit 1
+fi
+
+# OSC 777 separates its fields with ';' and stops at the first control
+# character: neither may appear in the text.
+clean() { printf '%s' "$1" | tr -d '\000-\037\177' | tr ';' ','; }
+summary=$(clean "$summary")
+body=$(clean "$body")
+
+st=$'\033\\'
+seq=$(printf '\033]777;notify;%s;%s%s' "$summary" "$body" "$st")
+
+# Inside tmux: wrap the sequence so tmux hands it to the outer terminal as is
+# (allow-passthrough on, or all for a pane that is not visible). The ESC
+# characters inside the payload have to be doubled.
+if [ -n "${TMUX:-}" ]; then
+  inner=${seq//$'\033'/$'\033\033'}
+  seq=$(printf '\033Ptmux;%s%s' "$inner" "$st")
+fi
+
+if { printf '%s' "$seq" > /dev/tty; } 2>/dev/null; then
+  exit 0
+fi
+
+echo "notify-send: no terminal to send the notification to" >&2
+exit 1
