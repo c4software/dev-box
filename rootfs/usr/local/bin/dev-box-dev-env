@@ -5,7 +5,9 @@
 #
 # Installs or removes development environments in the home, through mise
 # only: no pacman package, no `curl | sh`. Everything it lays down is therefore
-# declared in ~/.config/mise/config.toml and survives a rebuild.
+# declared in ~/.config/mise/config.toml and survives a rebuild. Two
+# exceptions, both persistent all the same: php comes from the image, and
+# browser goes through `devbox pkg`, whose list is reinstalled at start.
 #
 #   dev-box-dev-env                   interactive: install or remove, then a menu
 #   dev-box-dev-env node go           install these environments right away
@@ -48,6 +50,7 @@ ENVS=(
   "clojure|Clojure (official CLI)"
   "scala|Java + Scala + scala-cli"
   "android|Android platform-tools (adb, fastboot), no SDK"
+  "browser|Headless Chromium + fonts, page screenshots for an agent (devbox pkg)"
 )
 
 log() { printf '\033[1m[dev-box-dev-env]\033[0m %s\n' "$*"; }
@@ -85,6 +88,7 @@ is_installed() {
   symfony) declared "github:symfony-cli/symfony-cli" ;;
   phoenix) compgen -G "$HOME/.mix/archives/phx_new*" >/dev/null ;;
   android) declared "http:android-platform-tools" ;;
+  browser) command -v chromium >/dev/null 2>&1 ;;
   *) declared "$1" ;;
   esac
 }
@@ -99,6 +103,7 @@ show_list() {
     printf '  \033[32m%s\033[0m \033[36m%-9s\033[0m %s\n' "$mark" "$name" "${e#*|}"
   done
   printf '\n* installed. Without arguments: a menu, install or remove.\n'
+  printf 'browser is a pacman package kept by devbox pkg, the rest is declared in the mise config.\n'
 }
 
 # --- The environments, one install_* and one remove_* per environment --------
@@ -186,6 +191,19 @@ install_android() {
   drop_android_sqlite3
   log "adb and fastboot are ready: $(mise x http:android-platform-tools -- adb --version | sed -n '2p')"
 }
+install_browser() {
+  # The mise registry has no browser: playwright and agent-browser are there,
+  # but both download a Chromium built for Debian and Ubuntu, which still
+  # needs a pile of pacman libraries that `playwright install-deps` cannot
+  # install on Arch. The distribution package works as it is, on amd64 and on
+  # Arch Linux ARM, so it goes through `devbox pkg`, which puts it back after
+  # a rebuild the way the mise config does. noto-fonts: without it every
+  # emoji, symbol or non Latin script renders as a square.
+  dev-box-pkg add chromium noto-fonts
+  log "chromium is ready, headless (no display in the box):"
+  log "  chromium --headless --no-sandbox --disable-gpu --screenshot=/tmp/page.png http://localhost:3000"
+  log "the devbox skill has the details: ~/.claude/skills/devbox/browser.md"
+}
 install_ruby() {
   # ruby.compile=false: mise lays down a precompiled build (jdx/ruby publishes
   # x86_64_linux and arm64_linux) instead of compiling for long minutes.
@@ -272,6 +290,10 @@ remove_scala() {
 remove_android() {
   unuse http:android-platform-tools || return 1
   log "~/.android (adb keys, avd) is left in place."
+}
+remove_browser() {
+  dev-box-pkg drop chromium noto-fonts
+  log "~/.config/chromium and ~/.cache/chromium are left in place."
 }
 remove_ruby() {
   unuse ruby || return 1

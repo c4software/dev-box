@@ -68,7 +68,7 @@ respect:
 | A dev tool every box needs | `rootfs/etc/devbox/mise-config.toml` |
 | A new `devbox` command | `rootfs/usr/local/bin/dev-box-<name>` with the `# devbox:` headers; nothing to register |
 | A config file shipped to the home | `rootfs/etc/devbox/` plus a line in the `SEEDS` array of `dev-box-seed` and the seed table in the README |
-| A new `devbox dev-env` environment | the `ENVS` array and an `install_<name>` function in `dev-box-dev-env`, `mise use -g` only |
+| A new `devbox dev-env` environment | the `ENVS` array and an `install_<name>` function in `dev-box-dev-env`, `mise use -g` only (`php` from the image and `browser` through `devbox pkg` are the two exceptions) |
 | A guide for the in-box skill | `rootfs/usr/share/devbox/skills/devbox/*.md`, listed in `SKILL.md` |
 
 Keep existing file names and their options untouched: the README, the

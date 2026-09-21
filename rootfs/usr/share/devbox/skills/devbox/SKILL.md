@@ -116,7 +116,7 @@ Never guess a command name. Run `devbox commands`.
 8. **Is it a file to move in or out of the box?** `devbox tailscale send` and
    `devbox tailscale receive`, over Taildrop.
 9. **Is it a page to look at?** Headless Chromium, installed on demand with
-   `devbox pkg add chromium noto-fonts`. See `browser.md`.
+   `devbox dev-env browser`. See `browser.md`.
 10. **Is it a config file shipped by the image?** It is in the `SEEDS` table of
    `dev-box-seed`. Change it in the repository, not in `/etc/devbox/`.
 11. **Is it a personal tweak to the dotfiles config?** Put it in
@@ -153,7 +153,7 @@ Never guess a command name. Run `devbox commands`.
   to change which one
 - "How much of my Claude quota is left?" -> `devbox agent usage claude`
 - "Send this file to my laptop" -> `devbox tailscale send laptop <file>`
-- "Check the page renders" -> `devbox pkg add chromium noto-fonts` once, then
+- "Check the page renders" -> `devbox dev-env browser` once, then
   `chromium --headless --no-sandbox --screenshot=...`; see `browser.md`
 - "My tmux config change disappeared" -> it was overwritten by `devbox sync`;
   move it to `~/.config/dev-box/overrides/.config/tmux/tmux.conf`

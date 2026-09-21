@@ -9,20 +9,26 @@ front end deserves a look before you call it done.
 ## Install it once
 
 Chromium is not in the image, on purpose: it weighs about half a gigabyte and
-most boxes never need it. It is installed on demand, and comes back after a
-rebuild because `devbox pkg` remembers it:
+most boxes never need it. It is a `devbox dev-env` environment, installed on
+demand:
 
 ```bash
-devbox pkg add chromium noto-fonts
+devbox dev-env browser
 ```
 
+Behind it, `devbox pkg add chromium noto-fonts`: pacman packages that
+`devbox pkg` reinstalls after a rebuild, so the browser is there for good.
 `noto-fonts` matters: without it the only font in the box is Liberation, and
 pages with emojis, symbols or non Latin scripts render squares. Both packages
 exist on amd64 and on Arch Linux ARM, so the same command works on a Raspberry
-Pi.
+Pi. The mise registry only has `playwright` and `agent-browser`, which download
+a Chromium built for Debian and Ubuntu that still needs those pacman
+libraries: the distribution package is the one that works as it is.
 
-`command -v chromium` tells you whether this box already has it. Never
-`sudo pacman -S chromium`: pacman alone is forgotten at the next rebuild.
+`devbox dev-env --list` marks it when this box already has it, and
+`command -v chromium` says the same. Never `sudo pacman -S chromium`: pacman
+alone is forgotten at the next rebuild. `devbox dev-env --remove browser`
+takes it out.
 
 ## Screenshot a page
 
@@ -106,7 +112,7 @@ is on.
 
 ## When it does not work
 
-- `chromium: command not found`: run `devbox pkg add chromium noto-fonts`.
+- `chromium: command not found`: run `devbox dev-env browser`.
 - exits at once with a message about the sandbox or namespaces: `--no-sandbox`
   is missing.
 - a blank or half drawn screenshot: add `--virtual-time-budget=5000`, or wait

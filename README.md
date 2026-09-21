@@ -559,7 +559,8 @@ GitHub API rate limits.
 ### Dev environments
 
 `devbox dev-env` installs or removes a whole language environment in one call,
-through mise. No `curl | sh`, and no pacman except for PHP (see below). Whatever
+through mise. No `curl | sh`, and no pacman except for PHP and the browser (see
+below). Whatever
 mise installs is declared in `~/.config/mise/config.toml`, survives a rebuild, and
 is upgraded by `devbox update tools` like the rest.
 
@@ -604,6 +605,17 @@ the usual extensions and xdebug already enabled at build time. `devbox dev-env p
 only checks and shows what is there. `laravel` adds Node and the Laravel installer
 through `composer global`, kept in `~/.config/composer`, which is in the PATH and in
 the persistent home. `symfony` adds `symfony-cli` through mise's github backend.
+
+`browser` is the other exception: a headless Chromium, with `noto-fonts` so that
+emojis and non Latin scripts do not render as squares, so that a coding agent can
+screenshot a dev server and look at the result. The mise registry only offers
+`playwright` and `agent-browser`, which download a Chromium built for Debian and
+Ubuntu and still need a pile of pacman libraries, so the environment installs the
+distribution package through `devbox pkg add chromium noto-fonts` instead: it works
+as it is on amd64 and on Arch Linux ARM, and `devbox pkg` reinstalls it after a
+rebuild. Chromium is not baked into the image because it weighs about half a
+gigabyte and most boxes never need it. How to use it, screenshots, DOM dumps and
+Playwright on the system Chromium, is in the `browser.md` guide of the agent skill.
 
 OCaml is not offered: upstream it goes through the opam installer, which would be
 wiped by the next image rebuild.

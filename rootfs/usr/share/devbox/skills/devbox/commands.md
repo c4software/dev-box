@@ -60,7 +60,7 @@ cat $(which dev-box-dev-env)   # the ENVS list is at the top
 `devbox dev-env` installs or removes development environments with mise and
 nothing else: no pacman, no `curl | sh`. Everything it installs is declared in
 `~/.config/mise/config.toml`, so it survives a rebuild and is upgraded by
-`devbox update tools`.
+`devbox update tools`. Two exceptions, php and browser, are covered below.
 
 ```bash
 devbox dev-env --list             # what is on offer, installed ones marked
@@ -79,8 +79,11 @@ PHP is baked into the image (pacman: php, composer, php-sqlite, php-gd,
 php-sodium, xdebug, extensions enabled at build); `dev-env php` only checks it,
 `laravel` and `symfony` add their installer on top. `android` is the
 platform-tools only (adb, fastboot) through mise's http backend, x86_64 only,
-refreshed by running the command again. OCaml is absent: upstream it needs opam, which would be lost on the next
-rebuild.
+refreshed by running the command again. `browser` is a headless Chromium plus
+`noto-fonts`, installed through `devbox pkg add` (pacman, reinstalled at start
+after a rebuild) because the mise registry has no browser that runs on Arch
+without those packages; see `browser.md` for how an agent uses it. OCaml is
+absent: upstream it needs opam, which would be lost on the next rebuild.
 
 ## dbs
 
