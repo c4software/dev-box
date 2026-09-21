@@ -24,6 +24,8 @@ ENV LANG=C.UTF-8
 # + php, composer, php-sqlite, php-gd, php-sodium, xdebug: mise can only build PHP
 #   (5 to 15 minutes and a pile of headers), so PHP is the one dev-box-dev-env
 #   environment that comes from the image, as it does in omarchy.
+# + sqlite: the sqlite3 shell. Already pulled by python and php-sqlite, listed
+#   so that it stays whatever those dependencies do.
 # podman already pulls passt, shadow, conmon and containers-common, and netavark
 # pulls aardvark-dns: only the packages no other one brings are listed here.
 RUN pacman -Syu --noconfirm --needed --disable-sandbox \
@@ -32,7 +34,7 @@ RUN pacman -Syu --noconfirm --needed --disable-sandbox \
       rsync gum curl wget unzip \
       neovim luarocks tree-sitter-cli \
       starship zoxide fzf eza bat ripgrep fd lazygit jq \
-      libyaml \
+      libyaml sqlite \
       php composer php-sqlite php-gd php-sodium xdebug \
       podman podman-docker docker-compose fuse-overlayfs crun netavark slirp4netns \
     # mise is not in the Arch Linux ARM repositories: we fall back on the

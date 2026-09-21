@@ -156,6 +156,18 @@ install_clojure() {
   mise use -g clojure@latest
 }
 install_scala() { mise use -g java@latest scala@latest scala-cli@latest; }
+# The platform-tools zip carries its own sqlite3, older than the one of the
+# image, and mise's http backend exposes every binary of bin_path: the shim
+# would shadow /usr/bin/sqlite3. Removing the binary from the install (rather
+# than the shim, which every `mise reshim` recreates) keeps the Arch one first.
+drop_android_sqlite3() {
+  local dir="$HOME/.local/share/mise/installs/http-android-platform-tools/latest-linux/platform-tools"
+  if [ -e "$dir/sqlite3" ]; then
+    rm -f "$dir/sqlite3"
+    mise reshim
+    log "sqlite3 from platform-tools removed: /usr/bin/sqlite3 stays the one on PATH"
+  fi
+}
 install_android() {
   # Only the platform-tools (adb, fastboot, and their helpers), the zip Google
   # publishes at a fixed URL: no SDK manager, no platform, no Java. The mise
@@ -171,6 +183,7 @@ install_android() {
   local url="https://dl.google.com/android/repository/platform-tools-latest-linux.zip"
   mise install -f "http:android-platform-tools[url=$url,bin_path=platform-tools]@latest-linux"
   mise use -g "http:android-platform-tools[url=$url,bin_path=platform-tools]@latest-linux"
+  drop_android_sqlite3
   log "adb and fastboot are ready: $(mise x http:android-platform-tools -- adb --version | sed -n '2p')"
 }
 install_ruby() {

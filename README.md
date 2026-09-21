@@ -593,7 +593,8 @@ not rustup, so there is a single place where versions are declared. `android` is
 platform-tools only, `adb` and `fastboot`, taken from the zip Google publishes,
 through mise's http backend: no SDK manager, no platform, no Java. That URL carries
 no version, so `devbox update tools` cannot refresh it; run `devbox dev-env android`
-again to take the latest build. Google publishes no arm64 build, so on an arm64 box
+again to take the latest build. The zip also carries an old `sqlite3`, which the
+command removes so that the one of the image stays first on the PATH. Google publishes no arm64 build, so on an arm64 box
 the command points to `devbox pkg add android-tools` instead.
 
 PHP is the one exception. mise can only build PHP from source, which takes minutes
