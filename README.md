@@ -764,7 +764,7 @@ environment of PID 1.
 
 The image also ships a skill that teaches a coding agent how this box works, the same
 way Omarchy ships one for the desktop. It lives in
-`/usr/share/devbox/skills/devbox/`, a `SKILL.md` plus four guides:
+`/usr/share/devbox/skills/devbox/`, a `SKILL.md` plus five guides:
 
 | File | Covers |
 | --- | --- |
@@ -773,6 +773,7 @@ way Omarchy ships one for the desktop. It lives in
 | `commands.md` | `devbox` and every command it dispatches to |
 | `extending.md` | how to change the box for good, through the repository |
 | `updates.md` | what updates, when, and on whose command |
+| `browser.md` | rendering a page in the box with headless Chromium, installed on demand through `devbox pkg`, screenshots, Playwright and Puppeteer |
 
 The entrypoint links it into the home at every start, so it follows the image without
 going through the seed:

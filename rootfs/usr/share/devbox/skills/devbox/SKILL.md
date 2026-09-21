@@ -10,11 +10,14 @@ description: >
   the box, the login message about pending updates, Tailscale or sshd access to
   the box, installing an Arch package that must survive a rebuild, adding a
   wrapper for a coding agent or CLI tool, sending a file to another machine
-  with Taildrop, and any change to the dev-box repository (Dockerfile, rootfs/,
+  with Taildrop, checking how a web page renders (screenshot of a dev server,
+  headless chromium, playwright or puppeteer in the box), and any change to
+  the dev-box repository (Dockerfile, rootfs/,
   compose.yaml, justfile, README). Triggers: devbox, dev-box, dev-box-update,
   dev-box-seed, dev-box-dev-env, dev-box-pkg, dev-box-agent, mise config, box
   update, rebuild the image, "install go/python/ruby in the box", "install a
-  pacman package", "add a gemini wrapper", "fix my old mise config",
+  pacman package", "screenshot the page", "check the layout", "headless
+  chrome", "add a gemini wrapper", "fix my old mise config",
   "why is my change gone after a rebuild".
 ---
 
@@ -46,6 +49,7 @@ Read the matching guide before starting:
 - [`commands.md`](commands.md) - `devbox` and every command it dispatches to
 - [`extending.md`](extending.md) - how to change the box for good, through the repository
 - [`updates.md`](updates.md) - what updates, when, and on whose command
+- [`browser.md`](browser.md) - rendering a page in the box: headless Chromium, screenshots, Playwright and Puppeteer
 
 ## Critical Safety Rules
 
@@ -111,15 +115,17 @@ Never guess a command name. Run `devbox commands`.
    --pending`, then `devbox migrate`.
 8. **Is it a file to move in or out of the box?** `devbox tailscale send` and
    `devbox tailscale receive`, over Taildrop.
-9. **Is it a config file shipped by the image?** It is in the `SEEDS` table of
+9. **Is it a page to look at?** Headless Chromium, installed on demand with
+   `devbox pkg add chromium noto-fonts`. See `browser.md`.
+10. **Is it a config file shipped by the image?** It is in the `SEEDS` table of
    `dev-box-seed`. Change it in the repository, not in `/etc/devbox/`.
-10. **Is it a personal tweak to the dotfiles config?** Put it in
+11. **Is it a personal tweak to the dotfiles config?** Put it in
    `~/.config/dev-box/overrides/`, which mirrors the home.
-11. **Is it a change to the dotfiles themselves?** They belong to the dotarchy
+12. **Is it a change to the dotfiles themselves?** They belong to the dotarchy
    repository, not to this box. `devbox sync` only copies them here.
-12. **Is it an update?** Nothing is automatic except migrations. See
+13. **Is it an update?** Nothing is automatic except migrations. See
     `updates.md`.
-13. **Unsure?** `devbox status`, then `devbox commands`.
+14. **Unsure?** `devbox status`, then `devbox commands`.
 
 ## Out of Scope
 
@@ -147,6 +153,8 @@ Never guess a command name. Run `devbox commands`.
   to change which one
 - "How much of my Claude quota is left?" -> `devbox agent usage claude`
 - "Send this file to my laptop" -> `devbox tailscale send laptop <file>`
+- "Check the page renders" -> `devbox pkg add chromium noto-fonts` once, then
+  `chromium --headless --no-sandbox --screenshot=...`; see `browser.md`
 - "My tmux config change disappeared" -> it was overwritten by `devbox sync`;
   move it to `~/.config/dev-box/overrides/.config/tmux/tmux.conf`
 - "docker says it cannot reach the API" -> rootless podman is off, see
