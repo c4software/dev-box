@@ -47,7 +47,7 @@ ENVS=(
   "phoenix|Elixir + hex + rebar + the phx_new generator"
   "clojure|Clojure (official CLI)"
   "scala|Java + Scala + scala-cli"
-  "android|Java + Android command-line tools (sdkmanager, avdmanager), no SDK packages"
+  "android|Android platform-tools (adb, fastboot), no SDK"
 )
 
 log() { printf '\033[1m[dev-box-dev-env]\033[0m %s\n' "$*"; }
@@ -84,7 +84,7 @@ is_installed() {
   laravel) composer global show laravel/installer >/dev/null 2>&1 ;;
   symfony) declared "github:symfony-cli/symfony-cli" ;;
   phoenix) compgen -G "$HOME/.mix/archives/phx_new*" >/dev/null ;;
-  android) declared "android-sdk" ;;
+  android) declared "http:android-platform-tools" ;;
   *) declared "$1" ;;
   esac
 }
@@ -157,15 +157,21 @@ install_clojure() {
 }
 install_scala() { mise use -g java@latest scala@latest scala-cli@latest; }
 install_android() {
-  # Only the command-line tools (sdkmanager, avdmanager, the new `android`
-  # CLI, apkanalyzer, d8, r8, lint): no platform, build-tools or system image.
-  # mise's android-sdk plugin lays down cmdline-tools/<version>/bin and exports
-  # ANDROID_HOME and ANDROID_SDK_ROOT pointing at that install directory, so
-  # whatever `sdkmanager` pulls later lands there and platform-tools joins the
-  # PATH on its own. The tools are Java programs, hence java alongside.
-  mise use -g java@latest android-sdk@latest
-  log "sdkmanager and avdmanager are ready, ANDROID_HOME is set by mise (mise env | grep ANDROID)."
-  log "no SDK package was pulled: sdkmanager --list to browse, sdkmanager \"platform-tools\" \"platforms;android-36\" to add some."
+  # Only the platform-tools (adb, fastboot, and their helpers), the zip Google
+  # publishes at a fixed URL: no SDK manager, no platform, no Java. The mise
+  # registry has nothing for it, so it goes through mise's http backend. The
+  # URL carries no version, so the version label is fixed too and `devbox
+  # update tools` cannot see a newer build: re-run this command to refresh.
+  # Google publishes no linux arm64 build.
+  if [ "$(uname -m)" = "aarch64" ]; then
+    err "Google publishes platform-tools for linux x86_64 only."
+    err "On arm64 use the distribution package instead: devbox pkg add android-tools"
+    return 1
+  fi
+  local url="https://dl.google.com/android/repository/platform-tools-latest-linux.zip"
+  mise install -f "http:android-platform-tools[url=$url,bin_path=platform-tools]@latest-linux"
+  mise use -g "http:android-platform-tools[url=$url,bin_path=platform-tools]@latest-linux"
+  log "adb and fastboot are ready: $(mise x http:android-platform-tools -- adb --version | sed -n '2p')"
 }
 install_ruby() {
   # ruby.compile=false: mise lays down a precompiled build (jdx/ruby publishes
@@ -251,10 +257,8 @@ remove_scala() {
   log "java stays: devbox dev-env --remove java."
 }
 remove_android() {
-  # The SDK packages pulled with sdkmanager live under the mise install
-  # directory, so the prune takes them out with the tools.
-  unuse android-sdk || return 1
-  log "java stays: devbox dev-env --remove java."
+  unuse http:android-platform-tools || return 1
+  log "~/.android (adb keys, avd) is left in place."
 }
 remove_ruby() {
   unuse ruby || return 1

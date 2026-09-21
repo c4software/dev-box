@@ -71,15 +71,15 @@ devbox dev-env                    # menu: install or remove, then multiple selec
 
 Re-running on an environment already installed, or already removed, is
 harmless. A removal (`mise unuse -g`) only takes out what the environment
-brought: `laravel` keeps php and node, `phoenix` keeps elixir, `scala` and
-`android` keep java. Project data (`~/go`, `~/.cargo`, `~/.mix`, `~/.config/composer`, ...)
+brought: `laravel` keeps php and node, `phoenix` keeps elixir, `scala` keeps
+java. Project data (`~/go`, `~/.cargo`, `~/.mix`, `~/.config/composer`, ...)
 is never deleted.
 
 PHP is baked into the image (pacman: php, composer, php-sqlite, php-gd,
 php-sodium, xdebug, extensions enabled at build); `dev-env php` only checks it,
-`laravel` and `symfony` add their installer on top. `android` is the command-line
-tools only (sdkmanager, avdmanager), `ANDROID_HOME` set by mise, no SDK package
-pulled. OCaml is absent: upstream it needs opam, which would be lost on the next
+`laravel` and `symfony` add their installer on top. `android` is the
+platform-tools only (adb, fastboot) through mise's http backend, x86_64 only,
+refreshed by running the command again. OCaml is absent: upstream it needs opam, which would be lost on the next
 rebuild.
 
 ## dbs

@@ -557,11 +557,12 @@ A few of them do more than pull a runtime. `python` also installs `uv`. `ruby` w
 `~/.gemrc`, turns off `ruby.compile` so mise takes a precompiled build instead of
 spending minutes on a compiler, and installs Rails. `elixir` runs `mix local.hex`,
 and `phoenix` adds rebar and the `phx_new` generator. `rust` is the mise toolchain,
-not rustup, so there is a single place where versions are declared. `android` brings
-Java and the Android command-line tools only (`sdkmanager`, `avdmanager`, the new
-`android` CLI), with `ANDROID_HOME` exported by mise: no platform, build-tools or
-system image is downloaded, `sdkmanager` adds them on demand into that same
-directory, so removing the environment takes them out too.
+not rustup, so there is a single place where versions are declared. `android` is the
+platform-tools only, `adb` and `fastboot`, taken from the zip Google publishes,
+through mise's http backend: no SDK manager, no platform, no Java. That URL carries
+no version, so `devbox update tools` cannot refresh it; run `devbox dev-env android`
+again to take the latest build. Google publishes no arm64 build, so on an arm64 box
+the command points to `devbox pkg add android-tools` instead.
 
 PHP is the one exception. mise can only build PHP from source, which takes minutes
 and needs a pile of development headers, so `php`, `composer`, `php-sqlite`,
