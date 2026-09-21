@@ -47,6 +47,7 @@ ENVS=(
   "phoenix|Elixir + hex + rebar + the phx_new generator"
   "clojure|Clojure (official CLI)"
   "scala|Java + Scala + scala-cli"
+  "android|Java + Android command-line tools (sdkmanager, avdmanager), no SDK packages"
 )
 
 log() { printf '\033[1m[dev-box-dev-env]\033[0m %s\n' "$*"; }
@@ -83,6 +84,7 @@ is_installed() {
   laravel) composer global show laravel/installer >/dev/null 2>&1 ;;
   symfony) declared "github:symfony-cli/symfony-cli" ;;
   phoenix) compgen -G "$HOME/.mix/archives/phx_new*" >/dev/null ;;
+  android) declared "android-sdk" ;;
   *) declared "$1" ;;
   esac
 }
@@ -154,6 +156,17 @@ install_clojure() {
   mise use -g clojure@latest
 }
 install_scala() { mise use -g java@latest scala@latest scala-cli@latest; }
+install_android() {
+  # Only the command-line tools (sdkmanager, avdmanager, the new `android`
+  # CLI, apkanalyzer, d8, r8, lint): no platform, build-tools or system image.
+  # mise's android-sdk plugin lays down cmdline-tools/<version>/bin and exports
+  # ANDROID_HOME and ANDROID_SDK_ROOT pointing at that install directory, so
+  # whatever `sdkmanager` pulls later lands there and platform-tools joins the
+  # PATH on its own. The tools are Java programs, hence java alongside.
+  mise use -g java@latest android-sdk@latest
+  log "sdkmanager and avdmanager are ready, ANDROID_HOME is set by mise (mise env | grep ANDROID)."
+  log "no SDK package was pulled: sdkmanager --list to browse, sdkmanager \"platform-tools\" \"platforms;android-36\" to add some."
+}
 install_ruby() {
   # ruby.compile=false: mise lays down a precompiled build (jdx/ruby publishes
   # x86_64_linux and arm64_linux) instead of compiling for long minutes.
@@ -235,6 +248,12 @@ remove_clojure() {
 }
 remove_scala() {
   unuse scala scala-cli || return 1
+  log "java stays: devbox dev-env --remove java."
+}
+remove_android() {
+  # The SDK packages pulled with sdkmanager live under the mise install
+  # directory, so the prune takes them out with the tools.
+  unuse android-sdk || return 1
   log "java stays: devbox dev-env --remove java."
 }
 remove_ruby() {
