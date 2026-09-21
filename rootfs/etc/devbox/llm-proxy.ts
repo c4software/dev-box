@@ -55,8 +55,6 @@ export default async function (pi: ExtensionAPI) {
     const payload = (await res.json()) as { data: AlbertModel[] };
 
     models = payload.data
-      // only text-generation models accept /v1/chat/completions
-      .filter((m) => m.type === "text-generation")
       .map((m) => {
         const contextWindow = num(m.max_context_length, DEFAULT_CONTEXT);
         return {
@@ -78,7 +76,7 @@ export default async function (pi: ExtensionAPI) {
   }
 
   if (models.length === 0) {
-    console.error("[albert] no text-generation model published");
+    console.error("[albert] no model published");
     return;
   }
 
