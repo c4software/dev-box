@@ -48,6 +48,8 @@ done
   done
   # Access mode, read by dev-box-status (an SSH session does not see the env of PID 1)
   printf 'export TS_DISABLE=%q\n' "${TS_DISABLE:-false}"
+  # Environments asked for at start, shown by dev-box-status
+  printf 'export DEV_ENVS=%q\n' "${DEV_ENVS:-}"
 } > /etc/devbox/env
 chown "$PUID:$PGID" /etc/devbox/env
 chmod 600 /etc/devbox/env
@@ -159,7 +161,8 @@ if [ "${PODMAN_ENABLE:-false}" = "true" ]; then
   ) &
 fi
 
-# --- 4. First start: dotfiles + tools. Later starts: the update check only
+# --- 4. First start: dotfiles + tools. Every start: the missing mise tools,
+#        the dev environments of DEV_ENVS, then the update check only
 #        (everything is updated by hand with `dev-box-update`).
 #        In the background, before Tailscale: `tailscale up` can wait for an
 #        interactive login when TS_AUTHKEY is empty. ---
@@ -175,6 +178,39 @@ fi
     else
       log "⚠ mise install failed, see ~/.cache/dev-box-install.log"
     fi
+  fi
+  # DEV_ENVS: the dev environments every start makes sure are there, through
+  # `dev-box-dev-env --if-missing`. What is installed already is skipped, so
+  # this only costs something after a fresh home or a new name in .env. The
+  # flag ~/.cache/dev-box/dev-envs says what is going on (printed at login and
+  # by dev-box-status): "installing" while it runs, the error when it failed,
+  # gone when everything is there. The full output is in dev-envs.log.
+  if [ -n "${DEV_ENVS:-}" ]; then
+    DEV_ENVS_FLAG="$HOME_DIR/.cache/dev-box/dev-envs"
+    DEV_ENVS_LOG="$HOME_DIR/.cache/dev-box/dev-envs.log"
+    as_user "mkdir -p ~/.cache/dev-box"
+    printf 'DEV_ENVS: installing %s (started at boot, ~/.cache/dev-box/dev-envs.log)\n' "$DEV_ENVS" > "$DEV_ENVS_FLAG"
+    chown "$PUID:$PGID" "$DEV_ENVS_FLAG"
+    # The browser environment goes through pacman, and so does the package
+    # restore above: wait for its lock rather than fail on it.
+    for _ in $(seq 1 300); do
+      [ -e /var/lib/pacman/db.lck ] || break
+      sleep 1
+    done
+    if as_user "dev-box-dev-env --if-missing $DEV_ENVS > ~/.cache/dev-box/dev-envs.log 2>&1"; then
+      log "dev-envs: $DEV_ENVS ready"
+      rm -f "$DEV_ENVS_FLAG"
+    else
+      # One line for the login message: the reason when the script gave one
+      # (an unknown name, a failed environment), the log otherwise.
+      reason="$(grep -m1 -E 'unknown environment|failed' "$DEV_ENVS_LOG" \
+                | sed 's/\x1b\[[0-9;]*m//g; s/^dev-box-dev-env: //; s/^\[dev-box-dev-env\] //' || true)"
+      printf 'DEV_ENVS: %s (DEV_ENVS in .env, ~/.cache/dev-box/dev-envs.log)\n' "${reason:-install failed}" > "$DEV_ENVS_FLAG"
+      chown "$PUID:$PGID" "$DEV_ENVS_FLAG"
+      log "⚠ dev-envs: ${reason:-install failed}, see ~/.cache/dev-box/dev-envs.log"
+    fi
+  else
+    rm -f "$HOME_DIR/.cache/dev-box/dev-envs"
   fi
   # Periodic check: writes ~/.cache/dev-box/updates, printed at login
   if [ "$CHECK_INTERVAL" -gt 0 ] 2>/dev/null; then

@@ -13,6 +13,12 @@
 #   dev-box-dev-env node go           install these environments right away
 #   dev-box-dev-env --remove node go  remove these environments
 #   dev-box-dev-env --list            the environments, with what is installed
+#   dev-box-dev-env --if-missing go   install only what is not installed yet
+#   dev-box-dev-env --installed       the installed environments, one per line
+#
+# --if-missing is what the entrypoint runs at start with DEV_ENVS from .env,
+# in the background: an environment already there is skipped, and an unknown
+# name refuses the whole list before anything is installed.
 #
 # Running it twice breaks nothing: `mise use -g` rewrites the same config line,
 # `mise unuse -g` does nothing on a tool that is already gone. A removal takes
@@ -337,6 +343,7 @@ run_env() {
 # --- Arguments ---------------------------------------------------------------
 
 ACTION="install"
+IF_MISSING=false
 SELECTED=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -344,8 +351,18 @@ while [ $# -gt 0 ]; do
     show_list
     exit 0
     ;;
+  --installed)
+    while IFS= read -r name; do
+      is_installed "$name" && printf '%s\n' "$name"
+    done < <(env_names)
+    exit 0
+    ;;
+  --if-missing)
+    IF_MISSING=true
+    shift
+    ;;
   -h | --help)
-    sed -n '6,18p' "$0" | sed 's/^# \?//'
+    sed -n '6,22p' "$0" | sed 's/^# \?//'
     exit 0
     ;;
   --remove)
@@ -437,6 +454,27 @@ for name in "${SELECTED[@]}"; do
     exit 1
   }
 done
+
+# --if-missing: what is already there is left alone, the rest is installed.
+if [ "$IF_MISSING" = "true" ]; then
+  [ "$ACTION" = "install" ] || {
+    err "--if-missing only makes sense for an install."
+    exit 2
+  }
+  todo=()
+  for name in "${SELECTED[@]}"; do
+    if is_installed "$name"; then
+      log "$name: already installed, skipped"
+    else
+      todo+=("$name")
+    fi
+  done
+  if [ "${#todo[@]}" -eq 0 ]; then
+    log "Nothing to install."
+    exit 0
+  fi
+  SELECTED=("${todo[@]}")
+fi
 
 rc=0
 for name in "${SELECTED[@]}"; do

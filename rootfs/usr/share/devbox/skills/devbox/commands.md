@@ -26,15 +26,15 @@ the same binary.
 
 | `devbox` | Binary | Does |
 |---|---|---|
-| `status` | `dev-box-status` | image commit and repo, Tailscale or sshd, podman, mise tools, pending updates. Read only. |
+| `status` | `dev-box-status` | image commit and repo, Tailscale or sshd, podman, mise tools, the `DEV_ENVS` environments, pending updates. Read only. |
 | `check` | `dev-box-check-updates` | looks for what could be updated and writes the flag. Installs nothing. |
 | `update` | `dev-box-update` | `[dotfiles\|tools\|seed\|all]`, default `all`. The only command that installs. |
 | `seed` | `dev-box-seed` | lays down the config shipped by the image. `--check` to look, `--force [path]` to take a new version. |
 | `sync` | `dotarchy-sync` | clones or updates the dotfiles repo and applies the config. Never runs its install scripts. |
-| `dev-env` | `dev-box-dev-env` | installs or removes a dev environment with mise. `--list`, names as arguments (`--remove` to remove), or a menu. |
+| `dev-env` | `dev-box-dev-env` | installs or removes a dev environment with mise. `--list`, names as arguments (`--remove` to remove, `--if-missing` to skip what is there), or a menu. |
 | `dbs` | `dev-box-dbs` | starts a development database in a podman container. `--list`, `--start`, `--stop`, `--remove [--purge]`, or names, or a menu. |
 | `agent` | `dev-box-agent` | the default coding agent. `set`, `which`, `prompt <text>`, `usage [claude\|codex\|proxy]`, or bare for a menu (run, pick, usage). |
-| `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates. |
+| `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates, `DEV_ENVS` still installing or failed. |
 | `migrate` | `dev-box-migrate` | runs the migrations shipped by the image, once each. `--pending`, `--list`, `--mark-done <name>`. |
 | `mise-install` | `dev-box-mise-install` | writes a mise-backed wrapper into `~/.local/bin`. `--list`, `--remove <cmd>`. |
 | `pkg` | `dev-box-pkg` | pacman packages that survive a rebuild. `add`, `drop`, `list`, `install`, `restore`. |
@@ -66,8 +66,18 @@ nothing else: no pacman, no `curl | sh`. Everything it installs is declared in
 devbox dev-env --list             # what is on offer, installed ones marked
 devbox dev-env node go            # install these two
 devbox dev-env --remove node go   # remove these two
+devbox dev-env --if-missing go    # install go only when it is not there yet
+devbox dev-env --installed        # the installed names, one per line
 devbox dev-env                    # menu: install or remove, then multiple selection
 ```
+
+`DEV_ENVS="node go"` in `.env` on the host makes every start run
+`dev-box-dev-env --if-missing node go` in the background, after the mise
+tools: a fresh home gets its environments without a command, a rebuilt box
+finds them again. An unknown name refuses the whole list. The output is in
+`~/.cache/dev-box/dev-envs.log`, and the flag `~/.cache/dev-box/dev-envs`
+carries one line, shown at login and by `devbox status`, while it runs or when
+it failed. `DEV_ENVS` never removes anything.
 
 Re-running on an environment already installed, or already removed, is
 harmless. A removal (`mise unuse -g`) only takes out what the environment
@@ -160,7 +170,8 @@ part of the input served from a cache and are never counted twice.
 
 `devbox motd` prints the line you see when you land in the box: a command of
 the box drawn at random, and what it does, plus a yellow line when an update is
-waiting. It is sourced at login by `/etc/devbox/updates-motd.sh`, once per tmux
+waiting, and one when the `DEV_ENVS` environments are still installing or
+failed. It is sourced at login by `/etc/devbox/updates-motd.sh`, once per tmux
 session and once per shell elsewhere.
 
 ```bash
@@ -172,7 +183,9 @@ commands come from the `TIPS` array at the top of the script,
 `command|what it does`, with a third field `tailscale` on the ones that stay
 out when `TS_DISABLE=true`; `shuf` draws one. Adding a command is adding a line
 there. The updates line is a count of `~/.cache/dev-box/updates`; the detail is
-in `devbox check` and `devbox status`.
+in `devbox check` and `devbox status`. The `DEV_ENVS` line is the first line of
+`~/.cache/dev-box/dev-envs`, which the entrypoint writes at start and removes
+once every environment is installed.
 
 ## migrate
 

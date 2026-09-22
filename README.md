@@ -138,6 +138,7 @@ All settings live in `.env` (see `.env.example`):
 | `UPDATE_CHECK_INTERVAL` | `86400` | Update *check* period in seconds (`0` turns it off); it installs nothing |
 | `PODMAN_ENABLE` | `false` | Start the rootless podman socket at boot; needs the podman block of `compose.override.example.yaml` |
 | `MISE_INSTALL_ON_START` | `true` | Reinstall missing mise tools in the background at start (no version bump) |
+| `DEV_ENVS` | empty | Dev environments (`devbox dev-env` names, space separated) installed at start when missing, in the background |
 | `GITHUB_TOKEN` | empty | Token with no scopes, avoids GitHub API rate limits during mise installs |
 | `LLM_PROXY_URL` | `http://llmproxy` | Endpoint used by the `llm-proxy.ts` extension of pi/omp |
 | `LLM_PROXY_API_KEY` | `unused` | Its API key |
@@ -432,9 +433,10 @@ does not answer, the section says so in one line and nothing else.
 
 Landing in the box prints one line, once per tmux session and once per shell
 outside tmux: a command of the box drawn at random, and what it does. A second
-line, in yellow, appears when an update is waiting. It is `devbox motd`. It
-reads nothing but the box itself, no network and no cache, and costs a few
-milliseconds.
+line, in yellow, appears when an update is waiting, and another one while the
+`DEV_ENVS` environments of `.env` are still installing, or when they failed. It
+is `devbox motd`. It reads nothing but the box itself, no network and no cache,
+and costs a few milliseconds.
 
 ```
 Tips: devbox dbs postgres redis  start these databases, data kept in a volume
@@ -444,7 +446,9 @@ Tips: devbox dbs postgres redis  start these databases, data kept in a volume
 The commands come from the `TIPS` list at the top of the script, drawn with
 `shuf`; the ones that need Tailscale stay out when `TS_DISABLE=true`. The
 updates line folds `~/.cache/dev-box/updates` into a count; the detail of what
-is waiting stays in `devbox check` and `devbox status`. Everything else, the
+is waiting stays in `devbox check` and `devbox status`. The `DEV_ENVS` line is
+`~/.cache/dev-box/dev-envs`, written by the entrypoint and removed once every
+environment is installed. Everything else, the
 box, its commands and where the coding accounts stand, is one command away:
 `devbox`, `devbox status` and `devbox agent usage`.
 
@@ -577,6 +581,16 @@ Without arguments it first asks whether to install or remove, then opens a gum m
 with multiple selection, the environments on the left and their description on the
 right. The remove menu only offers what is installed. Running it again on an
 environment already installed, or already removed, changes nothing.
+
+The same environments can be asked for from `.env`: `DEV_ENVS="node go python"` and
+every start makes sure they are there, through `devbox dev-env --if-missing`, in the
+background after the mise tools. What is installed already is skipped, so a start
+only spends time on a fresh home or a name added since. An unknown name refuses the
+whole list, nothing is installed. The output goes to `~/.cache/dev-box/dev-envs.log`;
+while it runs, and when it failed, the login message and `devbox status` say so on one
+line, and the line disappears once everything is there. `DEV_ENVS` never removes
+anything: take a name out of the list and the environment stays until
+`devbox dev-env --remove`.
 
 A removal takes the tools out of `~/.config/mise/config.toml` with `mise unuse -g`,
 which also prunes the versions no other config needs. It only removes what the

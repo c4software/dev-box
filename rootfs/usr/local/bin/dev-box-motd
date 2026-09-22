@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # devbox:name=motd
-# devbox:summary=The login line: one command to try, pending updates
+# devbox:summary=The login line: one command to try, pending updates, DEV_ENVS
 # devbox:args=
 # What you see when you land in the box: one line with a command of the box
-# drawn at random and what it does, and one more when an update is waiting.
+# drawn at random and what it does, one more when an update is waiting, and
+# one when the DEV_ENVS environments of .env are still installing or failed.
 # Interactive shells print it through /etc/devbox/updates-motd.sh, once per
 # tmux session.
 #
@@ -13,6 +14,8 @@
 set -euo pipefail
 
 UPDATES="$HOME/.cache/dev-box/updates"
+# Written by the entrypoint while DEV_ENVS is being installed, or when it failed
+DEV_ENVS_FLAG="$HOME/.cache/dev-box/dev-envs"
 
 usage() { sed -n '5,12p' "$0" | sed 's/^# \?//'; }
 case "${1:-}" in
@@ -98,7 +101,15 @@ updates_line() {
   fi
 }
 
+# DEV_ENVS at start: one line while it installs, one when it failed. The
+# entrypoint removes the flag once everything is there.
+dev_envs_line() {
+  [ -s "$DEV_ENVS_FLAG" ] || return 0
+  printf '%s%s%s\n' "$C_WARN" "$(head -n 1 "$DEV_ENVS_FLAG")" "$C_OFF"
+}
+
 printf '\n'
 tip_line
 updates_line
+dev_envs_line
 printf '\n'

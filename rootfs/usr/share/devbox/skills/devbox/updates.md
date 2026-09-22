@@ -33,7 +33,9 @@ there is nothing left, the file is deleted.
 Interactive shells source `/etc/devbox/updates-motd.sh`, which calls
 `dev-box-motd` once per tmux session, and once per shell outside tmux. It
 folds the flag file into one line, `2 updates available, run devbox update`.
-The detail of what is waiting stays in `devbox check` and `devbox status`.
+The detail of what is waiting stays in `devbox check` and `devbox status`. A
+second flag, `~/.cache/dev-box/dev-envs`, gives one more line while the
+`DEV_ENVS` environments install at start, or when that failed.
 With no flag file there is no such line. The message itself is covered in
 `commands.md`, under `motd`.
 
@@ -77,7 +79,9 @@ after an update is quiet.
 `devbox update tools` is the only thing that bumps a version. `mise install`
 fetches what is declared and missing; `mise upgrade` moves the tools pinned to
 `latest` forward. A start never bumps a version: with
-`MISE_INSTALL_ON_START=true` it only reinstalls what is missing.
+`MISE_INSTALL_ON_START=true` it only reinstalls what is missing, and the
+`DEV_ENVS` environments of `.env` are only installed when they are missing
+(`dev-box-dev-env --if-missing`, output in `~/.cache/dev-box/dev-envs.log`).
 
 mise keeps a minimum release age of 24 h by default, so a release published
 this morning is not picked up yet. That is deliberate quarantine against a bad

@@ -39,6 +39,7 @@ backed up or moved on their own.
 | `~/.config/dev-box/agent` | the default coding agent |
 | `~/.local/share/dotarchy/` | the dotfiles clone |
 | `~/.cache/dev-box/updates` | the pending-updates flag |
+| `~/.cache/dev-box/dev-envs` | the `DEV_ENVS` flag: installing, or failed; gone when all is there |
 | `~/projets/` | your repositories, on their own volume |
 
 The user is `dev` by default, always UID/GID 1000:1000, so files have the same
@@ -60,7 +61,10 @@ owner on the host side of the bind mounts. `sudo` needs no password.
 7. starts the rootless podman socket when `PODMAN_ENABLE=true`;
 8. on the very first start only, runs `dotarchy-sync` and installs the mise
    tools in the background (`~/.cache/dev-box-install.log`);
-9. then only checks for updates, every `UPDATE_CHECK_INTERVAL` seconds.
+9. installs the dev environments of `DEV_ENVS` that are missing, in the
+   background, through `dev-box-dev-env --if-missing`
+   (`~/.cache/dev-box/dev-envs.log`); already installed ones are skipped;
+10. then only checks for updates, every `UPDATE_CHECK_INTERVAL` seconds.
 
 Nothing else runs on its own. No package is upgraded behind your back, and the
 migrations of step 4 only repair what an older image left behind.

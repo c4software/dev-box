@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # devbox:name=status
-# devbox:summary=State of the box: access, podman, tools, updates
+# devbox:summary=State of the box: access, podman, tools, dev environments, updates
 # devbox:args=
 #
 # A one-page summary of what the box is doing right now. Read only: nothing is
@@ -82,6 +82,32 @@ if [ -s "$pkg_list" ]; then
     pacman -Q "$p" >/dev/null 2>&1 || pkg_missing=$((pkg_missing + 1))
   done < "$pkg_list"
   item "packages" "persistent: $pkg_total ($pkg_missing missing)"
+fi
+
+# --- DEV_ENVS: the environments .env asks for at start ------------------------
+# DEV_ENVS is not in the environment of an SSH session: the entrypoint writes
+# it to /etc/devbox/env, read here the way TS_DISABLE is read by dev-box-motd.
+dev_envs="${DEV_ENVS:-}"
+if [ -z "$dev_envs" ] && [ -r /etc/devbox/env ]; then
+  dev_envs="$(sed -n 's/^export DEV_ENVS=//p' /etc/devbox/env | tail -n 1)"
+  # %q of an empty value is '' and a value with spaces is quoted: undo that.
+  dev_envs="${dev_envs#\'}"; dev_envs="${dev_envs%\'}"; dev_envs="${dev_envs//\\ / }"
+fi
+if [ -n "$dev_envs" ]; then
+  title "Dev environments"
+  installed="$(dev-box-dev-env --installed 2>/dev/null || true)"
+  missing=""
+  for e in $dev_envs; do
+    printf '%s\n' "$installed" | grep -qx "$e" || missing="$missing $e"
+  done
+  item "DEV_ENVS" "$dev_envs"
+  if [ -n "$missing" ]; then
+    item "missing" "${missing# } (installed at start, see ~/.cache/dev-box/dev-envs.log)"
+  else
+    item "state" "all installed"
+  fi
+  flag="$HOME/.cache/dev-box/dev-envs"
+  [ -s "$flag" ] && item "last start" "$(head -n 1 "$flag")"
 fi
 
 # --- Update flag, written by dev-box-check-updates ----------------------------
