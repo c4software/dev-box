@@ -7,7 +7,7 @@
 # of `omarchy-install-docker-dbs` on the host: same images, same development
 # options (no password, or a password you already know).
 #
-#   dev-box-dbs                  interactive menu (gum, multiple selection)
+#   dev-box-dbs                  menu: start, stop, start again or remove, then a selection
 #   dev-box-dbs postgres redis   start these databases
 #   dev-box-dbs --list           the databases, image, port and state
 #   dev-box-dbs --start <db...>  start an existing container again
@@ -304,13 +304,10 @@ fi
 
 require_podman
 
-# Without arguments: the menu, except for actions that need an explicit target.
+# Without arguments: the menu. With --stop, --start or --remove and no name,
+# the menu only offers the databases that have a container; with nothing at
+# all it first asks what to do. Scripts must give the names.
 if [ "${#SELECTED[@]}" -eq 0 ]; then
-  if [ "$ACTION" != "start" ]; then
-    err "the database name is missing: devbox dbs --${ACTION/restart/start} <db...>"
-    err "Available databases: $(db_names | tr '\n' ' ')"
-    exit 2
-  fi
   if [ ! -t 0 ] || [ ! -t 1 ]; then
     err "no terminal, give the databases as arguments."
     err "Available databases: $(db_names | tr '\n' ' ')"
@@ -320,13 +317,37 @@ if [ "${#SELECTED[@]}" -eq 0 ]; then
     err "gum is missing, give the databases as arguments."
     exit 1
   }
+  if [ "$ACTION" = "start" ] && [ "$PURGE" = "false" ]; then
+    verb="$(printf '%s\n' \
+        "Start        a database (a new container, or an existing one)" \
+        "Stop         a running container, erasing nothing" \
+        "Start again  an existing container" \
+        "Remove       a container, the data stays in its volume" \
+        "Purge        a container and its data, for good" \
+      | gum choose --height 7 --header "devbox dbs: what do you want to do?")" || true
+    case "$verb" in
+      Start\ again*) ACTION="restart" ;;
+      Start*)  ACTION="start" ;;
+      Stop*)   ACTION="stop" ;;
+      Remove*) ACTION="remove" ;;
+      Purge*)  ACTION="remove"; PURGE="true" ;;
+      *) echo "Nothing selected."; exit 0 ;;
+    esac
+  fi
   menu=()
   for d in "${DBS[@]}"; do
-    menu+=("$(printf '%-9s %s' "${d%%|*}" "$(echo "$d" | cut -d'|' -f5)")")
+    name="${d%%|*}"
+    # Only what exists can be stopped, started again or removed
+    if [ "$ACTION" != "start" ] && ! container_exists "$name"; then continue; fi
+    menu+=("$(printf '%-9s %s (%s)' "$name" "$(echo "$d" | cut -d'|' -f5)" "$(container_status "$name")")")
   done
+  if [ "${#menu[@]}" -eq 0 ]; then
+    echo "No database container, nothing to ${ACTION/restart/start again}."
+    exit 0
+  fi
   chosen="$(printf '%s\n' "${menu[@]}" |
     gum choose --no-limit --height 10 \
-      --header "Databases to start (x to tick, enter to confirm)")" || true
+      --header "Databases to ${ACTION/restart/start again} (x to tick, enter to confirm)")" || true
   [ -n "$chosen" ] || {
     echo "Nothing selected."
     exit 0

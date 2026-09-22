@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=seed
 # devbox:summary=Lay down the shipped config, overwriting nothing
-# devbox:args=[--force|--check] [path]
+# devbox:args=[--apply|--force|--check] [path]
 # Lays down the config shipped by the image (agents, extensions, mise config)
 # in the home, without ever overwriting a local change.
 #
@@ -13,7 +13,8 @@
 # Usable by root (the entrypoint, with DEVBOX_HOME + chown 1000:1000) or by
 # the user (`devbox update seed`, or `devbox seed`).
 #
-#   dev-box-seed                  apply the shipped config
+#   dev-box-seed                  apply the shipped config (on a terminal: a menu)
+#   dev-box-seed --apply          apply, with no menu
 #   dev-box-seed --force [path]   overwrite (everything, or the given path)
 #   dev-box-seed --check          write nothing, list what is newly shipped
 set -euo pipefail
@@ -30,16 +31,42 @@ SEEDS=(
 
 FORCE=false
 CHECK=false
+APPLY=false
 ONLY=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --force) FORCE=true; shift ;;
     --check) CHECK=true; shift ;;
-    -h|--help) sed -n '5,18p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    --apply) APPLY=true; shift ;;
+    -h|--help) sed -n '5,19p' "$0" | sed 's/^# \?//'; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *)  ONLY="$1"; shift ;;
   esac
 done
+
+# Without arguments, on a terminal: apply, check or force as a gum menu. The
+# entrypoint and dev-box-update never land here (no terminal, or --apply).
+if ! $FORCE && ! $CHECK && ! $APPLY && [ -z "$ONLY" ] \
+   && [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1; then
+  choice="$(printf '%s\n' \
+      "apply   lay down what is missing, update what was never touched" \
+      "check   write nothing, list what is newly shipped" \
+      "force   overwrite one shipped file, or all of them" \
+    | gum choose --height 5 --header "Shipped config")" || exit 0
+  [ -n "$choice" ] || exit 0
+  case "${choice%% *}" in
+    check) CHECK=true ;;
+    force)
+      FORCE=true
+      choice="$(
+        { echo "everything"
+          for s in "${SEEDS[@]}"; do echo "~/${s#*:}"; done; } \
+        | gum choose --height 10 --header "Overwrite with the shipped version")" || exit 0
+      [ -n "$choice" ] || exit 0
+      [ "$choice" = "everything" ] || ONLY="$choice"
+      ;;
+  esac
+fi
 
 # Target home: the caller's, or DEVBOX_HOME when the entrypoint (root) calls it
 TARGET_HOME="${DEVBOX_HOME:-$HOME}"

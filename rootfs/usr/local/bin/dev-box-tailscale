@@ -10,6 +10,7 @@
 #   dev-box-tailscale send <machine> <file...>   send over Taildrop
 #   dev-box-tailscale receive [--once] [dir]     wait and store the files
 #   dev-box-tailscale status                     state of the link and the peers
+#   dev-box-tailscale                            menu: gum picks the machine and the file
 #
 # The default receive directory is ~/inbox, created if missing.
 set -euo pipefail
@@ -17,7 +18,7 @@ set -euo pipefail
 INBOX_DEFAULT="$HOME/inbox"
 
 log() { echo "[dev-box-tailscale] $*"; }
-usage() { sed -n '5,13p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '6,15p' "$0" | sed 's/^# \?//'; }
 
 # The help stays readable even when Tailscale is off.
 case "${1:-}" in -h|--help) usage; exit 0 ;; esac
@@ -71,12 +72,57 @@ do_receive() {
   done
 }
 
+# The other machines of the tailnet that are online right now, for the menu.
+online_peers() {
+  command -v jq >/dev/null 2>&1 || return 0
+  tailscale status --json 2>/dev/null \
+    | jq -r '.Peer[]? | select(.Online == true) | .HostName' 2>/dev/null | sort -u || true
+}
+
+# Without arguments, on a terminal: send, receive or status as a gum menu;
+# send picks the machine among the online peers and the file with gum file.
+menu() {
+  local choice machine peers file dir
+  choice="$(printf '%s\n' \
+      "send      a file to another machine, over Taildrop" \
+      "receive   wait for files, into ~/inbox" \
+      "status    the link and the peers" \
+    | gum choose --height 5 --header "Tailscale")" || exit 0
+  [ -n "$choice" ] || exit 0
+  case "${choice%% *}" in
+    send)
+      peers="$(online_peers)"
+      if [ -n "$peers" ]; then
+        machine="$(printf '%s\n' "$peers" | gum choose --height 10 --header "Machine (online now)")" || exit 0
+      else
+        machine="$(gum input --placeholder "laptop" --header "Machine (no online peer found)")" || exit 0
+      fi
+      [ -n "$machine" ] || exit 0
+      file="$(gum file --header "File to send (enter to pick)" "$PWD")" || exit 0
+      [ -n "$file" ] || exit 0
+      do_send "$machine" "$file"
+      ;;
+    receive)
+      dir="$(gum input --value "$INBOX_DEFAULT" --header "Directory to receive into")" || exit 0
+      do_receive "${dir:-$INBOX_DEFAULT}"
+      ;;
+    status) exec tailscale status ;;
+  esac
+}
+
 cmd="${1:-}"
 [ $# -gt 0 ] && shift
 case "$cmd" in
   send)    do_send "$@" ;;
   receive) do_receive "$@" ;;
   status)  exec tailscale status ;;
-  -h|--help|"") usage; [ -n "$cmd" ] || exit 2 ;;
+  -h|--help) usage ;;
+  "")
+    if [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1; then
+      menu
+    else
+      usage >&2; exit 2
+    fi
+    ;;
   *) echo "dev-box-tailscale: unknown subcommand '$cmd'" >&2; usage >&2; exit 2 ;;
 esac

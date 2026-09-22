@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=mise-install
 # devbox:summary=Write a mise-backed wrapper for a tool into ~/.local/bin
-# devbox:args=<package> [cmd [binary]]
+# devbox:args=[<package> [cmd [binary]]|--list|--remove cmd]
 # Wrapper generator, on the model of omarchy-mise-install: it writes a small
 # script into ~/.local/bin that installs the tool on the first call, then runs
 # it through mise. The image already ships claude, pi, omp, codex and
@@ -10,6 +10,7 @@
 #   dev-box-mise-install <package> [command [binary]]
 #   dev-box-mise-install --list            the wrappers written here
 #   dev-box-mise-install --remove <cmd>    delete one of them
+#   dev-box-mise-install                   menu: write, list or remove, gum asks the rest
 #
 # Examples:
 #   dev-box-mise-install npm:@google/gemini-cli gemini
@@ -23,7 +24,7 @@ BIN_DIR="$HOME/.local/bin"
 # Marker: this is what tells our wrappers from the user's own scripts.
 MARK="# dev-box-mise-install"
 
-usage() { sed -n '5,19p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '5,20p' "$0" | sed 's/^# \?//'; }
 
 is_generated() {
   [ -f "$1" ] || return 1
@@ -72,6 +73,49 @@ do_remove() {
   echo "[dev-box-mise-install] wrapper deleted: ~/.local/bin/$cmd"
 }
 
+generated_names() {
+  local f
+  [ -d "$BIN_DIR" ] || return 0
+  for f in "$BIN_DIR"/*; do
+    [ -f "$f" ] && is_generated "$f" && basename "$f"
+  done
+  return 0
+}
+
+# Without arguments, on a terminal: a gum menu, then the package and the
+# command name are asked for. Without a terminal the usage is printed.
+menu() {
+  local choice pkg cmd guess names
+  choice="$(printf '%s\n' \
+      "write    a wrapper for a tool (package, then command name)" \
+      "list     the wrappers written here" \
+      "remove   delete one of them" \
+    | gum choose --height 5 --header "mise-backed wrappers in ~/.local/bin")" || exit 0
+  [ -n "$choice" ] || exit 0
+  case "${choice%% *}" in
+    write)
+      pkg="$(gum input --placeholder "npm:@google/gemini-cli, crush, github:owner/repo" \
+             --header "mise package")" || exit 0
+      [ -n "$pkg" ] || { echo "no package given" >&2; exit 2; }
+      # The command name defaults to the last part of the package, without
+      # its backend: npm:@google/gemini-cli gives gemini-cli.
+      guess="${pkg##*/}"; guess="${guess##*:}"; guess="${guess%%@*}"
+      cmd="$(gum input --value "$guess" --header "Command name in ~/.local/bin")" || exit 0
+      [ -n "$cmd" ] || cmd="$guess"
+      exec "$0" "$pkg" "$cmd"
+      ;;
+    list) do_list; exit 0 ;;
+    remove)
+      names="$(generated_names)"
+      [ -n "$names" ] || { echo "no wrapper written by dev-box-mise-install"; exit 0; }
+      cmd="$(printf '%s\n' "$names" | gum choose --height 10 --header "Wrapper to delete")" || exit 0
+      [ -n "$cmd" ] || exit 0
+      do_remove "$cmd"
+      exit 0
+      ;;
+  esac
+}
+
 case "${1:-}" in
   -h|--help) usage; exit 0 ;;
   --list)    do_list; exit 0 ;;
@@ -80,7 +124,12 @@ case "${1:-}" in
     do_remove "$2"
     exit 0
     ;;
-  "") usage >&2; exit 2 ;;
+  "")
+    if [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1; then
+      menu
+    fi
+    usage >&2; exit 2
+    ;;
   -*) echo "dev-box-mise-install: unknown option '$1'" >&2; exit 2 ;;
 esac
 

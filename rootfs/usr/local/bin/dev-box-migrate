@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # devbox:name=migrate
 # devbox:summary=Run the migrations shipped by the image, once each
-# devbox:args=[--pending|--list]
+# devbox:args=[--run|--pending|--list]
 # Box migrations: small scripts shipped by the image that repair an existing
 # home when a new image version changes something the seed cannot pick up on
 # its own. Each migration runs once, in the order of its name, as your user,
 # never as root.
 #
-#   dev-box-migrate                 run the pending migrations
+#   dev-box-migrate                 run the pending migrations (on a terminal: a menu)
+#   dev-box-migrate --run           run them, with no menu
 #   dev-box-migrate --pending       list what is left, without doing anything
 #   dev-box-migrate --list          every migration, with its state
 #   dev-box-migrate --mark-done X   acknowledge a migration without running it
@@ -59,12 +60,14 @@ pending_names() {
   done < <(all_names)
 }
 
-usage() { sed -n '5,18p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '5,19p' "$0" | sed 's/^# \?//'; }
 
 MODE="run"
+EXPLICIT=false
 MARK=""
 while [ $# -gt 0 ]; do
   case "$1" in
+    --run)           MODE="run"; EXPLICIT=true; shift ;;
     --pending)       MODE="pending"; shift ;;
     --list)          MODE="list"; shift ;;
     --mark-all-done) MODE="mark-all"; shift ;;
@@ -78,6 +81,26 @@ while [ $# -gt 0 ]; do
     *) echo "dev-box-migrate: unknown option '$1'" >&2; exit 2 ;;
   esac
 done
+
+# Without arguments, on a terminal: a gum menu. The entrypoint has no
+# terminal, so it still runs what is pending, as before.
+if [ "$MODE" = "run" ] && ! $EXPLICIT && [ $# -eq 0 ] \
+   && [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1; then
+  n="$(pending_names | grep -c . || true)"
+  choice="$(printf '%s\n' \
+      "run       the pending migrations ($n)" \
+      "pending   list what is left, without doing anything" \
+      "list      every migration, with its state" \
+      "mark      acknowledge a pending one without running it" \
+    | gum choose --height 6 --header "Migrations of this image")" || exit 0
+  [ -n "$choice" ] || exit 0
+  MODE="${choice%% *}"
+  if [ "$MODE" = "mark" ]; then
+    [ "$n" -gt 0 ] || { log "nothing pending, nothing to acknowledge"; exit 0; }
+    MARK="$(pending_names | gum choose --height 10 --header "Migration to acknowledge")" || exit 0
+    [ -n "$MARK" ] || exit 0
+  fi
+fi
 
 case "$MODE" in
   pending)

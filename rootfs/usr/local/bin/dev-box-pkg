@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=pkg
 # devbox:summary=Persistent pacman packages (reinstalled at start)
-# devbox:args=[add|drop|list|restore]
+# devbox:args=[add|drop|list|install|restore]
 # pacman packages that survive an image rebuild. pacman installs into the
 # image, and the image is disposable, so the list of packages added by hand is
 # kept in the home (~/.config/dev-box/packages) and reinstalled at start when
@@ -12,6 +12,7 @@
 #   dev-box-pkg list                the list, with the state of each one
 #   dev-box-pkg install             fuzzy picker (fzf) over the Arch repositories
 #   dev-box-pkg restore             reinstall what is missing from the list
+#   dev-box-pkg                     menu: one of the above, gum asks the names
 #
 # Only packages come back: a config edited by hand in /etc disappears on the
 # rebuild with nothing to catch it. The durable answer stays the Dockerfile.
@@ -21,7 +22,7 @@ LIST_DIR="$HOME/.config/dev-box"
 LIST="$LIST_DIR/packages"
 
 log() { echo "[dev-box-pkg] $*"; }
-usage() { sed -n '5,17p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '5,18p' "$0" | sed 's/^# \?//'; }
 
 installed() { pacman -Q "$1" >/dev/null 2>&1; }
 
@@ -148,6 +149,42 @@ do_restore() {
   log "${#missing[@]} package(s) reinstalled"
 }
 
+# Without arguments, on a terminal: the subcommands as a gum menu, then the
+# names are asked for. Without a terminal the usage is printed, as before.
+menu() {
+  local choice names=() chosen line
+  choice="$(printf '%s\n' \
+      "add       install packages by name, and remember them" \
+      "install   fuzzy picker over the Arch repositories" \
+      "drop      uninstall packages of the list, and forget them" \
+      "list      the list, with the state of each one" \
+      "restore   reinstall what is missing from the list" \
+    | gum choose --height 7 --header "Persistent packages")" || exit 0
+  [ -n "$choice" ] || exit 0
+  case "${choice%% *}" in
+    add)
+      chosen="$(gum input --placeholder "packages, space separated (ripgrep-all htop)" \
+                --header "Packages to install")" || exit 0
+      read -ra names <<< "$chosen"
+      [ "${#names[@]}" -gt 0 ] || { log "nothing given"; exit 0; }
+      do_add "${names[@]}"
+      ;;
+    install) do_install ;;
+    drop)
+      mapfile -t names < <(read_list)
+      [ "${#names[@]}" -gt 0 ] || { log "the list is empty, nothing to drop"; exit 0; }
+      chosen="$(printf '%s\n' "${names[@]}" \
+        | gum choose --no-limit --height 12 --header "Packages to drop (x to tick, enter to confirm)")" || exit 0
+      [ -n "$chosen" ] || { log "nothing selected"; exit 0; }
+      names=()
+      while IFS= read -r line; do [ -n "$line" ] && names+=("$line"); done <<< "$chosen"
+      do_drop "${names[@]}"
+      ;;
+    list)    do_list ;;
+    restore) do_restore ;;
+  esac
+}
+
 cmd="${1:-}"
 [ $# -gt 0 ] && shift
 case "$cmd" in
@@ -156,6 +193,13 @@ case "$cmd" in
   list)    do_list ;;
   install) do_install ;;
   restore) do_restore ;;
-  -h|--help|"") usage; [ -n "$cmd" ] || exit 2 ;;
+  -h|--help) usage ;;
+  "")
+    if [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1; then
+      menu
+    else
+      usage >&2; exit 2
+    fi
+    ;;
   *) echo "dev-box-pkg: unknown subcommand '$cmd'" >&2; usage >&2; exit 2 ;;
 esac

@@ -14,6 +14,7 @@
 #   dev-box-serve --tcp 5433:5432     raw TCP, listen on 5433, app on 5432
 #   dev-box-serve status              what this box serves right now
 #   dev-box-serve off [port|all]      stop one mapping, or every one of them
+#   dev-box-serve                     menu: publish, status or off, gum asks the port
 #
 # The first port of a pair is the one the tailnet sees, the second is the port
 # the app listens on inside the box; a single port means the same on both
@@ -22,7 +23,7 @@
 # with Headscale either.
 set -euo pipefail
 
-usage() { sed -n '6,22p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '6,23p' "$0" | sed 's/^# \?//'; }
 
 # The help stays readable even when Tailscale is off.
 case "${1:-}" in -h|--help) usage; exit 0 ;; esac
@@ -211,11 +212,59 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# The mappings in place, one per line, "<http|tcp> <listen port>", read from
+# the status lines that start with the scheme (port 80 when http gives none).
+mappings() {
+  tailscale serve status 2>/dev/null \
+    | sed -n -E 's#^(http|tcp)://[^:/ ]+(:([0-9]+))?.*#\1 \3#p' \
+    | sed 's/^http $/http 80/'
+}
+
+# Without arguments, on a terminal: a gum menu, then the port is asked for.
+menu() {
+  local choice arg lines chosen
+  choice="$(printf '%s\n' \
+      "publish   a port of the box on the tailnet, plain http" \
+      "tcp       raw TCP passthrough for a port" \
+      "status    what this box serves right now" \
+      "off       stop a mapping" \
+    | gum choose --height 6 --header "tailscale serve")" || exit 0
+  [ -n "$choice" ] || exit 0
+  case "${choice%% *}" in
+    publish|tcp)
+      [ "${choice%% *}" = "tcp" ] && tcp=true
+      arg="$(gum input --placeholder "3000, or 8080:3000 (tailnet port:app port)" \
+             --header "Port to publish")" || exit 0
+      [ -n "$arg" ] || exit 0
+      take_port "$arg"
+      do_serve "$port" "$listen" "$tcp"
+      ;;
+    status) ts_serve status ;;
+    off)
+      lines="$(mappings)"
+      [ -n "$lines" ] || { log "nothing is served right now"; exit 0; }
+      chosen="$(printf '%s\nall\n' "$lines" \
+        | gum choose --height 10 --header "Mapping to stop (scheme, tailnet port)")" || exit 0
+      [ -n "$chosen" ] || exit 0
+      if [ "$chosen" = "all" ]; then
+        do_off all false
+      else
+        [ "${chosen%% *}" = "tcp" ] && tcp=true
+        do_off "${chosen#* }" "$tcp"
+      fi
+      ;;
+  esac
+}
+
 case "$action" in
   status) ts_serve status ;;
   off)    do_off "$listen" "$tcp" ;;
   *)
     if [ -z "$port" ]; then
+      if [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1; then
+        menu
+        exit 0
+      fi
       usage >&2
       exit 2
     fi

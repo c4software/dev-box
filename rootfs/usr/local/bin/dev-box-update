@@ -3,7 +3,7 @@
 # devbox:summary=Update dotfiles, mise tools and the shipped config
 # devbox:args=[dotfiles|tools|seed|all]
 # Updating the box by hand (nothing is automatic):
-#   devbox update [dotfiles|tools|seed|all]   (default: all)
+#   devbox update [dotfiles|tools|seed|all]   (default: all; on a terminal, a menu)
 #
 #   dotfiles  dotarchy-sync (config, try/proj, git aliases, local overrides)
 #   tools     mise install, then mise upgrade
@@ -12,9 +12,25 @@
 # At the end, the update flag is cleared and the check runs again.
 set -euo pipefail
 
-WHAT="${1:-all}"
+WHAT="${1:-}"
 log() { echo "[dev-box-update] $*"; }
 rc=0
+
+# Without arguments: a gum menu on a terminal, everything otherwise (the
+# justfile and scripts pass what they want explicitly).
+if [ -z "$WHAT" ]; then
+  WHAT="all"
+  if [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1; then
+    choice="$(printf '%s\n' \
+        "all        dotfiles, then the mise tools, then the shipped config" \
+        "dotfiles   dotarchy-sync" \
+        "tools      mise install, then mise upgrade" \
+        "seed       the config shipped by the image" \
+      | gum choose --height 6 --header "What to update")" || exit 0
+    [ -n "$choice" ] || exit 0
+    WHAT="${choice%% *}"
+  fi
+fi
 
 do_dotfiles() {
   log "dotfiles..."
@@ -31,7 +47,8 @@ do_tools() {
 
 do_seed() {
   log "shipped config..."
-  dev-box-seed || { log "⚠ dev-box-seed failed"; rc=1; }
+  # --apply: the explicit form, so the seed menu never opens from here
+  dev-box-seed --apply || { log "⚠ dev-box-seed failed"; rc=1; }
 }
 
 case "$WHAT" in

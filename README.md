@@ -186,6 +186,7 @@ bound to `127.0.0.1` is not reachable that way.
 works for a server bound to `127.0.0.1` only.
 
 ```bash
+devbox serve               # menu: publish, tcp, status or off, gum asks the port
 devbox serve 3000          # tailscale serve --bg --http=3000 3000
 devbox serve 8080:3000     # listen on 8080, proxy to 127.0.0.1:3000
 devbox serve --on 8080 3000   # the same thing, written out
@@ -276,6 +277,7 @@ notify-send "Build finished" "42 tests passed"
 tailnet, without going through a shell on the host.
 
 ```bash
+devbox tailscale                      # menu: send (machine, then file), receive, status
 devbox tailscale send laptop notes.md build.log
 devbox tailscale receive              # waits, saves into ~/inbox
 devbox tailscale receive --once ~/tmp # one delivery, then stop
@@ -346,8 +348,14 @@ wrapper behind the `docker` and `podman` symlinks, not a command you call.
 `devbox serve` still answer, with the reason.
 
 Without arguments, `devbox` opens a gum menu listing the commands with their
-summary, and runs the one you pick, which may then be interactive itself. With
-no terminal it says so and prints the list instead of hanging.
+summary, and runs the one you pick. Every command with subcommands then opens a
+menu of its own when it has a terminal and no argument: `pkg`, `mise-install`,
+`tailscale`, `serve`, `update`, `migrate`, `seed`, `dbs`, `dev-env` and `agent`
+all ask what to do, then ask for what they need (a package name, a port, a
+machine, a file) with gum. The whole tree is navigable without remembering an
+argument. With no terminal nothing asks: the command runs its default action
+when it has one (`update` updates everything, `migrate` and `seed` apply) and
+prints its usage otherwise, so scripts and the entrypoint behave as before.
 
 ### The default coding agent
 
@@ -503,6 +511,7 @@ and a rebuild. It installs the package and writes its name into
 `~/.config/dev-box/packages`, which lives in the persistent home.
 
 ```bash
+devbox pkg                        # menu: add, install, drop, list or restore
 devbox pkg add ripgrep-all htop   # install, and remember
 devbox pkg list                   # the list, and whether each one is there
 devbox pkg install                # fuzzy picker over the Arch repositories
@@ -525,6 +534,7 @@ it survives. The durable answer stays the `Dockerfile` in the repository.
 `devbox mise-install` writes the same kind of wrapper for anything else:
 
 ```bash
+devbox mise-install               # menu: write, list or remove, gum asks the rest
 devbox mise-install npm:@google/gemini-cli gemini
 devbox mise-install crush
 devbox mise-install --list        # the wrappers written this way
@@ -703,7 +713,7 @@ enabled (the section above). Without it, it prints the three steps and stops
 instead of starting half of the containers.
 
 ```bash
-devbox dbs                          # menu, several at a time
+devbox dbs                          # menu: start, stop, start again, remove or purge, then several at a time
 devbox dbs postgres redis           # start these two
 devbox dbs --list                   # image, port and current state of each
 devbox dbs --stop redis             # stop it, keep everything
@@ -759,7 +769,9 @@ down is kept in `~/.config/dev-box/seed/<path>`, which gives three cases per fil
   updated in place (`config updated: ~/x`);
 - **modified locally** and the shipped version changed: nothing is overwritten, the
   box tells you the new version exists and how to take it with
-  `dev-box-seed --force ~/x`, also written `devbox seed --force ~/x`.
+  `dev-box-seed --force ~/x`, also written `devbox seed --force ~/x`. A bare
+  `devbox seed` on a terminal opens a menu (apply, check, force one file or all);
+  `devbox seed --apply` is the form with no menu.
 
 ![dev-box-seed with two shipped files changed: the untouched one is updated in place, the locally modified one is left alone with the dev-box-seed --force command to take the new version](docs/screenshots/dev-box-seed.png)
 
@@ -845,7 +857,8 @@ login message* above.
 ![Login in the box with a pending update, in the form this message had before it was folded into one line: an Updates available block lists the new dotfiles commit and the shipped config files that changed, followed by the devbox update reminder](docs/screenshots/updates-motd.png)
 
 ```bash
-devbox update            # all of the below
+devbox update            # on a terminal: a menu; otherwise all of the below
+devbox update all        # all of the below
 devbox update dotfiles   # dotarchy-sync
 devbox update tools      # mise install, then mise upgrade
 devbox update seed       # shipped config (see above)
@@ -867,7 +880,8 @@ your user, once each, in order, and the names already played are recorded in
 `~/.config/dev-box/migrations`.
 
 ```bash
-devbox migrate              # run what is pending
+devbox migrate              # on a terminal: a menu; otherwise run what is pending
+devbox migrate --run        # run what is pending, no menu
 devbox migrate --pending    # list it without doing anything
 devbox migrate --list       # all of them, played or pending
 ```

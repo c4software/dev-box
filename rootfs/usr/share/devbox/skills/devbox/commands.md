@@ -18,6 +18,13 @@ devbox commands        # bare list, one name per line, for completions
 An unknown name exits non-zero and prints the list. The menu needs a terminal;
 without one it says so and prints the list rather than hanging.
 
+Every command with subcommands opens a menu of its own when it runs with a
+terminal and no argument, then asks with gum for what it needs (a package, a
+port, a machine, a file). Without a terminal nothing asks: `update` updates
+everything, `migrate` runs what is pending, `seed` applies, and the others
+print their usage. Scripts and the entrypoint always give arguments; the
+explicit forms are `update all`, `migrate --run` and `seed --apply`.
+
 Every command is still on `PATH` under its own name, and that is the name to
 use in scripts and in the `justfile`: `devbox update` and `dev-box-update` are
 the same binary.
@@ -29,13 +36,13 @@ the same binary.
 | `status` | `dev-box-status` | image commit and repo, Tailscale or sshd, podman, mise tools, the `DEV_ENVS` environments, pending updates. Read only. |
 | `check` | `dev-box-check-updates` | looks for what could be updated and writes the flag. Installs nothing. |
 | `update` | `dev-box-update` | `[dotfiles\|tools\|seed\|all]`, default `all`. The only command that installs. |
-| `seed` | `dev-box-seed` | lays down the config shipped by the image. `--check` to look, `--force [path]` to take a new version. |
+| `seed` | `dev-box-seed` | lays down the config shipped by the image. `--apply` with no menu, `--check` to look, `--force [path]` to take a new version. |
 | `sync` | `dotarchy-sync` | clones or updates the dotfiles repo and applies the config. Never runs its install scripts. |
 | `dev-env` | `dev-box-dev-env` | installs or removes a dev environment with mise. `--list`, names as arguments (`--remove` to remove, `--if-missing` to skip what is there), or a menu. |
 | `dbs` | `dev-box-dbs` | starts a development database in a podman container. `--list`, `--start`, `--stop`, `--remove [--purge]`, or names, or a menu. |
 | `agent` | `dev-box-agent` | the default coding agent. `set`, `which`, `prompt <text>`, `usage [claude\|codex\|proxy]`, or bare for a menu (run, pick, usage). |
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates, `DEV_ENVS` still installing or failed. |
-| `migrate` | `dev-box-migrate` | runs the migrations shipped by the image, once each. `--pending`, `--list`, `--mark-done <name>`. |
+| `migrate` | `dev-box-migrate` | runs the migrations shipped by the image, once each. `--run` with no menu, `--pending`, `--list`, `--mark-done <name>`. |
 | `mise-install` | `dev-box-mise-install` | writes a mise-backed wrapper into `~/.local/bin`. `--list`, `--remove <cmd>`. |
 | `pkg` | `dev-box-pkg` | pacman packages that survive a rebuild. `add`, `drop`, `list`, `install`, `restore`. |
 | `serve` | `dev-box-serve` | publishes a local port to the tailnet with `tailscale serve`. `<port>`, `<listen>:<port>`, `--on <port>`, `--tcp`, `status`, `off [port\|all]`. |
@@ -105,6 +112,7 @@ box, with the same images and development options as Omarchy's
 `omarchy-install-docker-dbs` on the host.
 
 ```bash
+devbox dbs                          # menu: start, stop, start again, remove, purge
 devbox dbs --list                   # image, port and state of each database
 devbox dbs postgres redis           # start these two
 devbox dbs --stop redis             # stop, nothing is deleted
@@ -198,7 +206,8 @@ change the seed cannot handle on its own. Each one runs once, as the user, in
 name order. The journal is `~/.config/dev-box/migrations`, one name per line.
 
 ```bash
-devbox migrate                      # run what is pending
+devbox migrate                      # terminal: a menu; otherwise run what is pending
+devbox migrate --run                # run what is pending, no menu
 devbox migrate --pending            # list it, change nothing
 devbox migrate --list               # all of them, with their state
 devbox migrate --mark-done <name>   # acknowledge one without running it
@@ -212,6 +221,7 @@ without running any. See `updates.md`, and `extending.md` to write one.
 ## mise-install
 
 ```bash
+devbox mise-install                 # menu: write, list or remove
 devbox mise-install <package> [command [binary]]
 devbox mise-install --list
 devbox mise-install --remove <command>
@@ -230,6 +240,7 @@ recognize; nothing else in `~/.local/bin` is ever touched.
 ## pkg
 
 ```bash
+devbox pkg                      # menu: add, install, drop, list, restore
 devbox pkg add <packages...>    # pacman -S --needed, then remember
 devbox pkg drop <packages...>   # pacman -Rs, then forget
 devbox pkg list                 # the list, and whether each one is installed
@@ -246,6 +257,7 @@ not come back. Anything that must really last belongs in the `Dockerfile`.
 ## tailscale
 
 ```bash
+devbox tailscale                # menu: send (online machine, then a file), receive, status
 devbox tailscale send <machine> <file...>
 devbox tailscale receive [--once] [directory]
 devbox tailscale status
@@ -260,6 +272,7 @@ later, between machines of the same user.
 ## serve
 
 ```bash
+devbox serve                    # menu: publish, tcp, status, off
 devbox serve <port>             # listen on <port>, proxy to 127.0.0.1:<port>
 devbox serve 8080:3000          # listen on 8080, proxy to 127.0.0.1:3000
 devbox serve --on 8080 3000     # the same thing, written out
