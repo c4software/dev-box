@@ -18,7 +18,8 @@
 #
 # --if-missing is what the entrypoint runs at start with DEV_ENVS from .env,
 # in the background: an environment already there is skipped, and an unknown
-# name refuses the whole list before anything is installed.
+# name refuses the whole list before anything is installed. An environment
+# listed in DEV_ENVS cannot be removed: the next start would put it back.
 #
 # Running it twice breaks nothing: `mise use -g` rewrites the same config line,
 # `mise unuse -g` does nothing on a tool that is already gone. A removal takes
@@ -35,6 +36,25 @@ set -euo pipefail
 export MISE_MINIMUM_RELEASE_AGE=0
 
 MISE_CFG="$HOME/.config/mise/config.toml"
+
+# DEV_ENVS is not in the environment of an SSH session: the entrypoint writes
+# it to /etc/devbox/env with %q, read here the way dev-box-status reads it.
+dev_envs_from_env() {
+  local v="${DEV_ENVS:-}"
+  if [ -z "$v" ] && [ -r /etc/devbox/env ]; then
+    v="$(sed -n 's/^export DEV_ENVS=//p' /etc/devbox/env | tail -n 1)"
+    v="${v#\'}"; v="${v%\'}"; v="${v//\\ / }"
+  fi
+  printf '%s' "$v"
+}
+DEV_ENVS_LIST="$(dev_envs_from_env)"
+
+# Listed in DEV_ENVS: the start reinstalls it, so removing it is refused.
+pinned() {
+  local e
+  for e in $DEV_ENVS_LIST; do [ "$e" = "$1" ] && return 0; done
+  return 1
+}
 
 # <name>|<short description shown in the menu and in --list>
 ENVS=(
@@ -422,12 +442,15 @@ menu() {
     if is_installed "$name"; then mark=" (installed)"; else mark=""; fi
     if [ "$ACTION" = "remove" ]; then
       [ -n "$mark" ] || continue
+      # Pinned by DEV_ENVS: not on offer, the start would put it back
+      pinned "$name" && continue
       mark=""
     fi
     menu+=("$(printf '%-9s %s%s' "$name" "${e#*|}" "$mark")")
   done
   if [ "${#menu[@]}" -eq 0 ]; then
     echo "Nothing installed by devbox dev-env, nothing to remove."
+    [ -n "$DEV_ENVS_LIST" ] && echo "DEV_ENVS keeps: $DEV_ENVS_LIST (set in .env on the host)."
     exit 0
   fi
 
@@ -453,6 +476,11 @@ for name in "${SELECTED[@]}"; do
     err "Available environments: $(env_names | tr '\n' ' ')"
     exit 1
   }
+  if [ "$ACTION" = "remove" ] && pinned "$name"; then
+    err "'$name' is listed in DEV_ENVS ($DEV_ENVS_LIST): the next start would install it again."
+    err "Take it out of DEV_ENVS in .env on the host, run just up, then remove it."
+    exit 1
+  fi
 done
 
 # --if-missing: what is already there is left alone, the rest is installed.

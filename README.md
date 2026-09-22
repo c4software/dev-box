@@ -590,7 +590,10 @@ whole list, nothing is installed. The output goes to `~/.cache/dev-box/dev-envs.
 while it runs, and when it failed, the login message and `devbox status` say so on one
 line, and the line disappears once everything is there. `DEV_ENVS` never removes
 anything: take a name out of the list and the environment stays until
-`devbox dev-env --remove`.
+`devbox dev-env --remove`. The other way round, an environment listed in `DEV_ENVS`
+cannot be removed, since the next start would install it again: `devbox dev-env
+--remove` refuses it and the remove menu leaves it out. Take it out of `.env` first,
+`just up`, then remove it.
 
 A removal takes the tools out of `~/.config/mise/config.toml` with `mise unuse -g`,
 which also prunes the versions no other config needs. It only removes what the
