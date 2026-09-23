@@ -11,7 +11,9 @@ removal takes out the installer only: php and node stay.
 TXT
 }
 
-is_installed() { composer global show laravel/installer >/dev/null 2>&1; }
+# The package directory rather than `composer global show`: the same answer
+# without starting PHP, which the list does for every environment.
+is_installed() { [ -d "${COMPOSER_HOME:-$HOME/.config/composer}/vendor/laravel/installer" ]; }
 
 install() {
   dev_env install php

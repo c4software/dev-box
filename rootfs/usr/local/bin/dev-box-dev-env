@@ -62,23 +62,23 @@ available() { printf '%s ' "${DEV_ENV_NAMES[@]}"; }
 # --- Installed state and descriptions ----------------------------------------
 
 # SUMMARY_INSTALLED[name], SUMMARY_SUPPORTED[name] (1 or 0) and
-# SUMMARY_DESC[name], read once for the list and the menu. A script that fails
-# to load is shown, marked broken.
+# SUMMARY_DESC[name], read once for the list and the menu through
+# dev_env_summaries, from a file when the menu started it in the background.
+# A script that fails to load is shown, marked broken.
 declare -A SUMMARY_INSTALLED=() SUMMARY_SUPPORTED=() SUMMARY_DESC=()
 load_summaries() {
-  local name line
+  local name inst sup desc
   for name in "${DEV_ENV_NAMES[@]}"; do
-    if line="$(dev_env_call "$name" dev_env_summary 2>/dev/null)"; then
-      SUMMARY_INSTALLED[$name]="${line%%$'\t'*}"
-      line="${line#*$'\t'}"
-      SUMMARY_SUPPORTED[$name]="${line%%$'\t'*}"
-      SUMMARY_DESC[$name]="${line#*$'\t'}"
-    else
-      SUMMARY_INSTALLED[$name]=0
-      SUMMARY_SUPPORTED[$name]=1
-      SUMMARY_DESC[$name]="(broken script, see devbox dev-env --info $name)"
-    fi
+    SUMMARY_INSTALLED[$name]=0
+    SUMMARY_SUPPORTED[$name]=1
+    SUMMARY_DESC[$name]="(broken script, see devbox dev-env --info $name)"
   done
+  while IFS=$'\t' read -r name inst sup desc; do
+    [ -n "${SUMMARY_DESC[$name]:-}" ] || continue
+    SUMMARY_INSTALLED[$name]="$inst"
+    SUMMARY_SUPPORTED[$name]="$sup"
+    SUMMARY_DESC[$name]="$desc"
+  done < <(if [ -n "${1:-}" ]; then cat "$1"; else dev_env_summaries; fi)
 }
 
 # The widest name, for the columns.
@@ -176,15 +176,11 @@ while [ $# -gt 0 ]; do
     exit 0
     ;;
   --installed)
-    for name in "${DEV_ENV_NAMES[@]}"; do
-      dev_env_call "$name" is_installed >/dev/null 2>&1 && printf '%s\n' "$name"
-    done
+    dev_env_summaries | awk -F'\t' '$2 == 1 { print $1 }'
     exit 0
     ;;
   --unsupported)
-    for name in "${DEV_ENV_NAMES[@]}"; do
-      dev_env_unsupported "$name" >/dev/null && printf '%s\n' "$name"
-    done
+    dev_env_summaries | awk -F'\t' '$3 == 0 { print $1 }'
     exit 0
     ;;
   --if-missing)
@@ -215,7 +211,7 @@ done
 # Two steps: install or remove, then the environments. The remove menu only
 # offers what is installed; the install menu marks it.
 menu() {
-  local mode name mark menu=() chosen line w
+  local mode name mark menu=() chosen line w summaries pid
   if [ ! -t 0 ] || [ ! -t 1 ]; then
     err "no terminal, give the environments as arguments."
     err "Available environments: $(available)"
@@ -225,6 +221,13 @@ menu() {
     err "gum is missing, give the environments as arguments."
     exit 1
   }
+
+  # The environments are read while the first question is on screen.
+  summaries="$(mktemp)"
+  # shellcheck disable=SC2064
+  trap "rm -f '$summaries'" EXIT
+  dev_env_summaries > "$summaries" &
+  pid=$!
 
   if [ "$ACTION" = "uninstall" ]; then
     mode="Remove"
@@ -247,7 +250,8 @@ menu() {
     esac
   fi
 
-  load_summaries
+  wait "$pid" || true
+  load_summaries "$summaries"
   w="$(name_width)"
   for name in "${DEV_ENV_NAMES[@]}"; do
     # Not for this machine: neither installable nor, therefore, installed.

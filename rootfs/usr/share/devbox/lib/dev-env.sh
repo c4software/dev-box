@@ -25,9 +25,11 @@
 #                  environment is left out of the menu and --list, refused by
 #                  an install, skipped by --if-missing.
 #
-# Each function runs in its own bash process, with `set -euo pipefail`: a
-# failing command stops it, and the functions of two files never meet. What
-# this file defines is available to them: log, err, declared, unuse, and
+# install and uninstall run in their own bash process, with `set -euo
+# pipefail`: a failing command stops them, and the functions of two files
+# never meet. The list and the menu read every file in a single process, each
+# in a subshell, so details, is_installed and is_supported must only read.
+# What this file defines is available to them: log, err, declared, unuse, and
 # dev_env to reach another environment (`dev_env install php`).
 
 # Brand new releases are not quarantined here: when you ask for an environment,
@@ -49,6 +51,7 @@ err() { echo "dev-box-dev-env: $*" >&2; }
 declare -a DEV_ENV_NAMES=()
 declare -A DEV_ENV_FILES=()
 
+# No fork but the one sort: it runs for every command and every dependency.
 dev_env_load() {
   local f name
   DEV_ENV_NAMES=()
@@ -56,7 +59,8 @@ dev_env_load() {
   # The user's directory first: the first file seen for a name is the one kept.
   for f in "$DEV_ENV_USER_DIR"/*.sh "$DEV_ENV_SYSTEM_DIR"/*.sh; do
     [ -f "$f" ] || continue
-    name="$(basename "$f" .sh)"
+    name="${f##*/}"
+    name="${name%.sh}"
     [[ "$name" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || continue
     [ -n "${DEV_ENV_FILES[$name]:-}" ] && continue
     DEV_ENV_FILES[$name]="$f"
@@ -91,7 +95,6 @@ dev_env_exec() {
   is_installed() { declared "$DEV_ENV_SELF"; }
   # shellcheck disable=SC2329
   is_supported() { return 0; }
-  dev_env_load
   # shellcheck source=/dev/null
   . "$file"
   for f in details install uninstall; do
@@ -103,14 +106,38 @@ dev_env_exec() {
   "$fn"
 }
 
-# One line for the list and the menu: installed (1 or 0), a tab, supported
-# (1 or 0), a tab, the short description. One process per environment.
-dev_env_summary() {
-  local d
-  d="$(details)"
-  if is_installed >/dev/null 2>&1; then printf '1\t'; else printf '0\t'; fi
-  if is_supported >/dev/null 2>&1; then printf '1\t'; else printf '0\t'; fi
-  printf '%s\n' "${d%%$'\n'*}"
+# Every environment for the list and the menu, one line each: the name,
+# installed (1 or 0), supported (1 or 0) and the short description, separated
+# by tabs. One bash process for all of them, each file sourced in a subshell
+# of it, and the global mise config read once. A file that fails to load
+# prints no line.
+dev_env_summaries() {
+  bash -c '. "$1"; dev_env_summaries_exec' dev-env "$DEV_ENV_LIB"
+}
+
+dev_env_summaries_exec() {
+  local name d inst sup
+  dev_env_load
+  DEV_ENV_DECLARED=$'\n'"$(dev_env_declared_tools)"$'\n'
+  for name in "${DEV_ENV_NAMES[@]}"; do
+    (
+      # shellcheck disable=SC2030 # one environment per subshell, on purpose
+      DEV_ENV_SELF="$name"
+      # shellcheck disable=SC2329 # the defaults, replaced by the script's own
+      is_installed() { declared "$DEV_ENV_SELF"; }
+      # shellcheck disable=SC2329
+      is_supported() { return 0; }
+      # shellcheck source=/dev/null
+      . "${DEV_ENV_FILES[$name]}" >/dev/null 2>&1 || exit 1
+      declare -F details >/dev/null && declare -F install >/dev/null \
+        && declare -F uninstall >/dev/null || exit 1
+      d="$(details 2>/dev/null)" || exit 1
+      inst=0; sup=0
+      is_installed >/dev/null 2>&1 && inst=1
+      is_supported >/dev/null 2>&1 && sup=1
+      printf '%s\t%s\t%s\t%s\n' "$name" "$inst" "$sup" "${d%%$'\n'*}"
+    ) || true
+  done
 }
 
 # dev_env_unsupported <name>: exits 0, the reason on stdout, when the
@@ -125,18 +152,20 @@ dev_env_unsupported() {
 
 # dev_env install|uninstall|is_installed <name>: another environment, the one
 # this one sits on (laravel on php and node, phoenix on elixir).
+# shellcheck disable=SC2031 # set by dev_env_exec in the same process
 dev_env() {
   local action="$1" name="$2"
   local why
   case "$action" in
   install)
+    [ "${#DEV_ENV_FILES[@]}" -gt 0 ] || dev_env_load
     if why="$(dev_env_unsupported "$name")"; then
       err "$name, needed by ${DEV_ENV_SELF:-this environment}, is not available here: $why"
       return 1
     fi
     log "$name, needed by ${DEV_ENV_SELF:-this environment}"
     ;;
-  uninstall | is_installed) ;;
+  uninstall | is_installed) [ "${#DEV_ENV_FILES[@]}" -gt 0 ] || dev_env_load ;;
   *)
     err "dev_env: unknown action '$action'"
     return 2
@@ -145,9 +174,24 @@ dev_env() {
   dev_env_call "$name" "$action"
 }
 
+# The tools of the global mise config, one name per line: the keys of the
+# [tools] table, inline ones and sub-tables (a tool with options).
+dev_env_declared_tools() {
+  [ -f "$MISE_CFG" ] || return 0
+  mise config get -f "$MISE_CFG" tools 2>/dev/null | awk '
+    /^\[/ { table = 1; k = $0; gsub(/^\[|\]$|"/, "", k); print k; next }
+    !table && / = / { k = $0; sub(/ = .*/, "", k); gsub(/"/, "", k); print k }
+  ' || true
+}
+
 # A tool is installed when it is declared in the global mise config: that is
-# what `mise use -g` writes and `mise unuse -g` removes.
+# what `mise use -g` writes and `mise unuse -g` removes. The list reads the
+# config once (DEV_ENV_DECLARED); an install asks mise, which is always fresh.
 declared() {
+  if [ -n "${DEV_ENV_DECLARED+x}" ]; then
+    [[ "$DEV_ENV_DECLARED" == *$'\n'"$1"$'\n'* ]]
+    return
+  fi
   [ -f "$MISE_CFG" ] || return 1
   mise config get -f "$MISE_CFG" "tools.$1" >/dev/null 2>&1
 }

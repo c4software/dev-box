@@ -94,6 +94,11 @@ uninstall() {
 `is_installed` is optional: without it, the environment is installed when the
 tool `<name>` is declared in the global mise config. Define it when that is not
 true (a tool under another name, a composer package, a pacman package).
+`details`, `is_installed` and `is_supported` run for every environment each
+time the list or the menu opens, all in one process: keep them fast and
+read-only, a file test rather than a command that starts an interpreter
+(`laravel` looks for its directory in composer's vendor instead of running
+`composer global show`).
 `is_supported` is optional too: when the environment cannot run on every
 machine (x86_64 only, say), it prints the reason on one line and exits 1.
 The environment then disappears from the menu and `--list`, a direct install
