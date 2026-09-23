@@ -375,6 +375,7 @@ Adding a command therefore means dropping a `dev-box-<name>` script in
 | `seed` | `dev-box-seed` | lay down the config shipped by the image |
 | `sync` | `dotarchy-sync` | pull the dotfiles and apply them |
 | `dev-env` | `dev-box-dev-env` | install or remove a dev environment with mise |
+| `tui` | `dev-box-tui` | install or remove terminal apps from a catalogue (btop, lazydocker, atac, ...) |
 | `dbs` | `dev-box-dbs` | start a development database in a podman container |
 | `agent` | `dev-box-agent` | the default coding agent: run it, pick it, read its usage |
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates |
@@ -564,6 +565,26 @@ rootless podman (see *Containers inside the box*).
 - Update Arch: `just rebuild`, or `docker compose build --pull --no-cache && docker compose up -d`.
 - A `sudo pacman -S` inside the box is lost on rebuild. Add the package to the
   `Dockerfile` for good, or let `devbox pkg` put it back at every start.
+
+### Terminal apps
+
+`devbox tui` is a catalogue of terminal apps worth having at hand, none of them
+installed until you ask: btop, htop, ncdu, lazydocker, k9s, dive, atac, rainfrog,
+pgcli, jless, visidata, tealdeer, glow, fastfetch, hyperfine, gping, trippy and
+termshark. Every one is a pacman package present on Arch Linux and Arch Linux ARM,
+and the install goes through `devbox pkg`, so the app comes back after a rebuild.
+
+```bash
+devbox tui --list            # the catalogue, installed ones marked
+devbox tui btop atac         # install
+devbox tui --remove btop     # remove, and forget
+devbox tui                   # menu: install or remove, then tick the apps
+```
+
+lazydocker only makes sense with rootless podman on (`PODMAN_ENABLE=true`). What is
+already in the image stays out of the list: lazygit, yazi, fzf, bat, eza, ripgrep, fd,
+jq, gum, tmux and neovim. Anything else from the Arch repositories goes through
+`devbox pkg add` or the fuzzy picker of `devbox pkg install`.
 
 ### Persistent packages
 

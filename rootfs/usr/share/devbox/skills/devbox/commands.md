@@ -39,6 +39,7 @@ the same binary.
 | `seed` | `dev-box-seed` | lays down the config shipped by the image. `--apply` with no menu, `--check` to look, `--force [path]` to take a new version. |
 | `sync` | `dotarchy-sync` | clones or updates the dotfiles repo and applies the config. Never runs its install scripts. |
 | `dev-env` | `dev-box-dev-env` | installs or removes a dev environment with mise. `--list`, names as arguments (`--remove` to remove, `--if-missing` to skip what is there), or a menu. |
+| `tui` | `dev-box-tui` | installs or removes terminal apps from a catalogue (btop, lazydocker, atac, rainfrog, ...), through `devbox pkg`. `--list`, names as arguments (`--remove` to remove), or a menu. |
 | `dbs` | `dev-box-dbs` | starts a development database in a podman container. `--list`, `--start`, `--stop`, `--remove [--purge]`, or names, or a menu. |
 | `agent` | `dev-box-agent` | the default coding agent. `set`, `which`, `prompt <text>`, `usage [claude\|codex\|proxy]`, or bare for a menu (run, pick, usage). |
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates, `DEV_ENVS` still installing or failed. |
@@ -105,6 +106,26 @@ refreshed by running the command again. `browser` is a headless Chromium plus
 after a rebuild) because the mise registry has no browser that runs on Arch
 without those packages; see `browser.md` for how an agent uses it. OCaml is
 absent: upstream it needs opam, which would be lost on the next rebuild.
+
+## tui
+
+A catalogue of terminal apps, none installed until asked for: btop, htop,
+ncdu, lazydocker, k9s, dive, atac, rainfrog, pgcli, jless, visidata, tealdeer,
+glow, fastfetch, hyperfine, gping, trippy, termshark. Each name is the pacman
+package, present on Arch Linux and Arch Linux ARM. The install goes through
+`devbox pkg add`, so the app is written to `~/.config/dev-box/packages` and
+reinstalled at start after a rebuild; `--remove` goes through `devbox pkg drop`.
+
+```
+devbox tui --list
+devbox tui btop atac
+devbox tui --remove btop
+devbox tui                  # menu
+```
+
+When the user wants a terminal app that is not in the catalogue, use
+`devbox pkg add <package>` (same persistence) rather than a bare pacman.
+lazydocker needs podman (`PODMAN_ENABLE=true` on the host).
 
 ## dbs
 

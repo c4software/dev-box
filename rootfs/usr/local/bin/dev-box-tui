@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+# devbox:name=tui
+# devbox:summary=Install or remove terminal apps (btop, lazydocker, atac, ...)
+# devbox:args=[name...|--remove name...|--list]
+#
+# A catalogue of terminal apps (TUIs) worth having in the box, installed on
+# demand. They are pacman packages, so they go through `devbox pkg`: the name
+# lands in ~/.config/dev-box/packages and the app comes back at every start
+# after an image rebuild. Nothing here is installed unless you ask for it.
+#
+#   dev-box-tui                    interactive: install or remove, then a menu
+#   dev-box-tui btop atac          install these apps right away
+#   dev-box-tui --remove btop      remove these apps (and forget them)
+#   dev-box-tui --list             the catalogue, with what is installed
+#
+# Running it twice breaks nothing: pacman skips what is there, a removal of
+# something already gone only updates the list. Any other Arch package goes
+# through `devbox pkg add` or `devbox pkg install`, the fuzzy picker.
+set -euo pipefail
+
+# <name>|<short description shown in the menu and in --list>
+# The name is the pacman package. Every one exists on Arch Linux and on
+# Arch Linux ARM (checked on 2026-09-23).
+APPS=(
+  "btop|System monitor: cpu, memory, disks, network, processes"
+  "htop|The classic process viewer"
+  "ncdu|Disk usage, directory by directory"
+  "lazydocker|Containers and images (needs PODMAN_ENABLE=true)"
+  "k9s|Kubernetes clusters"
+  "dive|The layers of a container image, what each one adds"
+  "atac|HTTP client, Postman in the terminal"
+  "rainfrog|Postgres client (pairs with devbox dbs)"
+  "pgcli|Postgres shell with completion and highlighting"
+  "jless|JSON viewer, foldable and searchable"
+  "visidata|Spreadsheet for CSV, JSON, SQLite and more (vd)"
+  "tealdeer|tldr: short examples instead of man pages"
+  "glow|Markdown rendered in the terminal"
+  "fastfetch|System information at a glance"
+  "hyperfine|Benchmark of commands"
+  "gping|ping with a graph"
+  "trippy|traceroute and ping, live"
+  "termshark|Wireshark in the terminal (tshark)"
+)
+
+log() { printf '\033[1m[dev-box-tui]\033[0m %s\n' "$*"; }
+err() { echo "dev-box-tui: $*" >&2; }
+
+app_names() {
+  local a
+  for a in "${APPS[@]}"; do printf '%s\n' "${a%%|*}"; done
+}
+
+app_desc() {
+  local a
+  for a in "${APPS[@]}"; do
+    [ "${a%%|*}" = "$1" ] && {
+      printf '%s' "${a#*|}"
+      return 0
+    }
+  done
+  return 1
+}
+
+is_installed() { pacman -Q "$1" >/dev/null 2>&1; }
+
+show_list() {
+  local a name mark
+  printf '\033[1mTerminal apps\033[0m (devbox tui <name>..., devbox tui --remove <name>...)\n\n'
+  for a in "${APPS[@]}"; do
+    name="${a%%|*}"
+    mark=" "
+    is_installed "$name" && mark="*"
+    printf '  \033[32m%s\033[0m \033[36m%-11s\033[0m %s\n' "$mark" "$name" "${a#*|}"
+  done
+  printf '\n* installed. Without arguments: a menu, install or remove.\n'
+  printf 'Every app is a pacman package kept by devbox pkg, so it survives a rebuild.\n'
+}
+
+# --- Arguments ---------------------------------------------------------------
+
+ACTION="install"
+SELECTED=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+  --list | -l)
+    show_list
+    exit 0
+    ;;
+  -h | --help)
+    sed -n '6,18p' "$0" | sed 's/^# \?//'
+    exit 0
+    ;;
+  --remove)
+    ACTION="remove"
+    shift
+    ;;
+  -*)
+    err "unknown option '$1'"
+    exit 2
+    ;;
+  *)
+    SELECTED+=("$1")
+    shift
+    ;;
+  esac
+done
+
+# --- Interactive menu --------------------------------------------------------
+
+# Two steps: install or remove, then the apps. The remove menu only offers
+# what is installed; the install menu marks it.
+menu() {
+  local mode a name mark menu=() chosen line
+  if [ ! -t 0 ] || [ ! -t 1 ]; then
+    err "no terminal, give the apps as arguments."
+    err "Available apps: $(app_names | tr '\n' ' ')"
+    exit 2
+  fi
+  command -v gum >/dev/null 2>&1 || {
+    err "gum is missing, give the apps as arguments."
+    exit 1
+  }
+
+  if [ "$ACTION" = "remove" ]; then
+    mode="Remove"
+  else
+    mode="$(gum choose --header "devbox tui: what do you want to do?" \
+      "Install apps" "Remove apps")" || true
+    case "$mode" in
+    Install*)
+      mode="Install"
+      ACTION="install"
+      ;;
+    Remove*)
+      mode="Remove"
+      ACTION="remove"
+      ;;
+    *)
+      echo "Nothing selected."
+      exit 0
+      ;;
+    esac
+  fi
+
+  for a in "${APPS[@]}"; do
+    name="${a%%|*}"
+    if is_installed "$name"; then mark=" (installed)"; else mark=""; fi
+    if [ "$ACTION" = "remove" ]; then
+      [ -n "$mark" ] || continue
+      mark=""
+    fi
+    menu+=("$(printf '%-11s %s%s' "$name" "${a#*|}" "$mark")")
+  done
+  if [ "${#menu[@]}" -eq 0 ]; then
+    echo "Nothing from the catalogue is installed, nothing to remove."
+    exit 0
+  fi
+
+  chosen="$(printf '%s\n' "${menu[@]}" |
+    gum choose --no-limit --height 20 \
+      --header "Apps to ${mode,,} (x to tick, enter to confirm)")" || true
+  [ -n "$chosen" ] || {
+    echo "Nothing selected."
+    exit 0
+  }
+  while IFS= read -r line; do
+    [ -n "$line" ] && SELECTED+=("${line%% *}")
+  done <<<"$chosen"
+}
+
+[ "${#SELECTED[@]}" -gt 0 ] || menu
+
+# The names are validated before the first action: better to refuse right away
+# than to fail in the middle of a list.
+for name in "${SELECTED[@]}"; do
+  app_desc "$name" >/dev/null || {
+    err "unknown app '$name'"
+    err "Available apps: $(app_names | tr '\n' ' ')"
+    exit 1
+  }
+done
+
+# One pacman run for the whole selection: dev-box-pkg installs, checks, and
+# keeps the names. Removal goes the same way, in reverse.
+for name in "${SELECTED[@]}"; do
+  log "$name: $(app_desc "$name")"
+done
+if [ "$ACTION" = "install" ]; then
+  dev-box-pkg add "${SELECTED[@]}"
+  for name in "${SELECTED[@]}"; do
+    [ "$name" = lazydocker ] && ! [ -S "/run/user/$(id -u)/podman/podman.sock" ] &&
+      log "lazydocker needs podman: PODMAN_ENABLE=true in .env on the host, then just up."
+    [ "$name" = visidata ] && log "visidata runs as vd."
+    [ "$name" = tealdeer ] && log "tealdeer runs as tldr; the first tldr --update fetches the pages."
+  done
+  log "done: ${SELECTED[*]}"
+else
+  dev-box-pkg drop "${SELECTED[@]}"
+  log "removed: ${SELECTED[*]}"
+fi
