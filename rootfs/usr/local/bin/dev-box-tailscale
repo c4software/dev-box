@@ -41,12 +41,14 @@ command -v tailscale >/dev/null 2>&1 || {
 }
 
 # The machine to send to, picked among the online peers (or typed in when
-# none is found). Empty when the user gives up.
+# none is found). Empty when the user gives up. gum draws on stderr and prints
+# the choice on stdout: stderr must stay on the terminal, or the menu is
+# invisible and waits for a key on a blank screen.
 pick_machine() {
   local peers
   peers="$(online_peers)"
   if [ -n "$peers" ]; then
-    printf '%s\n' "$peers" | gum choose --height 10 --header "Machine (online now)" 2>/dev/null || true
+    printf '%s\n' "$peers" | gum choose --height 10 --header "Machine (online now)" || true
   else
     gum input --placeholder "laptop" --header "Machine (no online peer found)" || true
   fi
@@ -97,11 +99,16 @@ do_receive() {
   done
 }
 
-# The other machines of the tailnet that are online right now, for the menu.
+# The other machines of the tailnet that are online right now, for the menu,
+# by their tailnet name (the first label of the MagicDNS name), the one
+# `tailscale file cp` takes. HostName is the OS hostname, which can differ
+# ("Valentin's MacBook"), so it is only the fallback.
 online_peers() {
   command -v jq >/dev/null 2>&1 || return 0
   tailscale status --json 2>/dev/null \
-    | jq -r '.Peer[]? | select(.Online == true) | .HostName' 2>/dev/null | sort -u || true
+    | jq -r '.Peer[]? | select(.Online == true)
+             | ((.DNSName // "") | split(".")[0] // "") as $n
+             | if $n != "" then $n else .HostName end' 2>/dev/null | sort -u || true
 }
 
 # Without arguments, on a terminal: send, receive or status as a gum menu;
