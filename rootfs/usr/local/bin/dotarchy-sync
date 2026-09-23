@@ -27,7 +27,11 @@ if [ -d "$SRC/.git" ]; then
   git -C "$SRC" fetch -q --depth 1 origin "$BRANCH"
   git -C "$SRC" reset -q --hard FETCH_HEAD
   after=$(git -C "$SRC" rev-parse --short HEAD)
-  [ "$before" = "$after" ] && log "repo up to date ($after)" || log "repo updated $before -> $after"
+  if [ "$before" = "$after" ]; then
+    log "repo up to date ($after)"
+  else
+    log "repo updated from $before to $after"
+  fi
 else
   git clone -q --depth 1 --branch "$BRANCH" "$REPO" "$SRC"
   log "repo cloned ($(git -C "$SRC" rev-parse --short HEAD))"
@@ -87,6 +91,8 @@ mkdir -p "$HOME/.local/bin"
 
 # Git aliases: the setup() function of install/git.sh (only `git config --global` calls)
 if [ -f "$SRC/$SUBDIR/install/git.sh" ]; then
+  # The file comes from the dotarchy clone, shellcheck cannot follow it.
+  # shellcheck source=/dev/null
   ( . "$SRC/$SUBDIR/install/git.sh" && setup ) && log "git aliases applied (git.sh)"
 fi
 
