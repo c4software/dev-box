@@ -293,9 +293,11 @@ depends on the argument:
 - a URL is copied into your clipboard through `wl-copy`, and one line says so. This
   is what `gh auth login`, the OAuth flows of the agents and the `repo` alias of the
   dotarchy config go through;
-- a directory opens in `yazi`, a file in `$EDITOR` (nvim), in a new tmux pane to the
-  right of the current one, or in the foreground outside tmux. `open .` from the
-  dotarchy aliases therefore gives you a file manager next to your shell.
+- a directory opens in `yazi`, a file in `$EDITOR` (nvim), in a new tmux pane next
+  to the current one: below it, or to its right when the pane is wide enough (more
+  than three times wider than tall) to be split in two. Outside tmux it runs in the
+  foreground. `open .` from the dotarchy aliases therefore gives you a file manager
+  next to your shell.
 
 The `open` function discards the output of `xdg-open`, so its messages arrive as a
 terminal notification through `notify-send` instead (see below).

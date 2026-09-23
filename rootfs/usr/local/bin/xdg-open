@@ -4,7 +4,8 @@
 #   - a URL goes into the clipboard of the machine you are connected from
 #     (through the wl-copy shim: tmux buffer and OSC 52), and a line says so;
 #   - a directory opens in yazi, a file in $EDITOR (nvim), in a new tmux pane
-#     to the right of the current one, or in the foreground outside tmux.
+#     next to the current one (below it, or to its right when the pane is wide
+#     enough to be split in two), or in the foreground outside tmux.
 # Anything that opens a link, gh auth login, claude, the OAuth flows of the
 # agents, lands here: BROWSER=xdg-open is exported by /etc/devbox/zshenv,
 # ahead of the dotarchy default. The `open` function of the dotarchy aliases
@@ -33,11 +34,17 @@ say() {
   [ -t 1 ] || notify-send "dev-box" "$1" 2>/dev/null || true
 }
 
-# run: the command in a tmux pane on the right, or in the foreground.
+# run: the command in a new tmux pane, or in the foreground. The split follows
+# the shape of the current pane: side by side when it is more than three times
+# wider than tall (a full-screen terminal, cells being about twice as tall as
+# they are wide), stacked otherwise, so that both halves stay usable.
 run_in_pane() {
   local dir="$1"; shift
   if [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
-    tmux split-window -h -c "$dir" "$@"
+    local width height direction=-v
+    read -r width height < <(tmux display-message -p '#{pane_width} #{pane_height}')
+    [ "${width:-0}" -gt $(( ${height:-1} * 3 )) ] && direction=-h
+    tmux split-window "$direction" -c "$dir" "$@"
   elif [ -t 0 ] && [ -t 1 ]; then
     cd "$dir" && exec "$@"
   else
