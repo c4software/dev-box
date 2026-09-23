@@ -443,7 +443,10 @@ does not answer, the section says so in one line and nothing else.
 The first time a shell opens in a new box, gum asks whether to take the tour:
 a dozen steps, two minutes, each one explaining one thing about the box and
 offering to run the real command right there (`devbox status`, `devbox dev-env
---list`, `devbox agent set`, and so on). Decline and it never asks again;
+--list`, `devbox agent set`, and so on). The databases step only shows when
+podman is on, the tailnet step only with Tailscale, and the steps about the
+overrides and about changing the box print links to the matching pages of the
+repository the image was built from. Decline and it never asks again;
 `devbox tour` plays it any time, `devbox tour --text` prints it at once.
 
 The entrypoint writes `~/.config/dev-box/tour-pending` on a brand new home, the

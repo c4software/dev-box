@@ -38,7 +38,9 @@ if [ -r /etc/devbox/release ]; then
     # ssh URL (git@github.com:x/y.git) becomes https: the box has no key for it
     repo_url="$DEVBOX_REPO"
     case "$repo_url" in
-      git@*:*) repo_url="https://${repo_url#git@}"; repo_url="${repo_url/:/\/}" ;;
+      # host:path becomes host/path before the scheme goes in front, so that
+      # the colon replaced is the one after the host, not the one of https:
+      git@*:*)     repo_url="${repo_url#git@}"; repo_url="https://${repo_url/:/\/}" ;;
       ssh://git@*) repo_url="https://${repo_url#ssh://git@}" ;;
     esac
     # Private GitHub repo: GITHUB_TOKEN is the authentication, when it can read

@@ -5,7 +5,10 @@
 # A tour of the box in a dozen steps, for a first login or a refresher. Each
 # step explains one thing and offers to run the real command right there, so
 # what it says can be checked on the spot. Nothing is installed or changed
-# by the tour itself; the commands it runs are the ones you would type.
+# by the tour itself; the commands it runs are the ones you would type. The
+# steps that need a feature the host did not turn on (podman, Tailscale) are
+# left out; the steps that point to the documentation print the link into the
+# repository the image was built from.
 #
 #   dev-box-tour           the tour, step by step (gum)
 #   dev-box-tour --text    the same content printed at once, no questions
@@ -35,6 +38,32 @@ tailscale_on() {
   fi
   [ "${ts:-false}" != "true" ]
 }
+
+# The socket the entrypoint starts with PODMAN_ENABLE=true, or its state file.
+podman_on() {
+  [ -S "/run/user/$(id -u)/podman/podman.sock" ] && return 0
+  [ -r /etc/devbox/podman.state ] && [ "$(cat /etc/devbox/podman.state)" = "enabled" ]
+}
+
+# The repository the image was built from, as a browsable https URL and its
+# branch, read from /etc/devbox/release. An ssh remote becomes https, .git is
+# dropped; without a release file the public repository is the fallback.
+REPO_URL="https://github.com/c4software/dev-box"
+REPO_BRANCH="main"
+if [ -r /etc/devbox/release ]; then
+  DEVBOX_REPO=""; DEVBOX_BRANCH=""
+  # shellcheck source=/dev/null
+  . /etc/devbox/release
+  case "${DEVBOX_REPO:-}" in
+    # host:path becomes host/path before the scheme goes in front, so that
+    # the colon replaced is the one after the host, not the one of https:
+    git@*:*)     DEVBOX_REPO="${DEVBOX_REPO#git@}"; DEVBOX_REPO="https://${DEVBOX_REPO/:/\/}" ;;
+    ssh://git@*) DEVBOX_REPO="https://${DEVBOX_REPO#ssh://git@}" ;;
+  esac
+  [ -n "${DEVBOX_REPO:-}" ] && REPO_URL="${DEVBOX_REPO%.git}"
+  [ -n "${DEVBOX_BRANCH:-}" ] && REPO_BRANCH="$DEVBOX_BRANCH"
+fi
+doc_url() { printf '%s/blob/%s/%s' "$REPO_URL" "$REPO_BRANCH" "$1"; }
 
 run_cmd() {
   printf '\n\033[2m$ %s\033[0m\n' "$1"
@@ -112,11 +141,14 @@ tour() {
     "~/.config/dev-box/packages, and the start reinstalls what is missing." \
     "A package every box needs belongs in the Dockerfile instead."
 
-  step "Databases, in containers" "devbox dbs --list" \
-    "devbox dbs postgres starts PostgreSQL in a rootless podman container," \
-    "data in a named volume that survives a removal. mysql, mariadb, redis," \
-    "mongodb and mssql are on offer. It needs PODMAN_ENABLE=true in .env on" \
-    "the host; when podman is off, the command says so and how to turn it on."
+  # Podman is opt-in on the host: without it there is nothing to show here.
+  if podman_on; then
+    step "Databases, in containers" "devbox dbs --list" \
+      "devbox dbs postgres starts PostgreSQL in a rootless podman container," \
+      "data in a named volume that survives a removal. mysql, mariadb, redis," \
+      "mongodb and mssql are on offer, and docker run, build and compose go" \
+      "through the same rootless podman, with no host socket."
+  fi
 
   step "Updates, on your command only" "devbox seed --check" \
     "Nothing updates behind your back, apart from the migrations that repair" \
@@ -139,11 +171,24 @@ tour() {
     "rebuild, where a change belongs. Ask the agent to install go or start a" \
     "database and it uses the devbox commands rather than pacman or docker."
 
+  step "Your own tweaks: overrides" "" \
+    "The dotfiles come from the dotarchy repository and every sync overwrites" \
+    "them. A tweak that belongs to this box only goes in" \
+    "~/.config/dev-box/overrides/, a mirror of the home:" \
+    "overrides/.config/tmux/tmux.conf becomes ~/.config/tmux/tmux.conf, and" \
+    "it is re-applied at the end of every sync, so it always wins." \
+    "" \
+    "  $(doc_url 'README.md#dotfiles-sync')" \
+    "  $(doc_url 'rootfs/usr/share/devbox/skills/devbox/architecture.md#overrides')"
+
   step "Changing the box for good" "" \
-    "Your own tweaks to the dotfiles config go in ~/.config/dev-box/overrides/," \
-    "which mirrors the home and wins over the sync. Anything the image should" \
-    "ship goes through the dev-box repository (Dockerfile, rootfs/), then" \
-    "just rebuild on the host: the in-box skill has the recipe in extending.md."
+    "Anything the image should ship, a package, a command, a seeded file, a" \
+    "dev environment, goes through the dev-box repository (Dockerfile," \
+    "rootfs/), then just rebuild on the host. The recipe for each kind of" \
+    "change, and how to test it without touching your box, is in extending.md:" \
+    "" \
+    "  $(doc_url 'rootfs/usr/share/devbox/skills/devbox/extending.md')" \
+    "  $(doc_url 'AGENTS.md')"
 
   step "That is the tour" "devbox" \
     "devbox tour plays it again any time. devbox opens the menu, devbox" \
