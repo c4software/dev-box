@@ -37,6 +37,7 @@ backed up or moved on their own.
 | `~/.config/dev-box/migrations` | the migrations already played, one name per line |
 | `~/.config/dev-box/packages` | the pacman packages `devbox pkg` puts back at every start |
 | `~/.config/dev-box/agent` | the default coding agent |
+| `~/.config/dev-box/tour-pending` | the first login proposes the guided tour, then removes it |
 | `~/.local/share/dotarchy/` | the dotfiles clone |
 | `~/.cache/dev-box/updates` | the pending-updates flag |
 | `~/.cache/dev-box/dev-envs` | the `DEV_ENVS` flag: installing, or failed; gone when all is there |
@@ -54,7 +55,8 @@ owner on the host side of the bind mounts. `sudo` needs no password.
 3. links this skill into `~/.claude/skills/`, `~/.pi/agent/skills/` and
    `~/.omp/agent/skills/`;
 4. runs `dev-box-migrate` as your user, the only automatic step in the box; a
-   first start marks every migration as played instead of running them;
+   first start marks every migration as played instead of running them, and
+   flags the guided tour for the first login (`devbox tour`);
 5. reinstalls the missing packages of `~/.config/dev-box/packages`, in the
    background;
 6. starts `tailscaled` and `tailscale up`, or OpenSSH when `TS_DISABLE=true`;

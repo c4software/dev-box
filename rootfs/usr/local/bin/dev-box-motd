@@ -47,6 +47,7 @@ tailscale_off() {
 TIPS=(
   'devbox|the menu of everything the box can do'
   'devbox status|the state of the box on one page'
+  'devbox tour|a guided tour of the box, two minutes'
   'devbox update|update the dotfiles, the tools and the shipped config'
   'devbox update tools|upgrade the mise tools only'
   'devbox update dotfiles|pull the dotfiles again'

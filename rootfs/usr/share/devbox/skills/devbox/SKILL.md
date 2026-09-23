@@ -142,6 +142,7 @@ Never guess a command name. Run `devbox commands`.
 - "Start a postgres" -> `devbox dbs postgres`; `devbox dbs --list` for what is
   running and what is on offer
 - "What is available to install?" -> `devbox dev-env --list`
+- "How does this box work?" -> `devbox tour`, or `devbox tour --text` to read it all
 - "Have Go and Node in every box" -> `DEV_ENVS="node go"` in `.env` on the host,
   installed at start when missing (`devbox status` shows where it stands)
 - "Update the box" -> `devbox update`, after saying what it will do

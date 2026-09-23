@@ -42,6 +42,7 @@ the same binary.
 | `dbs` | `dev-box-dbs` | starts a development database in a podman container. `--list`, `--start`, `--stop`, `--remove [--purge]`, or names, or a menu. |
 | `agent` | `dev-box-agent` | the default coding agent. `set`, `which`, `prompt <text>`, `usage [claude\|codex\|proxy]`, or bare for a menu (run, pick, usage). |
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates, `DEV_ENVS` still installing or failed. |
+| `tour` | `dev-box-tour` | a guided tour of the box in a dozen steps, each with the command to try. `--text` prints it at once, `--offer` is what the first login runs. |
 | `migrate` | `dev-box-migrate` | runs the migrations shipped by the image, once each. `--run` with no menu, `--pending`, `--list`, `--mark-done <name>`. |
 | `mise-install` | `dev-box-mise-install` | writes a mise-backed wrapper into `~/.local/bin`. `--list`, `--remove <cmd>`. |
 | `pkg` | `dev-box-pkg` | pacman packages that survive a rebuild. `add`, `drop`, `list`, `install`, `restore`. |
@@ -197,6 +198,23 @@ there. The updates line is a count of `~/.cache/dev-box/updates`; the detail is
 in `devbox check` and `devbox status`. The `DEV_ENVS` line is the first line of
 `~/.cache/dev-box/dev-envs`, which the entrypoint writes at start and removes
 once every environment is installed.
+
+## tour
+
+`devbox tour` walks through the box in a dozen steps: the image and the home,
+`devbox`, `status`, `dev-env`, `agent`, `pkg`, `dbs`, updates, the tailnet,
+this skill, and where a change belongs. Each step offers to run the real
+command under your eyes. Nothing is installed by the tour itself.
+
+```bash
+devbox tour           # step by step, with gum
+devbox tour --text    # the whole content at once, no questions
+```
+
+The first login of a new home proposes it once: the entrypoint writes
+`~/.config/dev-box/tour-pending`, `/etc/devbox/updates-motd.sh` calls
+`dev-box-tour --offer`, which removes the flag then asks. A migration lays
+the flag once on the homes that predate the tour.
 
 ## migrate
 

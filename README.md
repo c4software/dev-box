@@ -333,6 +333,7 @@ Adding a command therefore means dropping a `dev-box-<name>` script in
 | `dbs` | `dev-box-dbs` | start a development database in a podman container |
 | `agent` | `dev-box-agent` | the default coding agent: run it, pick it, read its usage |
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates |
+| `tour` | `dev-box-tour` | a guided tour of the box, two minutes, commands run under your eyes |
 | `migrate` | `dev-box-migrate` | run the migrations shipped by the image, once each |
 | `mise-install` | `dev-box-mise-install` | write a mise-backed wrapper into `~/.local/bin` |
 | `pkg` | `dev-box-pkg` | pacman packages that survive an image rebuild |
@@ -436,6 +437,19 @@ from a transcript but from the proxy's own usage route,
 cached tokens are the part of the input that was served from a cache, in every
 account, so they are counted inside the input and never twice. When the proxy
 does not answer, the section says so in one line and nothing else.
+
+## The first login, and the tour
+
+The first time a shell opens in a new box, gum asks whether to take the tour:
+a dozen steps, two minutes, each one explaining one thing about the box and
+offering to run the real command right there (`devbox status`, `devbox dev-env
+--list`, `devbox agent set`, and so on). Decline and it never asks again;
+`devbox tour` plays it any time, `devbox tour --text` prints it at once.
+
+The entrypoint writes `~/.config/dev-box/tour-pending` on a brand new home, the
+login script hands it to `dev-box-tour --offer`, which removes the flag before
+asking, so a closed terminal does not bring the question back. Homes created
+before the tour existed get the flag once, through a migration.
 
 ## The login message
 

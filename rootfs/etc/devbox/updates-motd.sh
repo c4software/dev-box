@@ -14,6 +14,10 @@ if command -v dev-box-motd >/dev/null 2>&1; then
   fi
   if [ "$_devbox_motd" = 1 ]; then
     dev-box-motd 2>/dev/null || true
+    # First login: the guided tour is proposed once, when the flag is there.
+    if [ -f "$HOME/.config/dev-box/tour-pending" ] && command -v dev-box-tour >/dev/null 2>&1; then
+      dev-box-tour --offer || true
+    fi
   fi
   unset _devbox_motd
 fi

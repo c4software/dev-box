@@ -106,6 +106,9 @@ done
 # A new home has nothing to repair: everything is acknowledged, nothing is run.
 if [ "$FIRST_BOOT" = "true" ]; then
   as_user "dev-box-migrate --mark-all-done" || log "⚠ dev-box-migrate failed"
+  # The first interactive login proposes the guided tour (dev-box-tour --offer)
+  as_user "mkdir -p ~/.config/dev-box && touch ~/.config/dev-box/tour-pending" \
+    || log "⚠ could not flag the tour"
 else
   as_user "dev-box-migrate" || log "⚠ a migration failed (devbox migrate to try again)"
 fi

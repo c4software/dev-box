@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+# devbox:name=tour
+# devbox:summary=A guided tour of the box, two minutes, commands run under your eyes
+# devbox:args=[--offer|--text]
+# A tour of the box in a dozen steps, for a first login or a refresher. Each
+# step explains one thing and offers to run the real command right there, so
+# what it says can be checked on the spot. Nothing is installed or changed
+# by the tour itself; the commands it runs are the ones you would type.
+#
+#   dev-box-tour           the tour, step by step (gum)
+#   dev-box-tour --text    the same content printed at once, no questions
+#   dev-box-tour --offer   what the first login runs: proposes the tour once,
+#                          when ~/.config/dev-box/tour-pending exists, then
+#                          removes that flag whatever the answer
+#
+# The flag is written by the entrypoint on a brand new home, and once by a
+# migration on the homes that predate the tour.
+set -euo pipefail
+
+PENDING="$HOME/.config/dev-box/tour-pending"
+STEP=0
+TOTAL=0
+MODE="tour"
+
+usage() { sed -n '5,17p' "$0" | sed 's/^# \?//'; }
+
+interactive() {
+  [ "$MODE" = "tour" ] && [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1
+}
+
+tailscale_on() {
+  local ts="${TS_DISABLE:-}"
+  if [ -z "$ts" ] && [ -r /etc/devbox/env ]; then
+    ts="$(sed -n 's/^export TS_DISABLE=//p' /etc/devbox/env | tail -n 1)"
+  fi
+  [ "${ts:-false}" != "true" ]
+}
+
+run_cmd() {
+  printf '\n\033[2m$ %s\033[0m\n' "$1"
+  bash -c "$1" || printf '\033[2m(exit %s)\033[0m\n' "$?"
+  echo
+}
+
+# step <title> <command or empty> <text lines...>
+step() {
+  local title="$1" cmd="$2" body choice options
+  shift 2
+  STEP=$((STEP + 1))
+  [ "$MODE" = "count" ] && return 0
+  body="$(printf '%s\n' "$@")"
+
+  if ! interactive; then
+    printf '\n\033[1m%s/%s  %s\033[0m\n%s\n' "$STEP" "$TOTAL" "$title" "$body"
+    [ -n "$cmd" ] && printf '\n  try: %s\n' "$cmd"
+    return 0
+  fi
+
+  gum style --border rounded --border-foreground 6 --padding "0 1" --margin "1 0" \
+    "$(gum style --bold "Step $STEP/$TOTAL  $title")" "" "$body"
+  while true; do
+    options=()
+    [ -n "$cmd" ] && options+=("Try it: $cmd")
+    options+=("Next" "Quit the tour")
+    choice="$(printf '%s\n' "${options[@]}" | gum choose --height 5)" || choice="Quit the tour"
+    case "$choice" in
+      "Try it: "*) run_cmd "$cmd" ;;
+      Next) return 0 ;;
+      *)
+        echo "Tour stopped. devbox tour starts it again from the top."
+        exit 0
+        ;;
+    esac
+  done
+}
+
+tour() {
+  step "The box in one minute" "" \
+    "This is a disposable Arch Linux image around a persistent home." \
+    "The image is rebuilt on the host (just rebuild): whatever was installed" \
+    "in it by hand is gone afterwards. The home, ~ and ~/projets, survives" \
+    "everything, and the box knows how to put back what you declared in it." \
+    "" \
+    "Rule of thumb: declare, do not install. The rest of the tour shows how."
+
+  step "One front door: devbox" "devbox --help" \
+    "Every command of the box goes through devbox. Bare, it opens a menu;" \
+    "with a name, it runs that command; with --help, it explains it." \
+    "Each command with subcommands has a menu of its own, so nothing needs" \
+    "to be remembered: devbox, then follow the questions."
+
+  step "Where the box stands" "devbox status" \
+    "One page: the image commit, how the box is reached, podman, the mise" \
+    "tools active in this shell, the dev environments asked for, and what" \
+    "could be updated. Read only, no network call."
+
+  step "Languages and toolchains" "devbox dev-env --list" \
+    "devbox dev-env installs a whole environment through mise: node, go," \
+    "python, rust, php, ruby, and more. mise declares it in" \
+    "~/.config/mise/config.toml, so it survives a rebuild. DEV_ENVS in" \
+    ".env on the host lists the ones every start makes sure are there."
+
+  step "Your coding agent" "devbox agent set" \
+    "claude, pi, omp, codex and opencode are shipped as wrappers: the first" \
+    "call installs the tool through mise. devbox agent runs the default" \
+    "one, devbox agent set picks it, devbox agent usage shows what is left" \
+    "of the account limits. Try it picks the default now (or leaves it)."
+
+  step "Packages that survive a rebuild" "devbox pkg list" \
+    "sudo pacman -S works, but the image forgets it at the next rebuild." \
+    "devbox pkg add <name> installs and remembers the package in" \
+    "~/.config/dev-box/packages, and the start reinstalls what is missing." \
+    "A package every box needs belongs in the Dockerfile instead."
+
+  step "Databases, in containers" "devbox dbs --list" \
+    "devbox dbs postgres starts PostgreSQL in a rootless podman container," \
+    "data in a named volume that survives a removal. mysql, mariadb, redis," \
+    "mongodb and mssql are on offer. It needs PODMAN_ENABLE=true in .env on" \
+    "the host; when podman is off, the command says so and how to turn it on."
+
+  step "Updates, on your command only" "devbox seed --check" \
+    "Nothing updates behind your back, apart from the migrations that repair" \
+    "an existing home after an image change. A check runs at start and the" \
+    "login line says when something waits: devbox update takes the dotfiles," \
+    "the mise tools and the config shipped by the image. The shipped config" \
+    "(agents, extensions, mise) is seeded, never overwritten once you changed it."
+
+  if tailscale_on; then
+    step "Files and ports on the tailnet" "devbox serve status" \
+      "The box is a machine of your tailnet. devbox serve 3000 publishes a" \
+      "dev server to the other machines and prints its URL, devbox serve off" \
+      "stops it. devbox tailscale send <machine> <file> and devbox tailscale" \
+      "receive move files over Taildrop, into ~/inbox."
+  fi
+
+  step "Teach your agent the box" "sed -n '1,40p' ~/.claude/skills/devbox/SKILL.md" \
+    "A skill in ~/.claude/skills/devbox (also for pi and omp) tells a coding" \
+    "agent how this box works: which command does what, what is lost on a" \
+    "rebuild, where a change belongs. Ask the agent to install go or start a" \
+    "database and it uses the devbox commands rather than pacman or docker."
+
+  step "Changing the box for good" "" \
+    "Your own tweaks to the dotfiles config go in ~/.config/dev-box/overrides/," \
+    "which mirrors the home and wins over the sync. Anything the image should" \
+    "ship goes through the dev-box repository (Dockerfile, rootfs/), then" \
+    "just rebuild on the host: the in-box skill has the recipe in extending.md."
+
+  step "That is the tour" "devbox" \
+    "devbox tour plays it again any time. devbox opens the menu, devbox" \
+    "status tells where things stand, and the login line drops one command" \
+    "to try at every session."
+}
+
+offer() {
+  [ -f "$PENDING" ] || exit 0
+  # The flag goes first: a declined tour, or a closed terminal, must not ask again.
+  rm -f "$PENDING"
+  if [ ! -t 0 ] || [ ! -t 1 ] || ! command -v gum >/dev/null 2>&1; then
+    echo "New here? devbox tour is a two minute guided tour of the box."
+    exit 0
+  fi
+  if gum confirm --affirmative "Take the tour" --negative "Later" \
+       "Welcome to the box. A two minute tour shows how it works, with the commands run under your eyes."; then
+    MODE="tour"
+    main_tour
+  else
+    echo "Fine. devbox tour plays it any time, devbox opens the menu."
+  fi
+}
+
+main_tour() {
+  MODE="count"; STEP=0; tour; TOTAL="$STEP"
+  MODE="${1:-tour}"; STEP=0
+  if [ "$MODE" = "tour" ] && ! interactive; then
+    MODE="text"
+  fi
+  tour
+  if [ "$MODE" = "text" ]; then
+    printf '\nOn a terminal, devbox tour runs these steps one by one and offers to try each command.\n'
+  fi
+}
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+  --offer)   offer ;;
+  --text)    main_tour text ;;
+  "")        main_tour tour ;;
+  *) echo "dev-box-tour: unknown option '$1'" >&2; usage >&2; exit 2 ;;
+esac
