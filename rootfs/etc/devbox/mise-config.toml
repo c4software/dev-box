@@ -5,6 +5,9 @@
 
 [tools]
 node = "lts"
+# shellcheck: the lint every script of the repo must pass (aqua backend,
+# release binaries for x86_64 and aarch64).
+shellcheck = "latest"
 
 # Coding agents: same names as the wrappers in /usr/local/bin (claude, pi, omp,
 # codex; opencode too, but installed only on the first call), which run a

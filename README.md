@@ -676,6 +676,7 @@ one in the image when it carries the same name.
 **mise (persistent home).** Dev tools declared in `~/.config/mise/config.toml`:
 
 - `node` (LTS)
+- `shellcheck` (`aqua:koalaman/shellcheck`, the lint of the scripts)
 - `claude` (Claude Code, `aqua:anthropics/claude-code`)
 - `pi` (`aqua:earendil-works/pi`)
 - `codex` (OpenAI Codex CLI, `aqua:openai/codex`)

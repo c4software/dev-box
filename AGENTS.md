@@ -77,6 +77,7 @@ Keep existing file names and their options untouched: the README, the
 ## Conventions
 
 - bash, `set -euo pipefail`, no `eval`, shellcheck clean:
+  `shellcheck -e SC1091,SC2088 <files>` in the box, or from the host
   `docker run --rm -v "$PWD:/mnt:ro" koalaman/shellcheck:stable -e SC1091,SC2088 <files>`
 - Comments, script output, README and commit messages in English, plain prose,
   no arrows and no typographic dashes.

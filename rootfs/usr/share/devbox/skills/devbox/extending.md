@@ -157,7 +157,8 @@ linked into the home, so the guide is there on the next start.
 ## Conventions
 
 - bash, `set -euo pipefail`, no `eval`.
-- shellcheck clean:
+- shellcheck clean: `shellcheck -e SC1091,SC2088 <files>` in the box (declared
+  in the seeded mise config), or from the host:
   `docker run --rm -v "$PWD:/mnt:ro" koalaman/shellcheck:stable -e SC1091,SC2088 <files>`
 - Comments and script output in English, plain prose, no arrows and no
   typographic dashes. Same for the README.
