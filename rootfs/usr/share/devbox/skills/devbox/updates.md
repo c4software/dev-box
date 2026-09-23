@@ -120,9 +120,12 @@ be reported and never forced. That is expected, not a bug.
 
 ## What the box cannot update
 
-The image itself. That line in the flag points at `just rebuild` on the host.
+The image itself. That line in the flag points at `just pull` (published
+image) or `just rebuild` (local build) on the host.
 From inside the box there is nothing to do about it, and no amount of `sudo
 pacman -Syu` will help: those packages are gone on the next rebuild anyway.
 
 `just status` on the host makes the same image comparison, and `devbox status`
-shows the commit the running image was built from.
+shows the version and the commit the running image was built from.
+`devbox update` recomputes the flag at the end (`dev-box-check-updates
+--quiet`) and lists what is still waiting, the image line first among them.

@@ -1,6 +1,7 @@
 # shellcheck shell=bash
 # dev-box: what the image was built from, and how to reach the repository it
-# came from. Sourced by dev-box-check-updates and dev-box-changelog, not run.
+# came from. Sourced by dev-box-check-updates, dev-box-changelog and
+# dev-box-status, not run.
 #
 # /etc/devbox/release is written at build time by the Dockerfile:
 #   DEVBOX_COMMIT   the commit of the dev-box repo the image was built from
@@ -46,7 +47,9 @@ devbox_git() {
   GIT_TERMINAL_PROMPT=0 timeout 30 git "${auth[@]}" "$@"
 }
 
-# The newest v* tag of the repo and the commit it points to, "tag commit".
+# The newest release tag of the repo and the commit it points to, "tag
+# commit". A release is v followed by numbers and dots (v1.5, v2.0.1): sort -V
+# puts v1.5-rc1 after v1.5, so a pre-release would pass for the latest.
 # An annotated tag is listed twice by ls-remote: the ^{} line is the commit.
 devbox_latest_release() {
   local url refs tag commit
@@ -54,7 +57,7 @@ devbox_latest_release() {
   [ -n "$url" ] || return 1
   refs="$(devbox_git ls-remote --tags "$url" 2>/dev/null)" || return 1
   tag="$(printf '%s\n' "$refs" | awk '{ print $2 }' \
-    | sed -n 's#^refs/tags/\(v[^^]*\)$#\1#p' | sort -V | tail -n 1)"
+    | sed -n 's#^refs/tags/\(v[0-9][0-9.]*\)$#\1#p' | sort -V | tail -n 1)"
   [ -n "$tag" ] || return 1
   commit="$(printf '%s\n' "$refs" | awk -v r="refs/tags/$tag^{}" '$2 == r { print $1 }')"
   [ -n "$commit" ] \

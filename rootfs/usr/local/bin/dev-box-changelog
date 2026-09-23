@@ -46,13 +46,22 @@ count() { grep -c '^## ' "$CHANGELOG" || true; }
 
 # Prints the entries of a changelog (the shipped one by default) from the
 # newest one, `limit` of them at most (0 for all), stopping before the one
-# whose heading is `stop` (the last one seen). The date is dimmed, the title
-# stands out, the body is aligned under the title.
+# whose heading is `stop` (the last one seen). With a fourth argument, a
+# changelog whose entries are left out wherever they sit (the shipped one,
+# for --upcoming). The date is dimmed, the title stands out, the body is
+# aligned under the title.
 render() {
-  awk -v limit="$1" -v stop="$2" -v o="$C_OFF" -v h="$C_HEAD" -v d="$C_DIM" '
+  awk -v limit="$1" -v stop="$2" -v known="${4:-}" -v o="$C_OFF" -v h="$C_HEAD" -v d="$C_DIM" '
+    BEGIN {
+      if (known != "")
+        while ((getline line < known) > 0)
+          if (line ~ /^## /) seen[substr(line, 4)] = 1
+    }
     /^## / {
       title = substr($0, 4)
       if (stop != "" && title == stop) exit
+      skip = (title in seen)
+      if (skip) next
       n++
       if (limit > 0 && n > limit) exit
       if (n > 1) print ""
@@ -60,17 +69,23 @@ render() {
       printf "  %s%s%s  %s%s%s\n", d, date, o, h, substr(title, length(date) + 2), o
       next
     }
-    n > 0 && NF {
+    n > 0 && !skip && NF {
       sub(/^[ \t]+/, ""); gsub(/`/, "")
       printf "              %s\n", $0
     }
   ' "${3:-$CHANGELOG}"
 }
 
-# The changelog of the repo at the ref the next image comes from, entries
-# down to the newest one this image already has.
+# The changelog of the repo at the ref the next image comes from, less the
+# entries this image already has. Compared heading by heading rather than
+# down to the newest local one: a local build ahead of the branch, or a
+# branch that went its own way, would otherwise print the whole file.
 upcoming() {
-  local ref label remote
+  local ref label remote known="" entries
+  if [ -z "$(devbox_repo_url)" ]; then
+    err "the image does not say which repository it was built from (/etc/devbox/release)"
+    exit 1
+  fi
   if ! ref="$(devbox_upcoming_ref)"; then
     err "could not read the releases of $(devbox_repo_url)"
     exit 1
@@ -83,12 +98,14 @@ upcoming() {
     err "could not read the changelog of $label in $(devbox_repo_url)"
     exit 1
   fi
-  if ! grep -q '^## ' "$remote" || [ "$(awk '/^## /{ print substr($0, 4); exit }' "$remote")" = "$(latest)" ]; then
+  [ -r "$CHANGELOG" ] && known="$CHANGELOG"
+  entries="$(render 0 "" "$remote" "$known")"
+  if [ -z "$entries" ]; then
     printf 'Nothing new in %s: this box runs %s.\n' "$label" "$(devbox_version)"
     return 0
   fi
   printf '%sComing with %s%s (this box runs %s)\n\n' "$C_BOLD" "$label" "$C_OFF" "$(devbox_version)"
-  render 0 "$(latest)" "$remote"
+  printf '%s\n' "$entries"
   if [ "$DEVBOX_SOURCE" = "release" ]; then
     printf '\n%sjust pull on the host to get it%s\n' "$C_DIM" "$C_OFF"
   else

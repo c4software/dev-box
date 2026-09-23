@@ -77,18 +77,39 @@ status:
     docker compose ps
     docker inspect -f 'health: {{{{ .State.Health.Status }} ({{{{ len .State.Health.Log }} check(s))' {{ container }} 2>/dev/null \
       || echo "health: n/a (container stopped, or no healthcheck)"
-    # The commit baked into the image (see compose.yaml) against the local
-    # checkout: the comparison the box cannot make alone when the repo is private.
-    built="$(docker run --rm --entrypoint sh "${DEVBOX_IMAGE:-dev-box-dev-box}" -c '. /etc/devbox/release && echo "$DEVBOX_COMMIT"' 2>/dev/null || echo unknown)"
-    head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+    # What the image records (/etc/devbox/release) against the repo. The
+    # published image (DEVBOX_IMAGE) is compared with the newest release tag
+    # of origin, the next one `just pull` can fetch; a local build with the
+    # local checkout. Also the comparison the box cannot make alone when the
+    # repo is private.
+    release="$(docker run --rm --entrypoint sh "${DEVBOX_IMAGE:-dev-box-dev-box}" -c 'cat /etc/devbox/release' 2>/dev/null || true)"
+    built="$(printf '%s\n' "$release" | sed -n 's/^DEVBOX_COMMIT=//p')"
+    version="$(printf '%s\n' "$release" | sed -n 's/^DEVBOX_VERSION=//p')"
+    [ -n "$built" ] || built=unknown
+    [ -n "$version" ] || version="${built:0:7}"
     if [ "$built" = unknown ]; then
         echo "image: unknown commit (built from a context without .git), just rebuild to bake it in"
-    elif [ "$built" = "$head" ]; then
-        echo "image: up to date (${built:0:7})"
     elif [ -n "${DEVBOX_IMAGE:-}" ]; then
-        echo "image: built on ${built:0:7}, repo at ${head:0:7}, run just pull once the workflow has published it"
+        # v followed by numbers and dots: a pre-release is not a release
+        refs="$(GIT_TERMINAL_PROMPT=0 timeout 30 git ls-remote --tags origin 2>/dev/null || true)"
+        tag="$(printf '%s\n' "$refs" | awk '{ print $2 }' \
+          | sed -n 's#^refs/tags/\(v[0-9][0-9.]*\)$#\1#p' | sort -V | tail -n 1)"
+        commit="$(printf '%s\n' "$refs" | awk -v r="refs/tags/$tag^{}" '$2 == r { print $1 }')"
+        [ -n "$commit" ] || commit="$(printf '%s\n' "$refs" | awk -v r="refs/tags/$tag" '$2 == r { print $1 }')"
+        if [ -z "$tag" ]; then
+            echo "image: $version, could not read the release tags of origin"
+        elif [ "$commit" = "$built" ]; then
+            echo "image: $version, the latest release"
+        else
+            echo "image: $version, $tag released, run just pull (the workflow publishes it a few minutes after the tag)"
+        fi
     else
-        echo "image: built on ${built:0:7}, repo at ${head:0:7}, run just rebuild"
+        head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+        if [ "$built" = "$head" ]; then
+            echo "image: up to date with the checkout ($version)"
+        else
+            echo "image: built on ${built:0:7}, checkout at ${head:0:7}, run just rebuild"
+        fi
     fi
 
 # Open a zsh login shell inside the box, as your user.

@@ -219,9 +219,9 @@ fi
   fi
   # Periodic check: writes ~/.cache/dev-box/updates, printed at login
   if [ "$CHECK_INTERVAL" -gt 0 ] 2>/dev/null; then
-    as_user "dev-box-check-updates" >/dev/null 2>&1 || log "⚠ could not run the update check"
+    as_user "dev-box-check-updates --quiet" >/dev/null 2>&1 || log "⚠ could not run the update check"
     while sleep "$CHECK_INTERVAL"; do
-      as_user "dev-box-check-updates" >/dev/null 2>&1 || log "⚠ could not run the update check"
+      as_user "dev-box-check-updates --quiet" >/dev/null 2>&1 || log "⚠ could not run the update check"
     done
   fi
 ) &

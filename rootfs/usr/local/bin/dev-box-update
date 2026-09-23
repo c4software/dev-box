@@ -63,7 +63,12 @@ esac
 # The flag is recomputed right away: no message at the next login when
 # everything is up to date.
 rm -f "$HOME/.cache/dev-box/updates"
-dev-box-check-updates || log "⚠ could not run the update check"
+dev-box-check-updates --quiet || log "⚠ could not run the update check"
+# What an update in the box cannot do: a newer image, a failed step.
+if [ -s "$HOME/.cache/dev-box/updates" ]; then
+  log "still waiting:"
+  sed 's/^/  /' "$HOME/.cache/dev-box/updates"
+fi
 
 log "done"
 exit "$rc"

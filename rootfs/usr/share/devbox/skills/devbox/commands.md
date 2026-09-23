@@ -34,7 +34,7 @@ the same binary.
 | `devbox` | Binary | Does |
 |---|---|---|
 | `status` | `dev-box-status` | image commit and repo, Tailscale or sshd, podman, mise tools, the `DEV_ENVS` environments, pending updates. Read only. |
-| `check` | `dev-box-check-updates` | looks for what could be updated, writes the flag and prints it. `--image` only says whether the image is the latest. Installs nothing. |
+| `check` | `dev-box-check-updates` | looks for what could be updated, writes the flag and prints it. `--image` only says whether the image is the latest, `--quiet` writes the flag and prints nothing (the entrypoint, `devbox update`). Installs nothing. |
 | `update` | `dev-box-update` | `[dotfiles\|tools\|seed\|all]`, default `all`. The only command that installs. |
 | `seed` | `dev-box-seed` | lays down the config shipped by the image. `--apply` with no menu, `--check` to look, `--force [path]` to take a new version. |
 | `sync` | `dotarchy-sync` | clones or updates the dotfiles repo and applies the config. Never runs its install scripts. |

@@ -1046,12 +1046,13 @@ played without running any, since there is nothing to repair in an empty home.
 A migration that fails stops the run, the ones behind it stay pending, and
 `devbox migrate` tries again.
 
-The one item it cannot act on is the image itself. That line points to `just rebuild`,
-or `just up`, on the host. The image learns its commit at build time: `just` passes
+The one item it cannot act on is the image itself. That line points to `just pull`
+for the published image, `just rebuild` for a local build, on the host. The image learns its commit at build time: `just` passes
 it as a build argument, and a bare `docker compose build` reads it from the clone the
 build runs in. Only a build from a context without `.git` (a tarball) records
 `unknown`, and that check is then skipped. `just status` on the host makes the same
-comparison, image commit against the local checkout:
+comparison: the published image against the newest release tag of `origin`, a local
+build against the local checkout:
 
 ![just status on the host: the container state from docker compose ps, the healthcheck status, and the image commit compared to the local checkout](docs/screenshots/just-status.png)
 

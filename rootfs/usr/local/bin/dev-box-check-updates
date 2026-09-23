@@ -11,6 +11,7 @@
 #
 #   dev-box-check-updates           check everything, print what is waiting
 #   dev-box-check-updates --image   is this image the latest? nothing written
+#   dev-box-check-updates --quiet   write the flag, print nothing
 #
 # The image is compared with the dev-box repository it was built from: the
 # published image with the newest v* tag (just pull), a local build with the
@@ -56,14 +57,16 @@ image_check() {
   fi
 }
 
+QUIET=0
 case "${1:-}" in
-  -h|--help) sed -n '5,17p' "$0" | sed 's/^# \?//'; exit 0 ;;
+  -h|--help) sed -n '5,18p' "$0" | sed 's/^# \?//'; exit 0 ;;
   --image)
     image_check
     printf 'dev-box image: %s\n' "$IMAGE_STATE"
     [ -z "$IMAGE_LINE" ] || echo "What it brings: devbox changelog --upcoming"
     exit 0
     ;;
+  --quiet) QUIET=1 ;;
   "") ;;
   *) echo "dev-box-check-updates: unknown option '$1'" >&2; exit 2 ;;
 esac
@@ -137,10 +140,15 @@ else
   rm -f "$FLAG"
 fi
 
-# Said out loud when run by hand; the entrypoint discards it.
+# Said out loud when run by hand. The image line carries its own host command;
+# everything else is what devbox update installs.
+[ "$QUIET" = 1 ] && exit 0
 if [ -s "$FLAG" ]; then
+  echo "Waiting:"
   sed 's/^/  /' "$FLAG"
-  echo "devbox update installs what is in the box; the image is updated on the host."
+  if grep -qv '^dev-box image:' "$FLAG"; then
+    echo "devbox update installs what is in the box."
+  fi
 else
   echo "Nothing to update."
 fi
