@@ -1,22 +1,21 @@
 # Build the image and publish it on ghcr.io/<owner>/dev-box.
 #
 # One native build per architecture (amd64 and arm64 runners, no qemu), each
-# pushed by digest, then a single multi-arch manifest tagged latest, sha-<short>
-# and the version when a v* tag is pushed. Every build starts from a fresh base
-# image with no layer cache, exactly like `just rebuild`: an Arch image built
-# from a cached pacman layer would carry packages frozen at the first build.
+# pushed by digest, then a single multi-arch manifest, always tagged latest
+# and nothing else. Every build starts from a fresh base image with no layer
+# cache, exactly like `just rebuild`: an Arch image built from a cached pacman
+# layer would carry packages frozen at the first build.
 #
-# Nothing here is periodic: a push on main (or a manual run) publishes a new
-# image, a box pulls it only when its owner runs `just pull`.
+# Only a v* tag builds. A push on main publishes nothing, so a release is a
+# deliberate act (git tag -a v0.3.0 && git push origin v0.3.0), and a box
+# pulls it only when its owner runs `just pull`. The commit baked into the
+# image is the tagged one, on main, which is what dev-box-check-updates
+# compares with the head of the branch.
 name: Build the image
 
-# No paths filter: with one, GitHub ignores the tag pushes. Every push to
-# main builds, so the published commit is always the head of the branch.
 on:
   push:
-    branches: [main]
     tags: ["v*"]
-  workflow_dispatch:
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}
@@ -48,8 +47,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # The build args feed /etc/devbox/release, which dev-box-check-updates
-      # compares with the remote repo. A tag is not a branch to follow, so a
-      # release build records main.
+      # compares with the remote repo. A tag is not a branch to follow, so the
+      # release records main.
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v6
@@ -61,7 +60,7 @@ jobs:
           build-args: |
             DEVBOX_COMMIT=${{ github.sha }}
             DEVBOX_REPO=${{ github.server_url }}/${{ github.repository }}.git
-            DEVBOX_BRANCH=${{ github.ref_type == 'branch' && github.ref_name || 'main' }}
+            DEVBOX_BRANCH=main
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
       - name: Export the digest
@@ -99,29 +98,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.IMAGE }}
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,format=short
-            type=semver,pattern={{version}}
-
-      - name: Create the manifest
+      - name: Create the manifest, tagged latest
         working-directory: /tmp/digests
-        env:
-          TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          tags=()
-          while IFS= read -r tag; do
-            [ -n "$tag" ] && tags+=(-t "$tag")
-          done <<< "$TAGS"
           refs=()
           for d in *; do refs+=("${IMAGE}@sha256:${d}"); done
-          docker buildx imagetools create "${tags[@]}" "${refs[@]}"
+          docker buildx imagetools create -t "${IMAGE}:latest" "${refs[@]}"
 
       - name: Inspect the result
-        env:
-          VERSION: ${{ steps.meta.outputs.version }}
-        run: docker buildx imagetools inspect "${IMAGE}:${VERSION}"
+        run: docker buildx imagetools inspect "${IMAGE}:latest"

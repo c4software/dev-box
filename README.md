@@ -59,12 +59,13 @@ cp compose.override.example.yaml compose.override.yaml
 
 ### Prebuilt image
 
-A GitHub workflow (`.github/workflows/build.yml`) builds the image on every push to
-`main`, on every `v*` tag, and on demand, and publishes it on
-`ghcr.io/c4software/dev-box` for amd64 and arm64 (native runners, one manifest).
-Tags: `latest`, `sha-<short commit>`, and the version without its `v` for a tagged
-release (`0.2.0`). Each run starts from a fresh base with no layer cache, the same as
-`just rebuild`, so nothing is ever frozen at a previous build.
+A GitHub workflow (`.github/workflows/build.yml`) builds the image when a `v*` tag
+is pushed, and only then, and publishes it on `ghcr.io/c4software/dev-box` for amd64
+and arm64 (native runners, one manifest), always as `latest` and under no other tag.
+A push on `main` publishes nothing: a release is a deliberate act,
+`git tag -a v0.3.0 && git push origin v0.3.0`. Each run starts from a fresh base
+with no layer cache, the same as `just rebuild`, so nothing is ever frozen at a
+previous build.
 
 To run it instead of building locally, set the image in `.env`:
 
