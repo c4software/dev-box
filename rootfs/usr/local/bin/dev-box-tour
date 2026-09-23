@@ -190,7 +190,8 @@ tour() {
       "The box is a machine of your tailnet. devbox serve 3000 publishes a" \
       "dev server to the other machines and prints its URL, devbox serve off" \
       "stops it. devbox tailscale send <machine> <file> and devbox tailscale" \
-      "receive move files over Taildrop, into ~/inbox."
+      "receive move files over Taildrop, into ~/inbox. In yazi, c t sends the" \
+      "selected files the same way."
   fi
 
   step "Teach your agent the box" "sed -n '1,40p' ~/.claude/skills/devbox/SKILL.md" \

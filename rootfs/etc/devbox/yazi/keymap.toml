@@ -1,0 +1,15 @@
+# yazi keymap shipped by dev-box, laid down in ~/.config/yazi/keymap.toml by
+# dev-box-seed (never overwritten once you changed it). Only additions: the
+# yazi defaults stay, `~` in yazi lists them all.
+#
+# The clipboard needs nothing here. `c c` (copy path), `c f` (filename) and
+# the others go to your terminal over OSC 52 and into the tmux buffer, like
+# the `copy` function of the shell.
+
+[mgr]
+prepend_keymap = [
+  # The selected files (or the hovered one) go to another machine of the
+  # tailnet over Taildrop. devbox tailscale send asks which machine, among the
+  # ones online right now, then holds the screen so that the result is read.
+  { on = [ "c", "t" ], run = 'shell --block "devbox tailscale send %s; printf \"\\nPress enter to go back to yazi\"; read -r _"', desc = "Send to a machine over Taildrop" },
+]

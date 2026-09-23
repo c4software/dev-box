@@ -48,7 +48,7 @@ the same binary.
 | `mise-install` | `dev-box-mise-install` | writes a mise-backed wrapper into `~/.local/bin`. `--list`, `--remove <cmd>`. |
 | `pkg` | `dev-box-pkg` | pacman packages that survive a rebuild. `add`, `drop`, `list`, `install`, `restore`. |
 | `serve` | `dev-box-serve` | publishes a local port to the tailnet with `tailscale serve`. `<port>`, `<listen>:<port>`, `--on <port>`, `--tcp`, `status`, `off [port\|all]`. |
-| `tailscale` | `dev-box-tailscale` | Taildrop and tailnet status. `send`, `receive [--once] [dir]`, `status`. |
+| `tailscale` | `dev-box-tailscale` | Taildrop and tailnet status. `send [machine] <file...>`, `receive [--once] [dir]`, `status`. |
 
 `dev-box-podman` carries `# devbox:hidden=true`: it is the wrapper behind the
 `docker` and `podman` symlinks, not something a user calls. It stays routable,
@@ -302,11 +302,14 @@ not come back. Anything that must really last belongs in the `Dockerfile`.
 ```bash
 devbox tailscale                # menu: send (online machine, then a file), receive, status
 devbox tailscale send <machine> <file...>
+devbox tailscale send <file...>  # no machine: a gum menu picks one among the peers online
 devbox tailscale receive [--once] [directory]
 devbox tailscale status
 ```
 
-Taildrop, plus the state of the link. `receive` loops on
+Taildrop, plus the state of the link. `send` without a machine needs a
+terminal for the menu; it is what the `c t` chord of yazi runs on the
+selected files (`~/.config/yazi/keymap.toml`, seeded). `receive` loops on
 `tailscale file get --wait`, saving into `~/inbox` by default, and `--once`
 returns after the first delivery. With `TS_DISABLE=true` there is no tailnet,
 so every subcommand says so and exits 1. Taildrop works with Headscale 0.23 and

@@ -13,7 +13,7 @@ vanishes without warning.
 | Path | Holds |
 |---|---|
 | `/usr/local/bin/` | `devbox`, the `dev-box-*` commands, `dotarchy-sync`, the tool wrappers (`claude`, `pi`, `omp`, `codex`, `opencode`), the `wl-copy`/`wl-paste`/`xdg-open`/`notify-send` shims |
-| `/etc/devbox/` | the config shipped to the home (`mise-config.toml`, the Claude agents, `llm-proxy.ts`), plus `zshenv`, `zshrc`, `sshd_config`, `updates-motd.sh` |
+| `/etc/devbox/` | the config shipped to the home (`mise-config.toml`, the Claude agents, `llm-proxy.ts`, the yazi keymap), plus `zshenv`, `zshrc`, `sshd_config`, `updates-motd.sh` |
 | `/usr/share/devbox/skills/` | this skill and its guides |
 | `/usr/share/devbox/migrations/` | the one-off repairs run at start, once each |
 | `/etc/devbox/release` | `DEVBOX_COMMIT`, `DEVBOX_REPO`, `DEVBOX_BRANCH`, burned in at build time |

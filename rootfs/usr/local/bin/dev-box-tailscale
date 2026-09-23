@@ -8,6 +8,7 @@
 # omarchy-tailscale-receive, without the desktop notifications.
 #
 #   dev-box-tailscale send <machine> <file...>   send over Taildrop
+#   dev-box-tailscale send <file...>             the same, gum asks which machine
 #   dev-box-tailscale receive [--once] [dir]     wait and store the files
 #   dev-box-tailscale status                     state of the link and the peers
 #   dev-box-tailscale                            menu: gum picks the machine and the file
@@ -39,10 +40,34 @@ command -v tailscale >/dev/null 2>&1 || {
   exit 1
 }
 
+# The machine to send to, picked among the online peers (or typed in when
+# none is found). Empty when the user gives up.
+pick_machine() {
+  local peers
+  peers="$(online_peers)"
+  if [ -n "$peers" ]; then
+    printf '%s\n' "$peers" | gum choose --height 10 --header "Machine (online now)" 2>/dev/null || true
+  else
+    gum input --placeholder "laptop" --header "Machine (no online peer found)" || true
+  fi
+}
+
 do_send() {
-  [ $# -ge 2 ] || { echo "usage: devbox tailscale send <machine> <file...>" >&2; exit 2; }
-  local machine="$1"; shift
-  local f
+  local machine="" f
+  # Without a machine, the first argument is a file: ask which machine, so
+  # that a file manager (yazi, `c t`) can send the current selection.
+  if [ $# -ge 1 ] && [ -e "$1" ]; then
+    if [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1; then
+      machine="$(pick_machine)"
+      [ -n "$machine" ] || { log "no machine chosen, nothing sent"; return 0; }
+    else
+      echo "dev-box-tailscale: no terminal to ask which machine: devbox tailscale send <machine> <file...>" >&2
+      exit 2
+    fi
+  else
+    [ $# -ge 2 ] || { echo "usage: devbox tailscale send [machine] <file...>" >&2; exit 2; }
+    machine="$1"; shift
+  fi
   for f in "$@"; do
     [ -e "$f" ] || { echo "dev-box-tailscale: $f does not exist" >&2; exit 1; }
   done
@@ -82,7 +107,7 @@ online_peers() {
 # Without arguments, on a terminal: send, receive or status as a gum menu;
 # send picks the machine among the online peers and the file with gum file.
 menu() {
-  local choice machine peers file dir
+  local choice machine file dir
   choice="$(printf '%s\n' \
       "send      a file to another machine, over Taildrop" \
       "receive   wait for files, into ~/inbox" \
@@ -91,12 +116,7 @@ menu() {
   [ -n "$choice" ] || exit 0
   case "${choice%% *}" in
     send)
-      peers="$(online_peers)"
-      if [ -n "$peers" ]; then
-        machine="$(printf '%s\n' "$peers" | gum choose --height 10 --header "Machine (online now)")" || exit 0
-      else
-        machine="$(gum input --placeholder "laptop" --header "Machine (no online peer found)")" || exit 0
-      fi
+      machine="$(pick_machine)"
       [ -n "$machine" ] || exit 0
       file="$(gum file --header "File to send (enter to pick)" "$PWD")" || exit 0
       [ -n "$file" ] || exit 0

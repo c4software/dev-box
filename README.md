@@ -308,6 +308,33 @@ command only carries the environment of the login shell, not the exports of the
 dotarchy config, and yazi would otherwise fall back on `vi`, which the image
 does not ship.
 
+### The file manager
+
+yazi is the file manager, and the box gives it what it needs to be more than a
+directory listing:
+
+- **images are drawn by your terminal.** yazi asks the terminal what it can do
+  (Kitty graphics, Sixel, iTerm2 inline images) and the answer travels through
+  tmux and SSH, so a picture, a PDF page or an SVG shows up in the preview pane
+  in Ghostty, Kitty, WezTerm or foot. It also sets `allow-passthrough all` on
+  its own pane. For a terminal that draws nothing (Alacritty, a plain xterm), the
+  image is rendered as text by `chafa`. The image ships `chafa`, `7zip`
+  (archives), `resvg` (SVG), `imagemagick` (HEIC, AVIF, fonts) and `poppler`
+  (PDF). Video thumbnails need `ffmpeg`, left out of the image for its size:
+  `devbox pkg add ffmpeg` brings them back after every rebuild. `yazi --debug`
+  lists what yazi found, and which protocol it settled on;
+- **`c c` copies the path into your clipboard**, `c f` the file name, `c d` the
+  directory, as yazi does everywhere: it sends OSC 52 straight to the terminal,
+  and calls `wl-copy`, which is the shim described above. Both roads end in the
+  clipboard of the machine you are connected from, and in the tmux buffer;
+- **`c t` sends the selected files to another machine**, over Taildrop. The
+  chord runs `devbox tailscale send` on the selection (or the hovered file), a
+  menu asks which machine among the ones online, and the screen waits for enter
+  before going back to yazi. It comes from `~/.config/yazi/keymap.toml`, a file
+  the image seeds and never overwrites once you changed it (see *Agent
+  configuration* for how the seed works), so it is the place for your own
+  bindings too. `~` in yazi lists them all.
+
 ### Desktop notifications
 
 The image also ships `/usr/local/bin/notify-send`. There is no D-Bus in the box, so
@@ -332,13 +359,16 @@ tailnet, without going through a shell on the host.
 ```bash
 devbox tailscale                      # menu: send (machine, then file), receive, status
 devbox tailscale send laptop notes.md build.log
+devbox tailscale send build.log       # no machine given: a menu picks one online
 devbox tailscale receive              # waits, saves into ~/inbox
 devbox tailscale receive --once ~/tmp # one delivery, then stop
 devbox tailscale status               # the link and its peers
 ```
 
-`receive` loops on `tailscale file get --wait`, so it can sit there for hours;
-`--once` returns after the first delivery. The default directory is `~/inbox`,
+When `send` gets files and no machine, it asks which one with a menu of the
+peers online right now, which is what the `c t` chord of yazi relies on (see
+*The file manager*). `receive` loops on `tailscale file get --wait`, so it can
+sit there for hours; `--once` returns after the first delivery. The default directory is `~/inbox`,
 created if missing. With `TS_DISABLE=true` there is no tailnet at all, and the
 command says so and exits 1 rather than failing obscurely.
 
@@ -880,6 +910,7 @@ reference on the next start, without overwriting anything.
 | `~/.pi/agent/extensions/llm-proxy.ts` | `rootfs/etc/devbox/llm-proxy.ts` |
 | `~/.omp/agent/extensions/llm-proxy.ts` | same file |
 | `~/.config/mise/config.toml` | `rootfs/etc/devbox/mise-config.toml` |
+| `~/.config/yazi/keymap.toml` | `rootfs/etc/devbox/yazi/keymap.toml` |
 
 - `settings.json`: theme, effort level, empty commit/PR attribution, and the
   `harness@c4software` plugin from its GitHub marketplace. There is no `model` key, so
@@ -891,6 +922,8 @@ reference on the next start, without overwriting anything.
 - `llm-proxy.ts` registers the Albert (DINUM) provider in pi and omp. It reads
   `LLM_PROXY_URL` and `LLM_PROXY_API_KEY` from `.env`. If the endpoint is unreachable it
   registers nothing rather than blocking startup.
+- `keymap.toml` adds the `c t` chord to yazi, which sends the selected files over
+  Taildrop (see *The file manager*). It only prepends bindings, the yazi defaults stay.
 
 Login shells get those two variables from `/etc/devbox/env`, written at start and
 sourced by `/etc/devbox/zshenv`. Neither Tailscale SSH nor sshd inherits the

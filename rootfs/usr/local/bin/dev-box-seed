@@ -2,7 +2,7 @@
 # devbox:name=seed
 # devbox:summary=Lay down the shipped config, overwriting nothing
 # devbox:args=[--apply|--force|--check] [path]
-# Lays down the config shipped by the image (agents, extensions, mise config)
+# Lays down the config shipped by the image (agents, extensions, mise and yazi config)
 # in the home, without ever overwriting a local change.
 #
 # A reference copy of what was laid down is kept in
@@ -27,6 +27,7 @@ SEEDS=(
   "/etc/devbox/llm-proxy.ts:.pi/agent/extensions/llm-proxy.ts"
   "/etc/devbox/llm-proxy.ts:.omp/agent/extensions/llm-proxy.ts"
   "/etc/devbox/mise-config.toml:.config/mise/config.toml"
+  "/etc/devbox/yazi/keymap.toml:.config/yazi/keymap.toml"
 )
 
 FORCE=false
