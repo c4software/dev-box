@@ -2,20 +2,24 @@
 # --- dev-box ---
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$HOME/.config/composer/vendor/bin:$PATH"
+
 # Rootless podman (PODMAN_ENABLE=true): `docker` (the podman-docker shim) and
 # `docker compose` talk to its user socket, when it was started.
 [ -S "/run/user/$(id -u)/podman/podman.sock" ] \
   && export DOCKER_HOST="${DOCKER_HOST:-unix:///run/user/$(id -u)/podman/podman.sock}"
+
 # No browser in the box: the xdg-open shim copies the URL into the clipboard
 # of your terminal. Set here so that the dotarchy default (omarchy-launch-browser)
 # never applies.
 export BROWSER=xdg-open
+
 # The dotarchy config exports EDITOR=nvim, but only in the interactive shell:
 # a tmux pane opened by a command (the xdg-open shim, `open .`) runs from the
 # tmux server, which only carries the environment of the login shell. Set
 # here, it reaches the server too; yazi otherwise falls back on vi, absent.
 export EDITOR="${EDITOR:-nvim}"
 export VISUAL="${VISUAL:-$EDITOR}"
+
 # Container variables (written by the entrypoint): neither Tailscale SSH nor
 # sshd inherits the environment of PID 1.
 [ -r /etc/devbox/env ] && . /etc/devbox/env

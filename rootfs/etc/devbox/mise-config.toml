@@ -15,6 +15,7 @@ shellcheck = "latest"
 claude = "latest"
 pi = "latest"
 codex = "latest"
+
 # omp: mise's github backend picks the release asset for the OS and the
 # architecture (omp-linux-x64 on amd64, omp-linux-arm64 on arm64). Nothing to
 # set for the Raspberry Pi.
