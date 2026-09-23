@@ -286,13 +286,19 @@ OSC 52 directly. `wl-paste` prints the tmux buffer back.
 
 ### Desktop notifications
 
-**Opening a URL.** There is no browser either. `/usr/local/bin/xdg-open` is a shim
-that copies the URL into your clipboard through `wl-copy` and says so, and `BROWSER`
-is set to it system-wide, ahead of the dotarchy default. `gh auth login`, the OAuth
-flows of the agents and anything else that opens a link print one line, and the URL is
-ready to paste in a browser on your machine. The `open` function of the dotarchy
-aliases (and `repo`, built on it) discards that output, so the same line arrives as a
-terminal notification through `notify-send` instead.
+**Opening things.** There is no browser either. `/usr/local/bin/xdg-open` is a shim,
+and `BROWSER` points to it system-wide, ahead of the dotarchy default. What it does
+depends on the argument:
+
+- a URL is copied into your clipboard through `wl-copy`, and one line says so. This
+  is what `gh auth login`, the OAuth flows of the agents and the `repo` alias of the
+  dotarchy config go through;
+- a directory opens in `yazi`, a file in `$EDITOR` (nvim), in a new tmux pane to the
+  right of the current one, or in the foreground outside tmux. `open .` from the
+  dotarchy aliases therefore gives you a file manager next to your shell.
+
+The `open` function discards the output of `xdg-open`, so its messages arrive as a
+terminal notification through `notify-send` instead (see below).
 
 The image also ships `/usr/local/bin/notify-send`. There is no D-Bus in the box, so
 the shim writes the notification to the terminal as OSC 777 instead, wrapped in a
@@ -550,7 +556,7 @@ apply here if they live in `config/nvim`.
 
 **pacman (image).** Everything the common-no-omarchy config and `try`/`proj` call
 (zsh, tmux, mise, gum, starship, zoxide, fzf, eza, bat, ripgrep, fd, lazygit, jq,
-neovim, luarocks, tree-sitter-cli), the base (tailscale, rsync, base-devel, gh, ...) and
+neovim, luarocks, tree-sitter-cli), the base (tailscale, rsync, base-devel, gh, yazi, ...) and
 rootless podman (see *Containers inside the box*).
 
 - Update Arch: `just rebuild`, or `docker compose build --pull --no-cache && docker compose up -d`.

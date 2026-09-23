@@ -25,6 +25,7 @@ ENV LANG=C.UTF-8
 #   (5 to 15 minutes and a pile of headers), so PHP is the one dev-box-dev-env
 #   environment that comes from the image, as it does in omarchy.
 # + github-cli: gh, as on an omarchy machine (PRs, issues, workflow runs from the box).
+# + yazi: the file manager `open <directory>` (the xdg-open shim) opens in a tmux pane.
 # + sqlite: the sqlite3 shell. Already pulled by python and php-sqlite, listed
 #   so that it stays whatever those dependencies do.
 # podman already pulls passt, shadow, conmon and containers-common, and netavark
@@ -32,7 +33,7 @@ ENV LANG=C.UTF-8
 RUN pacman -Syu --noconfirm --needed --disable-sandbox \
       base-devel git openssh sudo which less nano file lsof iptables python \
       tailscale zsh zsh-completions bash-completion tmux \
-      rsync gum curl wget unzip github-cli \
+      rsync gum curl wget unzip github-cli yazi \
       neovim luarocks tree-sitter-cli \
       starship zoxide fzf eza bat ripgrep fd lazygit jq \
       libyaml sqlite \

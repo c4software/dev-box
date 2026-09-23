@@ -1,31 +1,66 @@
 #!/usr/bin/env bash
-# Stand-in for xdg-open in the box: there is no browser and no desktop here,
-# so a URL cannot be opened, only handed over. It goes into the clipboard of
-# the machine you are connected from (through the wl-copy shim: tmux buffer
-# and OSC 52), and a line says so. Anything that opens a link, gh auth login,
-# claude, the OAuth flows of the agents, lands here: BROWSER=xdg-open is
-# exported by /etc/devbox/zshenv, ahead of the dotarchy default. The `open`
-# function of the dotarchy aliases (and the `repo` alias built on it) calls
-# xdg-open with its output discarded, in the background: the line would be
-# lost, so when stdout is not a terminal the message goes through notify-send
-# too, which reaches the terminal over /dev/tty.
-# Usage: xdg-open URL
+# Stand-in for xdg-open in the box: there is no browser and no desktop here.
+# What happens depends on the argument:
+#   - a URL goes into the clipboard of the machine you are connected from
+#     (through the wl-copy shim: tmux buffer and OSC 52), and a line says so;
+#   - a directory opens in yazi, a file in $EDITOR (nvim), in a new tmux pane
+#     to the right of the current one, or in the foreground outside tmux.
+# Anything that opens a link, gh auth login, claude, the OAuth flows of the
+# agents, lands here: BROWSER=xdg-open is exported by /etc/devbox/zshenv,
+# ahead of the dotarchy default. The `open` function of the dotarchy aliases
+# (and the `repo` alias built on it) calls xdg-open with its output discarded,
+# in the background: the tmux pane still opens, since tmux is reached through
+# its socket, and a message that would be lost goes through notify-send too,
+# which reaches the terminal over /dev/tty.
+# Usage: xdg-open URL|FILE|DIRECTORY
 set -euo pipefail
 
 case "${1:-}" in
   ""|-h|--help)
-    echo "Usage: xdg-open URL"
-    echo "Copies the URL into the clipboard of your terminal, nothing opens in the box."
+    echo "Usage: xdg-open URL|FILE|DIRECTORY"
+    echo "A URL is copied into the clipboard of your terminal; a directory opens in yazi"
+    echo "and a file in \$EDITOR, in a tmux pane on the right (or here, outside tmux)."
     exit 0 ;;
   --version)
-    echo "xdg-open (dev-box clipboard shim)"; exit 0 ;;
+    echo "xdg-open (dev-box shim)"; exit 0 ;;
 esac
 
-url="$1"
-if wl-copy "$url"; then
-  msg="Copied to the clipboard, paste it in a browser on your machine: $url"
+target="$1"
+
+# say: on the terminal when there is one, through a notification otherwise.
+say() {
+  echo "$1"
+  [ -t 1 ] || notify-send "dev-box" "$1" 2>/dev/null || true
+}
+
+# run: the command in a tmux pane on the right, or in the foreground.
+run_in_pane() {
+  local dir="$1"; shift
+  if [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
+    tmux split-window -h -c "$dir" "$@"
+  elif [ -t 0 ] && [ -t 1 ]; then
+    cd "$dir" && exec "$@"
+  else
+    say "No tmux and no terminal to open it in, run it yourself: $*"
+    exit 1
+  fi
+}
+
+if [ -d "$target" ]; then
+  dir="$(realpath "$target")"
+  if ! command -v yazi >/dev/null 2>&1; then
+    say "yazi is not installed, nothing to open the directory with: $dir"
+    exit 1
+  fi
+  run_in_pane "$dir" yazi
+elif [ -e "$target" ]; then
+  file="$(realpath "$target")"
+  run_in_pane "$(dirname "$file")" "${EDITOR:-nvim}" "$file"
 else
-  msg="Nothing to copy into, open this URL yourself: $url"
+  # A URL, or anything else: hand it over to the clipboard.
+  if wl-copy "$target"; then
+    say "Copied to the clipboard, paste it in a browser on your machine: $target"
+  else
+    say "Nothing to copy into, open this URL yourself: $target"
+  fi
 fi
-echo "$msg"
-[ -t 1 ] || notify-send "dev-box" "$msg" 2>/dev/null || true
