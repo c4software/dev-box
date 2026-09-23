@@ -37,7 +37,8 @@ config as-is, and its dev tools are managed by [mise](https://mise.jdx.dev/).
    docker compose logs -f
    ```
 
-   The logs print the login URL to open to attach the box to your tailnet.
+   The logs print the login URL to open to attach the box to your tailnet. To skip
+   the build and run the published image instead, see *Prebuilt image* below.
 
 3. From any machine on your tailnet:
 
@@ -59,10 +60,10 @@ cp compose.override.example.yaml compose.override.yaml
 ### Prebuilt image
 
 A GitHub workflow (`.github/workflows/build.yml`) builds the image on every push to
-`main`, on every `v*` tag, and on demand,
-and publishes it on `ghcr.io/c4software/dev-box` for amd64 and arm64 (native runners,
-one manifest). Tags: `latest`, `sha-<short commit>`, and the version for a tagged
-release. Each run starts from a fresh base with no layer cache, the same as
+`main`, on every `v*` tag, and on demand, and publishes it on
+`ghcr.io/c4software/dev-box` for amd64 and arm64 (native runners, one manifest).
+Tags: `latest`, `sha-<short commit>`, and the version without its `v` for a tagged
+release (`0.2.0`). Each run starts from a fresh base with no layer cache, the same as
 `just rebuild`, so nothing is ever frozen at a previous build.
 
 To run it instead of building locally, set the image in `.env`:
@@ -284,11 +285,11 @@ clipboard of the machine you are connected from over SSH, as long as its termina
 supports OSC 52. Alacritty, Ghostty, Kitty and foot do. Outside tmux the shim sends
 OSC 52 directly. `wl-paste` prints the tmux buffer back.
 
-### Desktop notifications
+### Opening a URL, a file or a directory
 
-**Opening things.** There is no browser either. `/usr/local/bin/xdg-open` is a shim,
-and `BROWSER` points to it system-wide, ahead of the dotarchy default. What it does
-depends on the argument:
+There is no browser either. `/usr/local/bin/xdg-open` is a shim, and `BROWSER`
+points to it system-wide, ahead of the dotarchy default. What it does depends on
+the argument:
 
 - a URL is copied into your clipboard through `wl-copy`, and one line says so. This
   is what `gh auth login`, the OAuth flows of the agents and the `repo` alias of the
@@ -300,7 +301,13 @@ depends on the argument:
   next to your shell.
 
 The `open` function discards the output of `xdg-open`, so its messages arrive as a
-terminal notification through `notify-send` instead (see below).
+terminal notification through `notify-send` instead (see below). `EDITOR` and
+`VISUAL` are set to `nvim` system-wide for the same reason: a pane opened by a
+command only carries the environment of the login shell, not the exports of the
+dotarchy config, and yazi would otherwise fall back on `vi`, which the image
+does not ship.
+
+### Desktop notifications
 
 The image also ships `/usr/local/bin/notify-send`. There is no D-Bus in the box, so
 the shim writes the notification to the terminal as OSC 777 instead, wrapped in a
@@ -397,8 +404,8 @@ wrapper behind the `docker` and `podman` symlinks, not a command you call.
 Without arguments, `devbox` opens a gum menu listing the commands with their
 summary, and runs the one you pick. Every command with subcommands then opens a
 menu of its own when it has a terminal and no argument: `pkg`, `mise-install`,
-`tailscale`, `serve`, `update`, `migrate`, `seed`, `dbs`, `dev-env` and `agent`
-all ask what to do, then ask for what they need (a package name, a port, a
+`tailscale`, `serve`, `update`, `migrate`, `seed`, `dbs`, `dev-env`, `tui` and
+`agent` all ask what to do, then ask for what they need (a package name, a port, a
 machine, a file) with gum. The whole tree is navigable without remembering an
 argument. With no terminal nothing asks: the command runs its default action
 when it has one (`update` updates everything, `migrate` and `seed` apply) and
@@ -487,9 +494,9 @@ does not answer, the section says so in one line and nothing else.
 ## The first login, and the tour
 
 The first time a shell opens in a new box, gum asks whether to take the tour:
-a dozen steps, two minutes, each one explaining one thing about the box and
+fourteen steps at most, two minutes, each one explaining one thing about the box and
 offering to run the real command right there (`devbox status`, `devbox dev-env
---list`, `devbox agent set`, and so on). The databases step only shows when
+--list`, `devbox tui --list`, `devbox agent set`, and so on). The databases step only shows when
 podman is on, the tailnet step only with Tailscale, and the steps about the
 overrides and about changing the box print links to the matching pages of the
 repository the image was built from. Decline and it never asks again;
@@ -559,12 +566,14 @@ apply here if they live in `config/nvim`.
 
 **pacman (image).** Everything the common-no-omarchy config and `try`/`proj` call
 (zsh, tmux, mise, gum, starship, zoxide, fzf, eza, bat, ripgrep, fd, lazygit, jq,
-neovim, luarocks, tree-sitter-cli), the base (tailscale, rsync, base-devel, gh, yazi, ...) and
-rootless podman (see *Containers inside the box*).
+neovim, luarocks, tree-sitter-cli), the base (tailscale, rsync, base-devel, gh,
+yazi, ...) and rootless podman (see *Containers inside the box*).
 
-- Update Arch: `just rebuild`, or `docker compose build --pull --no-cache && docker compose up -d`.
+- Update Arch: `just rebuild`, or `docker compose build --pull --no-cache && docker compose up -d`;
+  `just pull` when the box runs the published image.
 - A `sudo pacman -S` inside the box is lost on rebuild. Add the package to the
-  `Dockerfile` for good, or let `devbox pkg` put it back at every start.
+  `Dockerfile` for good, or let `devbox pkg` (or `devbox tui`, for the catalogue)
+  put it back at every start.
 
 ### Terminal apps
 
@@ -1078,3 +1087,6 @@ yourself, the script will not write outside the repo.
   `menci/archlinuxarm:base`, rebuilt daily. BuildKit picks the base from
   `TARGETARCH`, and the rest of the image assumes nothing about the architecture.
 - **Fixed UID/GID 1000:1000.** Same owner as on the host for the bind-mounted volumes.
+- **One image for everyone, customised at run time.** The published image bakes in
+  nothing from `.env`: user, volumes, Tailscale, dotfiles and dev environments are
+  read by Compose when the container starts, so the same image serves every box.
