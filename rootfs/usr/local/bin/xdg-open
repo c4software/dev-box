@@ -4,7 +4,11 @@
 # the machine you are connected from (through the wl-copy shim: tmux buffer
 # and OSC 52), and a line says so. Anything that opens a link, gh auth login,
 # claude, the OAuth flows of the agents, lands here: BROWSER=xdg-open is
-# exported by /etc/devbox/zshenv, ahead of the dotarchy default.
+# exported by /etc/devbox/zshenv, ahead of the dotarchy default. The `open`
+# function of the dotarchy aliases (and the `repo` alias built on it) calls
+# xdg-open with its output discarded, in the background: the line would be
+# lost, so when stdout is not a terminal the message goes through notify-send
+# too, which reaches the terminal over /dev/tty.
 # Usage: xdg-open URL
 set -euo pipefail
 
@@ -19,7 +23,9 @@ esac
 
 url="$1"
 if wl-copy "$url"; then
-  echo "Copied to the clipboard, paste it in a browser on your machine: $url"
+  msg="Copied to the clipboard, paste it in a browser on your machine: $url"
 else
-  echo "Nothing to copy into, open this URL yourself: $url"
+  msg="Nothing to copy into, open this URL yourself: $url"
 fi
+echo "$msg"
+[ -t 1 ] || notify-send "dev-box" "$msg" 2>/dev/null || true
