@@ -570,20 +570,27 @@ environment is installed. Everything else, the
 box, its commands and where the coding accounts stand, is one command away:
 `devbox`, `devbox status` and `devbox agent usage`.
 
-The first login after an update starts with what changed: the entries of the
-changelog shipped with the image (`/usr/share/devbox/CHANGELOG.md`, `devbox
-changelog`) that this home has not seen yet, three at most. The heading of the
-newest entry shown is kept in `~/.config/dev-box/changelog-seen`, so the next
-logins stay on the single line until an image brings a new entry. A brand new
-home starts with everything marked as seen.
+The first login after an update starts with what changed: the notes of the releases
+this home has not seen yet, three at most. The changelog is the list of GitHub
+releases of the repo, one per `v*` tag, written in the annotation of the tag.
+`devbox check` keeps them in `~/.cache/dev-box/releases.md`, so the login reads a file
+and never the network; `devbox changelog` reads them live, and `devbox changelog
+--upcoming` shows the releases after the image the box runs. The version whose notes
+were last shown is kept in `~/.config/dev-box/changelog-seen`, so the next logins stay
+on the single line until the box runs a newer release. A brand new home starts with
+everything marked as seen.
 
 ```
 New in the box
-  2026-09-23  A changelog in the box
-              devbox changelog lists what changed in the box. The first login after an
-              update shows the new entries, three at most.
+  v1.7  2026-09-24
+    Dev environments, one script each; Android SDK and Flutter
+    devbox dev-env --info <name> says what an environment installs.
 devbox changelog --all for the whole list
 ```
+
+To publish one, write the notes in the tag: `git tag -a v1.7` opens the editor, `git
+push origin v1.7` starts the workflow, which builds the image and then creates the
+release from that text.
 
 ## Dotfiles sync
 
@@ -730,6 +737,7 @@ is upgraded by `devbox update tools` like the rest.
 
 ```bash
 devbox dev-env --list             # what is on offer, and what is installed
+devbox dev-env --info ruby        # what one installs, and what a removal leaves
 devbox dev-env node go            # install these two
 devbox dev-env --remove node go   # remove them
 devbox dev-env                    # menu: install or remove, then several at a time
@@ -775,6 +783,18 @@ again to take the latest build. The zip also carries an old `sqlite3`, which the
 command removes so that the one of the image stays first on the PATH. Google publishes no arm64 build, so on an arm64 box
 the command points to `devbox pkg add android-tools` instead.
 
+`android-sdk` is the full SDK, to build apps: the cmdline-tools from the mise
+registry, pinned to the version of the day so that `devbox update tools` never moves
+`ANDROID_HOME`, then `sdkmanager` lays the platform-tools, the newest stable platform
+and build-tools inside it, the licenses accepted on your behalf. It needs a JDK 17 or
+21: `java@temurin-21` when no java is declared, the declared one otherwise. There is no
+emulator (no KVM, no display): deploy to a phone over USB or `adb connect`. `flutter`
+sits on it, from the official stable archive through mise, with the Android and web
+engine artifacts fetched at install and Linux desktop turned off; the web target runs
+with `flutter run -d web-server --web-hostname 0.0.0.0`. Both are x86_64 only, Google
+publishes no arm64 build-tools. Swift is not offered: swift.org publishes no build for
+Arch, and the Ubuntu one needs library aliases to start.
+
 PHP is the one exception. mise can only build PHP from source, which takes minutes
 and needs a pile of development headers, so `php`, `composer`, `php-sqlite`,
 `php-gd`, `php-sodium` and `xdebug` are pacman packages baked into the image, with
@@ -796,6 +816,18 @@ Playwright on the system Chromium, is in the `browser.md` guide of the agent ski
 
 OCaml is not offered: upstream it goes through the opam installer, which would be
 wiped by the next image rebuild.
+
+Each environment is a short script with three functions, `details`, `install` and
+`uninstall`, plus `is_installed` when the mise config cannot tell and `is_supported`
+when it does not run everywhere. What this machine cannot take (`android`,
+`android-sdk` and `flutter` on arm64) is left out of the menu and the list, and
+skipped by `DEV_ENVS`, so one `.env` serves both architectures. The image ships
+them in `/usr/share/devbox/dev-envs/`, and `devbox dev-env` finds every file there on
+its own. A script of the same shape in `~/.config/dev-box/dev-envs/<name>.sh` adds an
+environment to your box, or replaces the image's one of the same name, and survives
+rebuilds since it lives in the home; `--list` marks it. The format is described at the
+top of `/usr/share/devbox/lib/dev-env.sh`, and copying one of the image's scripts is
+the quickest start.
 
 ### Containers inside the box
 

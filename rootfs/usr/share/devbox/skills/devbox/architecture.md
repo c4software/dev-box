@@ -37,6 +37,7 @@ backed up or moved on their own.
 | `~/.config/dev-box/migrations` | the migrations already played, one name per line |
 | `~/.config/dev-box/packages` | the pacman packages `devbox pkg` puts back at every start |
 | `~/.config/dev-box/agent` | the default coding agent |
+| `~/.config/dev-box/dev-envs/` | your own `devbox dev-env` environments, one script each (optional) |
 | `~/.config/dev-box/tour-pending` | the first login proposes the guided tour, then removes it |
 | `~/.local/share/dotarchy/` | the dotfiles clone |
 | `~/.cache/dev-box/updates` | the pending-updates flag |

@@ -38,12 +38,12 @@ the same binary.
 | `update` | `dev-box-update` | `[dotfiles\|tools\|seed\|all]`, default `all`. The only command that installs. |
 | `seed` | `dev-box-seed` | lays down the config shipped by the image. `--apply` with no menu, `--check` to look, `--force [path]` to take a new version. |
 | `sync` | `dotarchy-sync` | clones or updates the dotfiles repo and applies the config. Never runs its install scripts. |
-| `dev-env` | `dev-box-dev-env` | installs or removes a dev environment with mise. `--list`, names as arguments (`--remove` to remove, `--if-missing` to skip what is there), or a menu. |
+| `dev-env` | `dev-box-dev-env` | installs or removes a dev environment with mise. `--list`, `--info <env>`, names as arguments (`--remove` to remove, `--if-missing` to skip what is there), or a menu. |
 | `tui` | `dev-box-tui` | installs or removes terminal apps from a catalogue (btop, lazydocker, atac, rainfrog, ...), through `devbox pkg`. `--list`, names as arguments (`--remove` to remove), or a menu. |
 | `dbs` | `dev-box-dbs` | starts a development database in a podman container. `--list`, `--start`, `--stop`, `--remove [--purge]`, or names, or a menu. |
 | `agent` | `dev-box-agent` | the default coding agent. `set`, `which`, `prompt <text>`, `usage [claude\|codex\|proxy]`, or bare for a menu (run, pick, usage). |
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates, `DEV_ENVS` still installing or failed. |
-| `changelog` | `dev-box-changelog` | what changed in the box, newest first. The 3 latest, `-n N`, `--all`, `--upcoming` for what the next image brings, read from the repo; `--new` and `--mark-seen` are for the login and the entrypoint. |
+| `changelog` | `dev-box-changelog` | the release notes of the repo (GitHub releases), newest first. The 3 latest up to this image, `-n N`, `--all`, `--upcoming` for the releases after it; `--new` and `--mark-seen` are for the login and the entrypoint. |
 | `tour` | `dev-box-tour` | a guided tour of the box in a dozen steps, each with the command to try. `--text` prints it at once, `--offer` is what the first login runs. |
 | `migrate` | `dev-box-migrate` | runs the migrations shipped by the image, once each. `--run` with no menu, `--pending`, `--list`, `--mark-done <name>`. |
 | `mise-install` | `dev-box-mise-install` | writes a mise-backed wrapper into `~/.local/bin`. `--list`, `--remove <cmd>`. |
@@ -62,7 +62,7 @@ They are short bash scripts. Reading one is faster than guessing:
 ```bash
 cat $(which dev-box-update)
 cat $(which dev-box-seed)      # the SEEDS table is at the top
-cat $(which dev-box-dev-env)   # the ENVS list is at the top
+ls /usr/share/devbox/dev-envs/   # one script per dev-env environment
 ```
 
 ## dev-env
@@ -74,10 +74,12 @@ nothing else: no pacman, no `curl | sh`. Everything it installs is declared in
 
 ```bash
 devbox dev-env --list             # what is on offer, installed ones marked
+devbox dev-env --info ruby        # what it installs, what a removal leaves
 devbox dev-env node go            # install these two
 devbox dev-env --remove node go   # remove these two
 devbox dev-env --if-missing go    # install go only when it is not there yet
 devbox dev-env --installed        # the installed names, one per line
+devbox dev-env --unsupported      # the names this machine cannot take (x86_64 only ones on arm64)
 devbox dev-env                    # menu: install or remove, then multiple selection
 ```
 
@@ -102,11 +104,22 @@ PHP is baked into the image (pacman: php, composer, php-sqlite, php-gd,
 php-sodium, xdebug, extensions enabled at build); `dev-env php` only checks it,
 `laravel` and `symfony` add their installer on top. `android` is the
 platform-tools only (adb, fastboot) through mise's http backend, x86_64 only,
-refreshed by running the command again. `browser` is a headless Chromium plus
+refreshed by running the command again. `android-sdk` is the full SDK to build
+apps (cmdline-tools pinned in mise, platform-tools, newest platform and
+build-tools through sdkmanager, JDK 21 when no java is declared), and
+`flutter` sits on it, Android and web targets; both x86_64 only, no emulator.
+`browser` is a headless Chromium plus
 `noto-fonts`, installed through `devbox pkg add` (pacman, reinstalled at start
 after a rebuild) because the mise registry has no browser that runs on Arch
 without those packages; see `browser.md` for how an agent uses it. OCaml is
 absent: upstream it needs opam, which would be lost on the next rebuild.
+
+Each environment is one script: `/usr/share/devbox/dev-envs/<name>.sh` for
+the image's, `~/.config/dev-box/dev-envs/<name>.sh` for the box's own, which
+wins over the image's of the same name and survives rebuilds. The format
+(`details`, `install`, `uninstall`, optional `is_installed` and `is_supported`) is at the top of
+`/usr/share/devbox/lib/dev-env.sh`; copying an image script is the quickest
+start. `--list` marks the box's own scripts.
 
 ## tui
 
@@ -221,30 +234,32 @@ in `devbox check` and `devbox status`. The `DEV_ENVS` line is the first line of
 `~/.cache/dev-box/dev-envs`, which the entrypoint writes at start and removes
 once every environment is installed.
 
-The first login after an update prints the new changelog entries above that
-line, three at most, through `dev-box-changelog --new`. See `changelog`.
+The first login after an update prints the notes of the new releases above
+that line, three at most, through `dev-box-changelog --new`. See `changelog`.
 
 ## changelog
 
-`devbox changelog` prints `/usr/share/devbox/CHANGELOG.md`, the changelog
-shipped with the image, newest first.
+`devbox changelog` prints the release notes of the dev-box repository, read
+live from its GitHub releases: one per `v*` tag, written in the annotation of
+the tag.
 
 ```bash
-devbox changelog          # the 3 latest entries
+devbox changelog          # the 3 latest releases, up to the one this box runs
 devbox changelog -n 10    # the 10 latest
 devbox changelog --all    # all of them
-devbox changelog --upcoming   # what the next image brings, from the repo
+devbox changelog --upcoming   # the releases after this image
 ```
 
-`--upcoming` is the one that touches the network: it reads the changelog of
-the dev-box repository at the newest `v*` tag for the published image, at the
-head of the branch for a local build, and prints the entries this image does
-not have. `devbox check --image` says whether there is such an image at all.
+The notes are kept in `~/.cache/dev-box/releases.md`: `devbox check` refreshes
+it in the background, `devbox changelog` refreshes it on every call and falls
+back on it when GitHub is out of reach. `GITHUB_TOKEN` avoids the rate limit
+of the API. `devbox check --image` says whether a newer image exists at all.
 
-The heading of the newest entry you were shown is kept in
-`~/.config/dev-box/changelog-seen`. When the image brings an entry past it, the
-login message shows the new ones (three at most) once, then records them. The
-entrypoint marks everything as seen on a brand new home.
+The version of the image whose notes you were shown is kept in
+`~/.config/dev-box/changelog-seen`. When the box runs a newer one, the login
+shows the notes of the releases in between (three at most) once, from the
+cache, without touching the network, then records the version. The entrypoint
+marks a brand new home as seen.
 
 ## tour
 

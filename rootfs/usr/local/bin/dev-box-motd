@@ -5,20 +5,21 @@
 # What you see when you land in the box: one line with a command of the box
 # drawn at random and what it does, one more when an update is waiting, and
 # one when the DEV_ENVS environments of .env are still installing or failed.
-# The first time after an update, the new changelog entries come first.
+# The first time after an update, the notes of the new release come first.
 # Interactive shells print it through /etc/devbox/updates-motd.sh, once per
 # tmux session.
 #
 #   dev-box-motd   print it again
 #
-# It reads nothing but the box: no network, no cache, a few milliseconds.
+# It reads nothing but the box and its cache: no network, a few milliseconds.
 set -euo pipefail
 
 UPDATES="$HOME/.cache/dev-box/updates"
 # Written by the entrypoint while DEV_ENVS is being installed, or when it failed
 DEV_ENVS_FLAG="$HOME/.cache/dev-box/dev-envs"
-# Shipped with the image, and the heading of the newest entry already shown
-CHANGELOG="/usr/share/devbox/CHANGELOG.md"
+# The release notes kept by devbox check, and the version of the image whose
+# notes were last shown
+RELEASES="$HOME/.cache/dev-box/releases.md"
 CHANGELOG_SEEN="$HOME/.config/dev-box/changelog-seen"
 
 usage() { sed -n '5,13p' "$0" | sed 's/^# \?//'; }
@@ -114,18 +115,18 @@ dev_envs_line() {
   printf '%s%s%s\n' "$C_WARN" "$(head -n 1 "$DEV_ENVS_FLAG")" "$C_OFF"
 }
 
-# The changelog, once after an update. The comparison stays in bash, so a
-# login with nothing new costs no fork; dev-box-changelog prints the new
-# entries and records them as seen.
+# The release notes, once after an update. The comparison stays in bash, so a
+# login with nothing new costs no fork; dev-box-changelog prints the notes
+# not seen yet and records this image as seen.
 changelog_block() {
-  local line latest="" seen=""
-  [ -r "$CHANGELOG" ] || return 0
+  local line version="" seen=""
+  [ -r "$RELEASES" ] && [ -r /etc/devbox/release ] || return 0
   while IFS= read -r line; do
-    case "$line" in '## '*) latest="${line#\#\# }"; break ;; esac
-  done < "$CHANGELOG"
-  [ -n "$latest" ] || return 0
+    case "$line" in DEVBOX_VERSION=*) version="${line#DEVBOX_VERSION=}"; break ;; esac
+  done < /etc/devbox/release
+  [ -n "$version" ] || return 0
   [ -r "$CHANGELOG_SEEN" ] && IFS= read -r seen < "$CHANGELOG_SEEN" || true
-  [ "$seen" != "$latest" ] || return 0
+  [ "$seen" != "$version" ] || return 0
   command -v dev-box-changelog >/dev/null 2>&1 || return 0
   dev-box-changelog --new || true
 }

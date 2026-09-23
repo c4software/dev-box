@@ -15,7 +15,8 @@
 #
 # The image is compared with the dev-box repository it was built from: the
 # published image with the newest v* tag (just pull), a local build with the
-# head of its branch (just rebuild).
+# head of its branch (just rebuild). The release notes of the repo are saved on
+# the way, in ~/.cache/dev-box/releases.md, for devbox changelog and the login.
 set -euo pipefail
 
 # shellcheck source=/dev/null
@@ -82,6 +83,9 @@ tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
 image_check
+# The notes of the releases, for the login after the next update. A failure
+# keeps the previous cache: it is only text to show.
+devbox_refresh_releases >/dev/null 2>&1 || true
 
 # --- 1. Dotfiles: local HEAD against remote HEAD (git ls-remote, no object pulled) ---
 if [ -d "$SRC/.git" ]; then

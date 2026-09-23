@@ -100,11 +100,19 @@ fi
 if [ -n "$dev_envs" ]; then
   title "Dev environments"
   installed="$(dev-box-dev-env --installed 2>/dev/null || true)"
+  unsupported="$(dev-box-dev-env --unsupported 2>/dev/null || true)"
   missing=""
+  skipped=""
   for e in $dev_envs; do
-    printf '%s\n' "$installed" | grep -qx "$e" || missing="$missing $e"
+    if printf '%s\n' "$installed" | grep -qx "$e"; then continue; fi
+    if printf '%s\n' "$unsupported" | grep -qx "$e"; then
+      skipped="$skipped $e"
+    else
+      missing="$missing $e"
+    fi
   done
   item "DEV_ENVS" "$dev_envs"
+  [ -z "$skipped" ] || item "skipped" "${skipped# } (not available on $(uname -m))"
   if [ -n "$missing" ]; then
     item "missing" "${missing# } (installed at start, see ~/.cache/dev-box/dev-envs.log)"
   else

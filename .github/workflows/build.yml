@@ -10,6 +10,10 @@
 # deliberate act (git tag -a v0.3.0 && git push origin v0.3.0), and a box
 # pulls it only when its owner runs `just pull`. The image records its tag,
 # and dev-box-check-updates compares it with the newest v* tag of the repo.
+#
+# Once the image is out, the tag becomes a GitHub release whose notes are the
+# annotation of the tag: that is the changelog `devbox changelog` shows in the
+# box. Write it when tagging, `git tag -a v1.7` opens the editor.
 name: Build the image
 
 on:
@@ -109,3 +113,32 @@ jobs:
 
       - name: Inspect the result
         run: docker buildx imagetools inspect "${IMAGE}:latest"
+
+  release:
+    name: Publish the release notes
+    needs: merge
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # checkout leaves a lightweight copy of the tag: fetch the annotated one.
+      # Subject and body, without a signature; a lightweight tag gives the
+      # message of its commit.
+      - name: Read the annotation of the tag
+        run: |
+          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+          git tag -l --format='%(contents:subject)%0a%0a%(contents:body)' "$GITHUB_REF_NAME" > /tmp/notes.md
+          cat /tmp/notes.md
+
+      # Created once, edited on a re-run: the notes follow the tag.
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file /tmp/notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file /tmp/notes.md --verify-tag
+          fi

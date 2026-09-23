@@ -3,35 +3,32 @@
 # devbox:summary=What changed in the box, newest first
 # devbox:args=[-n N|--all|--upcoming]
 #
-# The changelog shipped with the image, /usr/share/devbox/CHANGELOG.md.
+# The release notes of the dev-box repository, read from its GitHub releases:
+# one per v* tag, written in the annotation of the tag.
 #
-#   dev-box-changelog               the 3 latest entries
+#   dev-box-changelog               the 3 latest releases, up to this image
 #   dev-box-changelog -n 10         the 10 latest
-#   dev-box-changelog --all         every entry
-#   dev-box-changelog --upcoming    what the next image brings, read from the repo
-#   dev-box-changelog --new         the entries not seen yet, 3 at most
-#   dev-box-changelog --mark-seen   remember the latest entry as seen
+#   dev-box-changelog --all         every release up to this image
+#   dev-box-changelog --upcoming    the releases after this image
+#   dev-box-changelog --new         the releases not seen yet, 3 at most
+#   dev-box-changelog --mark-seen   remember this image as seen
 #
-# The heading of the latest entry you were shown is kept in
-# ~/.config/dev-box/changelog-seen. The login message calls --new when the
-# image brings an entry past that one, so the changelog shows once after an
-# update, then stays quiet until the next one.
-#
-# --upcoming reads the changelog in the dev-box repository instead: at the
-# latest release for the published image, at the head of the branch for a
-# local build. It prints the entries this image does not have yet.
+# The notes are kept in ~/.cache/dev-box/releases.md. devbox check refreshes
+# it in the background, and so does every call of this command but --new,
+# which runs at login and reads the cache only: no network there. The version
+# of the image last shown is kept in ~/.config/dev-box/changelog-seen, so the
+# notes of an update show once, at the first login after it.
 set -euo pipefail
 
 # shellcheck source=/dev/null
 . /usr/share/devbox/lib/release.sh
 
-CHANGELOG="/usr/share/devbox/CHANGELOG.md"
-# The same file in the dev-box repository, for --upcoming
-REPO_CHANGELOG="rootfs/usr/share/devbox/CHANGELOG.md"
+CACHE="$DEVBOX_RELEASES_CACHE"
 SEEN="$HOME/.config/dev-box/changelog-seen"
 DEFAULT_LIMIT=3
+OWN="$(devbox_version)"
 
-usage() { sed -n '6,22p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '6,20p' "$0" | sed 's/^# \?//'; }
 err() { echo "dev-box-changelog: $*" >&2; }
 
 C_OFF=""; C_HEAD=""; C_DIM=""; C_BOLD=""
@@ -39,73 +36,92 @@ if [ -t 1 ] && [ -n "${TERM:-}" ] && [ "${TERM}" != "dumb" ]; then
   C_OFF=$'\033[0m'; C_HEAD=$'\033[1;36m'; C_DIM=$'\033[2m'; C_BOLD=$'\033[1m'
 fi
 
-# The heading of the newest entry, without the "## ".
-latest() { [ -r "$CHANGELOG" ] || return 0; awk '/^## /{ print substr($0, 4); exit }' "$CHANGELOG"; }
+# The tags of the cache, newest first.
+tags() { [ -r "$CACHE" ] || return 0; sed -n 's/^## \([^ ]*\).*/\1/p' "$CACHE"; }
 
-count() { grep -c '^## ' "$CHANGELOG" || true; }
+# An image built from a tag, or a local build described from one (v1.6-3-gabc):
+# the releases can be placed before or after it. An older image only knows its
+# commit.
+own_is_versioned() { [[ "$OWN" =~ ^v[0-9] ]]; }
 
-# Prints the entries of a changelog (the shipped one by default) from the
-# newest one, `limit` of them at most (0 for all), stopping before the one
-# whose heading is `stop` (the last one seen). With a fourth argument, a
-# changelog whose entries are left out wherever they sit (the shipped one,
-# for --upcoming). The date is dimmed, the title stands out, the body is
-# aligned under the title.
+# The release is part of this image: not newer than its version.
+in_box() { ! own_is_versioned || ! devbox_version_newer "$1" "$OWN"; }
+
+# Prints the releases named in the arguments, in the order of the cache,
+# `limit` of them at most (0 for all). The tag stands out, the date is dimmed,
+# the notes are indented under them.
 render() {
-  awk -v limit="$1" -v stop="$2" -v known="${4:-}" -v o="$C_OFF" -v h="$C_HEAD" -v d="$C_DIM" '
-    BEGIN {
-      if (known != "")
-        while ((getline line < known) > 0)
-          if (line ~ /^## /) seen[substr(line, 4)] = 1
-    }
+  local limit="$1"; shift
+  awk -v limit="$limit" -v sel=" $* " -v o="$C_OFF" -v h="$C_HEAD" -v d="$C_DIM" '
     /^## / {
-      title = substr($0, 4)
-      if (stop != "" && title == stop) exit
-      skip = (title in seen)
-      if (skip) next
+      keep = index(sel, " " $2 " ") > 0
+      if (!keep) next
       n++
       if (limit > 0 && n > limit) exit
       if (n > 1) print ""
-      date = title; sub(/ .*/, "", date)
-      printf "  %s%s%s  %s%s%s\n", d, date, o, h, substr(title, length(date) + 2), o
+      printf "  %s%s%s  %s%s%s\n", h, $2, o, d, $3, o
       next
     }
-    n > 0 && !skip && NF {
-      sub(/^[ \t]+/, ""); gsub(/`/, "")
-      printf "              %s\n", $0
-    }
-  ' "${3:-$CHANGELOG}"
+    keep && NF { gsub(/`/, ""); printf "    %s\n", $0 }
+  ' "$CACHE"
 }
 
-# The changelog of the repo at the ref the next image comes from, less the
-# entries this image already has. Compared heading by heading rather than
-# down to the newest local one: a local build ahead of the branch, or a
-# branch that went its own way, would otherwise print the whole file.
-upcoming() {
-  local ref label remote known="" entries
-  if [ -z "$(devbox_repo_url)" ]; then
-    err "the image does not say which repository it was built from (/etc/devbox/release)"
+# Live notes for the commands run by hand, the cache when GitHub is out of
+# reach.
+refresh() {
+  if [ -z "$(devbox_github_repo 2>/dev/null || true)" ]; then
+    err "the release notes are read from GitHub, and this image was built from ${DEVBOX_REPO:-an unknown repository}"
     exit 1
   fi
-  if ! ref="$(devbox_upcoming_ref)"; then
-    err "could not read the releases of $(devbox_repo_url)"
+  devbox_refresh_releases 2>/dev/null && return 0
+  if [ -r "$CACHE" ]; then
+    printf '%sGitHub out of reach, notes as of %s%s\n\n' "$C_DIM" "$(date -r "$CACHE" +%F)" "$C_OFF"
+  else
+    err "could not read the releases of $(devbox_repo_url) (GITHUB_TOKEN helps with the rate limit)"
     exit 1
   fi
-  label="${ref#* }"; ref="${ref%% *}"
-  remote="$(mktemp)"
-  # shellcheck disable=SC2064
-  trap "rm -f '$remote'" EXIT
-  if ! devbox_repo_file "$ref" "$REPO_CHANGELOG" > "$remote"; then
-    err "could not read the changelog of $label in $(devbox_repo_url)"
-    exit 1
-  fi
-  [ -r "$CHANGELOG" ] && known="$CHANGELOG"
-  entries="$(render 0 "" "$remote" "$known")"
-  if [ -z "$entries" ]; then
-    printf 'Nothing new in %s: this box runs %s.\n' "$label" "$(devbox_version)"
+}
+
+mark_seen() {
+  [ -n "$OWN" ] || return 0
+  mkdir -p "${SEEN%/*}"
+  printf '%s\n' "$OWN" > "$SEEN"
+}
+
+list() {
+  local t sel=() total
+  for t in $(tags); do in_box "$t" && sel+=("$t"); done
+  printf '%sdev-box changelog%s (this box runs %s)\n\n' "$C_BOLD" "$C_OFF" "$OWN"
+  if [ "${#sel[@]}" -eq 0 ]; then
+    echo "  No release notes up to $OWN yet."
     return 0
   fi
-  printf '%sComing with %s%s (this box runs %s)\n\n' "$C_BOLD" "$label" "$C_OFF" "$(devbox_version)"
-  printf '%s\n' "$entries"
+  render "$LIMIT" "${sel[@]}"
+  total="${#sel[@]}"
+  if [ "$LIMIT" -gt 0 ] && [ "$total" -gt "$LIMIT" ]; then
+    printf '\n%s%s older releases: devbox changelog --all%s\n' \
+      "$C_DIM" "$((total - LIMIT))" "$C_OFF"
+  fi
+  if ! own_is_versioned; then
+    printf '\n%sthis image does not record its version: every release is listed%s\n' "$C_DIM" "$C_OFF"
+  fi
+}
+
+upcoming() {
+  local t sel=()
+  own_is_versioned || {
+    err "this image does not record its version, it cannot be placed among the releases: just rebuild on the host"
+    exit 1
+  }
+  for t in $(tags); do devbox_version_newer "$t" "$OWN" && sel+=("$t"); done
+  if [ "${#sel[@]}" -eq 0 ]; then
+    printf 'No release after %s.\n' "$OWN"
+    [ "$DEVBOX_SOURCE" = "release" ] \
+      || printf '%sa local build follows %s: devbox check --image says whether it moved%s\n' "$C_DIM" "$DEVBOX_BRANCH" "$C_OFF"
+    return 0
+  fi
+  printf '%sComing after %s%s\n\n' "$C_BOLD" "$OWN" "$C_OFF"
+  render 0 "${sel[@]}"
   if [ "$DEVBOX_SOURCE" = "release" ]; then
     printf '\n%sjust pull on the host to get it%s\n' "$C_DIM" "$C_OFF"
   else
@@ -113,12 +129,30 @@ upcoming() {
   fi
 }
 
-mark_seen() {
-  local top
-  top="$(latest)"
-  [ -n "$top" ] || return 0
-  mkdir -p "${SEEN%/*}"
-  printf '%s\n' "$top" > "$SEEN"
+# What the login shows, from the cache only: the releases up to this image
+# that were not shown yet. Nothing is recorded until the cache knows the
+# release this image was built from, so notes fetched late still show once.
+new() {
+  local seen="" t sel=()
+  [ -r "$CACHE" ] && own_is_versioned || exit 0
+  [ -r "$SEEN" ] && IFS= read -r seen < "$SEEN" || true
+  [ "$seen" != "$OWN" ] || exit 0
+  if [ "$DEVBOX_SOURCE" = "release" ] && ! tags | grep -qxF "$OWN"; then
+    exit 0
+  fi
+  for t in $(tags); do
+    in_box "$t" || continue
+    # A state from before the releases (a changelog heading) is no version:
+    # the latest releases show, once.
+    if [[ "$seen" =~ ^v[0-9] ]] && ! devbox_version_newer "$t" "$seen"; then continue; fi
+    sel+=("$t")
+  done
+  if [ "${#sel[@]}" -gt 0 ]; then
+    printf '%sNew in the box%s\n' "$C_BOLD" "$C_OFF"
+    render "$DEFAULT_LIMIT" "${sel[@]}"
+    printf '%sdevbox changelog --all for the whole list%s\n\n' "$C_DIM" "$C_OFF"
+  fi
+  mark_seen
 }
 
 MODE="list"
@@ -137,42 +171,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [ "$MODE" = "upcoming" ]; then
-  upcoming
-  exit 0
-fi
-
-if [ ! -r "$CHANGELOG" ]; then
-  # Quiet at login: an image without a changelog has nothing to say.
-  [ "$MODE" = "list" ] || exit 0
-  err "no changelog in this image ($CHANGELOG)"
-  exit 1
-fi
-
 case "$MODE" in
-  mark)
-    mark_seen
-    ;;
-  new)
-    # What the login shows: nothing when the newest entry was already seen.
-    # A heading that is not in the file any more (or no state at all, on a
-    # home older than the changelog) shows the latest entries.
-    seen=""
-    [ -r "$SEEN" ] && IFS= read -r seen < "$SEEN" || true
-    [ "$seen" != "$(latest)" ] || exit 0
-    printf '%sNew in the box%s\n' "$C_BOLD" "$C_OFF"
-    render "$DEFAULT_LIMIT" "$seen"
-    printf '%sdevbox changelog --all for the whole list%s\n\n' "$C_DIM" "$C_OFF"
-    mark_seen
-    ;;
-  list)
-    total="$(count)"
-    printf '%sdev-box changelog%s\n\n' "$C_BOLD" "$C_OFF"
-    render "$LIMIT" ""
-    if [ "$LIMIT" -gt 0 ] && [ "$total" -gt "$LIMIT" ]; then
-      printf '\n%s%s older entries: devbox changelog --all%s\n' \
-        "$C_DIM" "$((total - LIMIT))" "$C_OFF"
-    fi
-    mark_seen
-    ;;
+  mark) mark_seen ;;
+  new) new ;;
+  upcoming) refresh; upcoming ;;
+  list) refresh; list; mark_seen ;;
 esac

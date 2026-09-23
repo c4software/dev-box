@@ -112,3 +112,62 @@ devbox_upcoming_ref() {
     printf 'refs/heads/%s %s\n' "$DEVBOX_BRANCH" "$DEVBOX_BRANCH"
   fi
 }
+
+# --- Release notes -----------------------------------------------------------
+#
+# The changelog of the box is the list of GitHub releases of the repo: the
+# workflow creates one per v* tag, its notes taken from the annotation of the
+# tag. They are kept in a cache, so that the login reads a file and never the
+# network; devbox check and devbox changelog refresh it.
+
+DEVBOX_RELEASES_CACHE="$HOME/.cache/dev-box/releases.md"
+
+# owner/repo when the repo is on github.com, where the releases are read.
+devbox_github_repo() {
+  local url
+  url="$(devbox_repo_url)"
+  case "$url" in
+    https://github.com/*/*)
+      url="${url#https://github.com/}"; url="${url%/}"; url="${url%.git}"
+      printf '%s' "$url"
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+# The release notes, newest first, in the format of the cache:
+#   ## v1.7 2026-09-24
+#   the notes, as written in the annotation of the tag
+# Only v<numbers> releases, no draft and no pre-release: the tags the box
+# compares itself with. A heading inside the notes loses its #, so that it
+# cannot pass for a release.
+devbox_fetch_releases() {
+  local repo auth=()
+  repo="$(devbox_github_repo)" || return 1
+  command -v curl >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 || return 1
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    auth=(-H "Authorization: Bearer $GITHUB_TOKEN")
+  fi
+  curl -fsSL --max-time 20 "${auth[@]}" -H "Accept: application/vnd.github+json" \
+    "https://api.github.com/repos/$repo/releases?per_page=100" | jq -r '
+      [ .[] | select((.draft | not) and (.prerelease | not))
+        | select(.tag_name | test("^v[0-9][0-9.]*$")) ]
+      | sort_by(.tag_name | ltrimstr("v") | split(".") | map(select(. != "") | tonumber))
+      | reverse[]
+      | "## \(.tag_name) \((.published_at // .created_at // "")[0:10])",
+        ((.body // "") | gsub("\r"; "") | split("\n") | map(sub("^#+ *"; "")) | .[]),
+        ""'
+}
+
+# Refreshes the cache. On failure the previous cache stays as it was.
+devbox_refresh_releases() {
+  local tmp
+  mkdir -p "${DEVBOX_RELEASES_CACHE%/*}"
+  tmp="$(mktemp "$DEVBOX_RELEASES_CACHE.XXXXXX")"
+  if devbox_fetch_releases > "$tmp"; then
+    mv "$tmp" "$DEVBOX_RELEASES_CACHE"
+  else
+    rm -f "$tmp"
+    return 1
+  fi
+}

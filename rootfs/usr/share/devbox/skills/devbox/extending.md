@@ -67,15 +67,61 @@ config.
 
 ### A new environment in `devbox dev-env`
 
-Add a line to the `ENVS` array of `rootfs/usr/local/bin/dev-box-dev-env`
-(`name|short description`), an `install_<name>` function and a `remove_<name>`
-function next to the others. Only `mise use -g` and `mise unuse -g`: no pacman,
-no `curl | sh`. That is the whole point of the command. The removal takes out
-what the environment brought and nothing more: no project data, and not a base
-another environment may rely on (say in the message how to remove it). If the
-installed state cannot be read from the global mise config, add a case to
-`is_installed`. PHP is the one exception, baked into the image through the `Dockerfile`
-because mise would have to compile it; OCaml is not in it for the same reason.
+One file, `rootfs/usr/share/devbox/dev-envs/<name>.sh`, found on its own:
+nothing to register, the file name is the environment name. It defines
+functions and runs nothing at the top level:
+
+```bash
+# shellcheck shell=bash
+# devbox dev-env <name>: sourced by dev-box-dev-env, see /usr/share/devbox/lib/dev-env.sh.
+
+details() {
+  cat <<'TXT'
+<Short description, shown by the menu and --list>
+
+<The long text of --info: what it installs, what a removal leaves in place.>
+TXT
+}
+
+install() { mise use -g <tool>@latest; }
+
+uninstall() {
+  unuse <tool>
+  log "~/<data dir> is left in place."
+}
+```
+
+`is_installed` is optional: without it, the environment is installed when the
+tool `<name>` is declared in the global mise config. Define it when that is not
+true (a tool under another name, a composer package, a pacman package).
+`is_supported` is optional too: when the environment cannot run on every
+machine (x86_64 only, say), it prints the reason on one line and exits 1.
+The environment then disappears from the menu and `--list`, a direct install
+refuses it with the reason, and `--if-missing` (`DEV_ENVS`) skips it, so one
+`.env` can serve an amd64 box and an arm64 one:
+
+```bash
+is_supported() {
+  [ "$(uname -m)" = "x86_64" ] && return 0
+  echo "<vendor> publishes linux x86_64 builds only"
+  return 1
+}
+``` Each
+function runs in its own bash process with `set -euo pipefail`, and can call
+the helpers of `rootfs/usr/share/devbox/lib/dev-env.sh`: `log`, `err`,
+`declared`, `unuse`, and `dev_env install <other>` for an environment this one
+sits on (`laravel` on `php` and `node`).
+
+Only `mise use -g` and `mise unuse -g`: no pacman, no `curl | sh`. That is the
+whole point of the command. The removal takes out what the environment brought
+and nothing more: no project data, and not a base another environment may rely
+on (say in the message how to remove it). PHP is the one exception, baked into
+the image through the `Dockerfile` because mise would have to compile it; OCaml
+is not in it for the same reason.
+
+The same file dropped in `~/.config/dev-box/dev-envs/` of a box adds an
+environment to that box only, or replaces the image's one of the same name:
+handy to try a new one before shipping it.
 
 ### A new devbox command
 
@@ -148,14 +194,22 @@ Put the file under `rootfs/etc/devbox/` and add a
 README. `dev-box-seed` takes care of the rest: laid down if missing, updated if
 untouched, never overwritten if the user changed it.
 
-### A changelog entry
+### Release notes
 
-A change a user of the box notices gets an entry at the top of
-`rootfs/usr/share/devbox/CHANGELOG.md`: a `## YYYY-MM-DD Title` line, then one
-or two lines saying what it does and what to run. The first login after the
-update shows it. Never edit the heading of a published entry: it is what
-`~/.config/dev-box/changelog-seen` remembers, and a changed heading shows the
-latest entries again.
+The changelog of the box is the list of GitHub releases of the repo. A change a
+user of the box notices goes in the annotation of the next release tag: a
+subject line, then one short line per change saying what it does and what to
+run.
+
+```bash
+git tag -a v1.7        # the editor opens: the notes
+git push origin v1.7
+```
+
+The workflow builds the image, then creates the release with that text.
+`devbox check` saves the notes in the box, and the first login after `just
+pull` shows them. A release edited on GitHub afterwards is picked up at the next
+check. Keep Markdown headings out of the notes: they are flattened.
 
 ### A guide in this skill
 

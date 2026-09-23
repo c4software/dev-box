@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=dev-env
 # devbox:summary=Install or remove a dev environment (node, go, python, ...)
-# devbox:args=[env...|--remove env...|--list]
+# devbox:args=[env...|--remove env...|--list|--info env]
 #
 # Installs or removes development environments in the home, through mise
 # only: no pacman package, no `curl | sh`. Everything it lays down is therefore
@@ -13,8 +13,14 @@
 #   dev-box-dev-env node go           install these environments right away
 #   dev-box-dev-env --remove node go  remove these environments
 #   dev-box-dev-env --list            the environments, with what is installed
+#   dev-box-dev-env --info node       what an environment installs and leaves
 #   dev-box-dev-env --if-missing go   install only what is not installed yet
 #   dev-box-dev-env --installed       the installed environments, one per line
+#   dev-box-dev-env --unsupported     the ones this machine cannot take, one per line
+#
+# One environment is one script, found on its own: /usr/share/devbox/dev-envs
+# for the image, ~/.config/dev-box/dev-envs for your own (same name: yours
+# wins). The format is at the top of /usr/share/devbox/lib/dev-env.sh.
 #
 # --if-missing is what the entrypoint runs at start with DEV_ENVS from .env,
 # in the background: an environment already there is skipped, and an unknown
@@ -25,17 +31,10 @@
 # `mise unuse -g` does nothing on a tool that is already gone. A removal takes
 # the tool out of the config and prunes the versions nothing else needs; it
 # never touches project data (~/go, ~/.cargo, ~/.mix, ~/.config/composer, ...).
-
-# The install_* and remove_* functions are called indirectly, through
-# "${ACTION}_${name}".
-# shellcheck disable=SC2329
 set -euo pipefail
 
-# Brand new releases are not quarantined here: when you ask for an environment,
-# you want it now.
-export MISE_MINIMUM_RELEASE_AGE=0
-
-MISE_CFG="$HOME/.config/mise/config.toml"
+# shellcheck source=../../share/devbox/lib/dev-env.sh
+. /usr/share/devbox/lib/dev-env.sh
 
 # DEV_ENVS is not in the environment of an SSH session: the entrypoint writes
 # it to /etc/devbox/env with %q, read here the way dev-box-status reads it.
@@ -56,308 +55,105 @@ pinned() {
   return 1
 }
 
-# <name>|<short description shown in the menu and in --list>
-ENVS=(
-  "node|Node.js LTS (npm, npx)"
-  "bun|Bun, JavaScript runtime and package manager"
-  "deno|Deno, JavaScript and TypeScript runtime"
-  "go|Go, latest stable version"
-  "python|Python + uv (packages and virtual environments)"
-  "php|PHP + composer + xdebug (image packages, ready to use)"
-  "laravel|PHP + Node + the Laravel installer (composer global)"
-  "symfony|PHP + symfony-cli"
-  "ruby|Ruby + Rails"
-  "rust|Rust (toolchain managed by mise, no rustup)"
-  "java|Java, latest JDK"
-  "zig|Zig + zls (language server)"
-  "dotnet|.NET SDK"
-  "elixir|Erlang + Elixir + hex"
-  "phoenix|Elixir + hex + rebar + the phx_new generator"
-  "clojure|Clojure (official CLI)"
-  "scala|Java + Scala + scala-cli"
-  "android|Android platform-tools (adb, fastboot), no SDK"
-  "browser|Headless Chromium + fonts, page screenshots for an agent (devbox pkg)"
-)
+dev_env_load
 
-log() { printf '\033[1m[dev-box-dev-env]\033[0m %s\n' "$*"; }
-err() { echo "dev-box-dev-env: $*" >&2; }
+available() { printf '%s ' "${DEV_ENV_NAMES[@]}"; }
 
-env_names() {
-  local e
-  for e in "${ENVS[@]}"; do printf '%s\n' "${e%%|*}"; done
-}
+# --- Installed state and descriptions ----------------------------------------
 
-env_desc() {
-  local e
-  for e in "${ENVS[@]}"; do
-    [ "${e%%|*}" = "$1" ] && {
-      printf '%s' "${e#*|}"
-      return 0
-    }
+# SUMMARY_INSTALLED[name], SUMMARY_SUPPORTED[name] (1 or 0) and
+# SUMMARY_DESC[name], read once for the list and the menu. A script that fails
+# to load is shown, marked broken.
+declare -A SUMMARY_INSTALLED=() SUMMARY_SUPPORTED=() SUMMARY_DESC=()
+load_summaries() {
+  local name line
+  for name in "${DEV_ENV_NAMES[@]}"; do
+    if line="$(dev_env_call "$name" dev_env_summary 2>/dev/null)"; then
+      SUMMARY_INSTALLED[$name]="${line%%$'\t'*}"
+      line="${line#*$'\t'}"
+      SUMMARY_SUPPORTED[$name]="${line%%$'\t'*}"
+      SUMMARY_DESC[$name]="${line#*$'\t'}"
+    else
+      SUMMARY_INSTALLED[$name]=0
+      SUMMARY_SUPPORTED[$name]=1
+      SUMMARY_DESC[$name]="(broken script, see devbox dev-env --info $name)"
+    fi
   done
-  return 1
 }
 
-# --- Installed state ---------------------------------------------------------
-
-# A tool is installed when it is declared in the global mise config: that is
-# what `mise use -g` writes and `mise unuse -g` removes.
-declared() {
-  [ -f "$MISE_CFG" ] || return 1
-  mise config get -f "$MISE_CFG" "tools.$1" >/dev/null 2>&1
+# The widest name, for the columns.
+name_width() {
+  local name w=9
+  for name in "${DEV_ENV_NAMES[@]}"; do
+    [ "${#name}" -gt "$w" ] && w="${#name}"
+  done
+  printf '%s' "$w"
 }
 
-is_installed() {
-  case "$1" in
-  php) command -v php >/dev/null 2>&1 ;;
-  laravel) composer global show laravel/installer >/dev/null 2>&1 ;;
-  symfony) declared "github:symfony-cli/symfony-cli" ;;
-  phoenix) compgen -G "$HOME/.mix/archives/phx_new*" >/dev/null ;;
-  android) declared "http:android-platform-tools" ;;
-  browser) command -v chromium >/dev/null 2>&1 ;;
-  *) declared "$1" ;;
+# Where a script comes from, for --list and --info.
+origin() {
+  case "${DEV_ENV_FILES[$1]}" in
+  "$DEV_ENV_USER_DIR"/*)
+    if [ -f "$DEV_ENV_SYSTEM_DIR/$1.sh" ]; then echo "yours, over the image's"; else echo "yours"; fi
+    ;;
+  *) echo "image" ;;
   esac
 }
 
 show_list() {
-  local e name mark
+  local name mark note w hidden=""
+  load_summaries
+  w="$(name_width)"
   printf '\033[1mDev environments\033[0m (devbox dev-env <name>..., devbox dev-env --remove <name>...)\n\n'
-  for e in "${ENVS[@]}"; do
-    name="${e%%|*}"
-    mark=" "
-    is_installed "$name" && mark="*"
-    printf '  \033[32m%s\033[0m \033[36m%-9s\033[0m %s\n' "$mark" "$name" "${e#*|}"
-  done
-  printf '\n* installed. Without arguments: a menu, install or remove.\n'
-  printf 'browser is a pacman package kept by devbox pkg, the rest is declared in the mise config.\n'
-}
-
-# --- The environments, one install_* and one remove_* per environment --------
-#
-# A removal only takes out what the environment itself brought. When it sits on
-# another environment (laravel on php and node, phoenix on elixir, scala on
-# java), the base stays and the message says how to remove it.
-
-install_node() { mise use -g node@lts; }
-install_bun() { mise use -g bun@latest; }
-install_deno() { mise use -g deno@latest; }
-install_go() { mise use -g go@latest; }
-install_java() { mise use -g java@latest; }
-install_dotnet() { mise use -g dotnet@latest; }
-install_rust() {
-  # mise handles the toolchain itself (no rustup): a single source of truth for
-  # the versions, and nothing to clean up in the home.
-  mise use -g rust@latest
-}
-install_python() {
-  # uv comes from the mise registry (aqua:astral-sh/uv) rather than the
-  # astral.sh installer: no `curl | sh` in the box.
-  mise use -g python@latest uv@latest
-}
-install_zig() { mise use -g zig@latest zls@latest; }
-install_php() {
-  # The one exception to "mise only": mise builds PHP from source (slow, and it
-  # would need every header in the image). php, composer, php-sqlite and xdebug
-  # are therefore packages of the image, with the extensions already enabled at
-  # build time. Here we only check and show what is there.
-  command -v php >/dev/null 2>&1 || {
-    echo "php is missing from the image: add php composer php-sqlite xdebug to the Dockerfile, then just rebuild" >&2
-    return 1
-  }
-  log "$(php -v | head -n 1)"
-  log "extensions: $(php -m | grep -iE '^(bcmath|intl|pdo_sqlite|pdo_mysql|xdebug|zip|gd)$' | tr '\n' ' ')"
-  log "composer $(composer --version 2>/dev/null | awk '{print $3}'), global packages in ~/.config/composer (persistent)"
-}
-install_laravel() {
-  install_php
-  install_node
-  composer global require laravel/installer
-  log "laravel is ready: laravel new my-project (~/.config/composer/vendor/bin is on the PATH)"
-}
-install_symfony() {
-  install_php
-  # symfony-cli publishes linux amd64 and arm64 binaries: mise's github backend
-  # picks the right asset.
-  mise use -g github:symfony-cli/symfony-cli@latest
-  log "symfony is ready: symfony new --webapp my-project"
-}
-install_clojure() {
-  # Without rlwrap (a pacman package, so lost on a rebuild) `clj` still works,
-  # minus the line editing in the REPL. Add rlwrap to the Dockerfile if needed.
-  mise use -g clojure@latest
-}
-install_scala() { mise use -g java@latest scala@latest scala-cli@latest; }
-# The platform-tools zip carries its own sqlite3, older than the one of the
-# image, and mise's http backend exposes every binary of bin_path: the shim
-# would shadow /usr/bin/sqlite3. Removing the binary from the install (rather
-# than the shim, which every `mise reshim` recreates) keeps the Arch one first.
-drop_android_sqlite3() {
-  local dir="$HOME/.local/share/mise/installs/http-android-platform-tools/latest-linux/platform-tools"
-  if [ -e "$dir/sqlite3" ]; then
-    rm -f "$dir/sqlite3"
-    mise reshim
-    log "sqlite3 from platform-tools removed: /usr/bin/sqlite3 stays the one on PATH"
-  fi
-}
-install_android() {
-  # Only the platform-tools (adb, fastboot, and their helpers), the zip Google
-  # publishes at a fixed URL: no SDK manager, no platform, no Java. The mise
-  # registry has nothing for it, so it goes through mise's http backend. The
-  # URL carries no version, so the version label is fixed too and `devbox
-  # update tools` cannot see a newer build: re-run this command to refresh.
-  # Google publishes no linux arm64 build.
-  if [ "$(uname -m)" = "aarch64" ]; then
-    err "Google publishes platform-tools for linux x86_64 only."
-    err "On arm64 use the distribution package instead: devbox pkg add android-tools"
-    return 1
-  fi
-  local url="https://dl.google.com/android/repository/platform-tools-latest-linux.zip"
-  mise install -f "http:android-platform-tools[url=$url,bin_path=platform-tools]@latest-linux"
-  mise use -g "http:android-platform-tools[url=$url,bin_path=platform-tools]@latest-linux"
-  drop_android_sqlite3
-  log "adb and fastboot are ready: $(mise x http:android-platform-tools -- adb --version | sed -n '2p')"
-}
-install_browser() {
-  # The mise registry has no browser: playwright and agent-browser are there,
-  # but both download a Chromium built for Debian and Ubuntu, which still
-  # needs a pile of pacman libraries that `playwright install-deps` cannot
-  # install on Arch. The distribution package works as it is, on amd64 and on
-  # Arch Linux ARM, so it goes through `devbox pkg`, which puts it back after
-  # a rebuild the way the mise config does. noto-fonts: without it every
-  # emoji, symbol or non Latin script renders as a square.
-  dev-box-pkg add chromium noto-fonts
-  log "chromium is ready, headless (no display in the box):"
-  log "  chromium --headless --no-sandbox --disable-gpu --screenshot=/tmp/page.png http://localhost:3000"
-  log "the devbox skill has the details: ~/.claude/skills/devbox/browser.md"
-}
-install_ruby() {
-  # ruby.compile=false: mise lays down a precompiled build (jdx/ruby publishes
-  # x86_64_linux and arm64_linux) instead of compiling for long minutes.
-  mise settings add ruby.compile false
-  mise settings add idiomatic_version_file_enable_tools ruby
-  mise use -g ruby@latest
-  echo "gem: --no-document" >"$HOME/.gemrc"
-  mise x ruby -- gem install rails --no-document
-  log "rails is ready: rails new my-project"
-}
-install_elixir() {
-  mise use -g erlang@latest elixir@latest
-  mise x elixir -- mix local.hex --force
-}
-install_phoenix() {
-  install_elixir
-  mise x elixir -- mix local.rebar --force
-  mise x elixir -- mix archive.install hex phx_new --force
-  log "phoenix is ready: mix phx.new my_app"
-}
-
-# `mise unuse -g` removes the tools from the global config, then `mise prune`
-# deletes the installed versions no tracked config needs any more (a project
-# that pins go@1.26 in its own mise.toml keeps it). unuse would prune on its
-# own, but it asks for confirmation on a terminal and skips silently without
-# one, so the two steps are kept apart and prune answers yes. Both exit 0 on a
-# tool that is not declared or already gone, so calling them twice is fine.
-unuse() {
-  mise unuse -g --no-prune "$@" || return 1
-  mise prune --yes "$@"
-}
-
-remove_node() {
-  unuse node || return 1
-  log "node is part of the box's base mise config: devbox dev-env node brings it back."
-}
-remove_bun() { unuse bun || return 1; }
-remove_deno() { unuse deno || return 1; }
-remove_go() {
-  unuse go || return 1
-  log "~/go (modules, GOPATH binaries) is left in place."
-}
-remove_java() {
-  unuse java || return 1
-  log "~/.m2 and ~/.gradle are left in place."
-}
-remove_dotnet() {
-  unuse dotnet || return 1
-  log "~/.nuget is left in place."
-}
-remove_rust() {
-  unuse rust || return 1
-  log "~/.cargo (registry, cargo install binaries) is left in place."
-}
-remove_python() {
-  unuse python uv || return 1
-  log "~/.cache/uv and the virtual environments are left in place."
-}
-remove_zig() { unuse zig zls || return 1; }
-remove_php() {
-  log "php, composer and xdebug are packages of the image: nothing to remove from the home."
-  log "~/.config/composer (global packages) is left in place."
-}
-remove_laravel() {
-  if composer global show laravel/installer >/dev/null 2>&1; then
-    composer global remove laravel/installer
-  else
-    log "the Laravel installer is not in composer's global packages, nothing to remove."
-  fi
-  log "php stays (image package); node stays: devbox dev-env --remove node."
-}
-remove_symfony() {
-  unuse github:symfony-cli/symfony-cli || return 1
-  log "php stays (image package)."
-}
-remove_clojure() {
-  unuse clojure || return 1
-  log "~/.m2 and ~/.clojure are left in place."
-}
-remove_scala() {
-  unuse scala scala-cli || return 1
-  log "java stays: devbox dev-env --remove java."
-}
-remove_android() {
-  unuse http:android-platform-tools || return 1
-  log "~/.android (adb keys, avd) is left in place."
-}
-remove_browser() {
-  dev-box-pkg drop chromium noto-fonts
-  log "~/.config/chromium and ~/.cache/chromium are left in place."
-}
-remove_ruby() {
-  unuse ruby || return 1
-  # Only the file this script wrote: a ~/.gemrc the user edited is theirs.
-  if [ -f "$HOME/.gemrc" ]; then
-    if [ "$(cat "$HOME/.gemrc")" = "gem: --no-document" ]; then
-      rm -f "$HOME/.gemrc"
-      log "~/.gemrc removed (it was the one line written at install)."
-    else
-      log "~/.gemrc was edited, left in place."
+  for name in "${DEV_ENV_NAMES[@]}"; do
+    if [ "${SUMMARY_SUPPORTED[$name]}" = 0 ]; then
+      hidden="$hidden $name"
+      continue
     fi
-  fi
-  log "the mise settings ruby.compile and idiomatic_version_file_enable_tools are left as they are (harmless without ruby)."
+    mark=" "
+    [ "${SUMMARY_INSTALLED[$name]}" = 1 ] && mark="*"
+    note=""
+    [ "$(origin "$name")" = image ] || note=" \033[2m($(origin "$name"))\033[0m"
+    printf "  \033[32m%s\033[0m \033[36m%-${w}s\033[0m %s$note\n" "$mark" "$name" "${SUMMARY_DESC[$name]}"
+  done
+  printf '\n* installed. Without arguments: a menu, install or remove. The details: devbox dev-env --info <name>.\n'
+  [ -z "$hidden" ] || printf 'Not available on this machine (%s):%s (--info says why).\n' "$(uname -m)" "$hidden"
+  printf 'Your own environments go in ~/.config/dev-box/dev-envs/<name>.sh (format: /usr/share/devbox/lib/dev-env.sh).\n'
 }
-remove_elixir() {
-  unuse erlang elixir || return 1
-  log "~/.mix and ~/.hex (hex, rebar, archives) are left in place."
-  if is_installed phoenix; then
-    log "the phx_new archive in ~/.mix/archives stays: devbox dev-env --remove phoenix takes it out."
+
+show_info() {
+  local name="$1" text state file
+  dev_env_exists "$name" || {
+    err "unknown environment '$name'"
+    err "Available environments: $(available)"
+    exit 1
+  }
+  text="$(dev_env_call "$name" details)" || {
+    err "${DEV_ENV_FILES[$name]} failed to load, see the error above."
+    exit 1
+  }
+  if dev_env_call "$name" is_installed >/dev/null 2>&1; then state="installed"; else state="not installed"; fi
+  pinned "$name" && state="$state, kept by DEV_ENVS"
+  printf '\033[1m%s\033[0m: %s\n' "$name" "${text%%$'\n'*}"
+  file="${DEV_ENV_FILES[$name]}"
+  printf '  %s, %s\n' "$state" "${file/#"$HOME"/\~} ($(origin "$name"))"
+  local why
+  if why="$(dev_env_unsupported "$name")"; then
+    printf '  \033[33mnot available on this machine (%s)\033[0m: %s\n' "$(uname -m)" "$why"
   fi
-}
-remove_phoenix() {
-  if is_installed elixir; then
-    mise x elixir -- mix archive.uninstall phx_new --force
-  else
-    # Without elixir, mix cannot run: the archive is a directory under ~/.mix,
-    # created by install_phoenix, so it is removed by hand.
-    rm -rf "$HOME/.mix/archives"/phx_new*
-    log "phx_new archive removed from ~/.mix/archives."
+  if [[ "$text" == *$'\n'* ]]; then
+    text="${text#*$'\n'}"
+    # The blank line between the two parts is printed once, whatever the script put.
+    text="$(printf '%s\n' "$text" | sed '/./,$!d')"
+    [ -n "$text" ] && printf '\n%s\n' "$text"
   fi
-  log "elixir, hex and rebar stay: devbox dev-env --remove elixir."
 }
 
 run_env() {
   local action="$1" name="$2" desc
-  desc="$(env_desc "$name")"
-  log "$name: $desc"
-  "${action}_${name}"
+  desc="$(dev_env_call "$name" details)" || return 1
+  log "$name: ${desc%%$'\n'*}"
+  dev_env_call "$name" "$action"
 }
 
 # --- Arguments ---------------------------------------------------------------
@@ -371,10 +167,24 @@ while [ $# -gt 0 ]; do
     show_list
     exit 0
     ;;
+  --info)
+    [ $# -ge 2 ] || {
+      err "--info needs an environment name"
+      exit 2
+    }
+    show_info "$2"
+    exit 0
+    ;;
   --installed)
-    while IFS= read -r name; do
-      is_installed "$name" && printf '%s\n' "$name"
-    done < <(env_names)
+    for name in "${DEV_ENV_NAMES[@]}"; do
+      dev_env_call "$name" is_installed >/dev/null 2>&1 && printf '%s\n' "$name"
+    done
+    exit 0
+    ;;
+  --unsupported)
+    for name in "${DEV_ENV_NAMES[@]}"; do
+      dev_env_unsupported "$name" >/dev/null && printf '%s\n' "$name"
+    done
     exit 0
     ;;
   --if-missing)
@@ -382,11 +192,11 @@ while [ $# -gt 0 ]; do
     shift
     ;;
   -h | --help)
-    sed -n '6,22p' "$0" | sed 's/^# \?//'
+    sed -n '6,33p' "$0" | sed 's/^# \?//'
     exit 0
     ;;
   --remove)
-    ACTION="remove"
+    ACTION="uninstall"
     shift
     ;;
   -*)
@@ -405,10 +215,10 @@ done
 # Two steps: install or remove, then the environments. The remove menu only
 # offers what is installed; the install menu marks it.
 menu() {
-  local mode e name mark menu=() chosen line
+  local mode name mark menu=() chosen line w
   if [ ! -t 0 ] || [ ! -t 1 ]; then
     err "no terminal, give the environments as arguments."
-    err "Available environments: $(env_names | tr '\n' ' ')"
+    err "Available environments: $(available)"
     exit 2
   fi
   command -v gum >/dev/null 2>&1 || {
@@ -416,7 +226,7 @@ menu() {
     exit 1
   }
 
-  if [ "$ACTION" = "remove" ]; then
+  if [ "$ACTION" = "uninstall" ]; then
     mode="Remove"
   else
     mode="$(gum choose --header "devbox dev-env: what do you want to do?" \
@@ -428,7 +238,7 @@ menu() {
       ;;
     Remove*)
       mode="Remove"
-      ACTION="remove"
+      ACTION="uninstall"
       ;;
     *)
       echo "Nothing selected."
@@ -437,16 +247,19 @@ menu() {
     esac
   fi
 
-  for e in "${ENVS[@]}"; do
-    name="${e%%|*}"
-    if is_installed "$name"; then mark=" (installed)"; else mark=""; fi
-    if [ "$ACTION" = "remove" ]; then
+  load_summaries
+  w="$(name_width)"
+  for name in "${DEV_ENV_NAMES[@]}"; do
+    # Not for this machine: neither installable nor, therefore, installed.
+    [ "${SUMMARY_SUPPORTED[$name]}" = 1 ] || continue
+    if [ "${SUMMARY_INSTALLED[$name]}" = 1 ]; then mark=" (installed)"; else mark=""; fi
+    if [ "$ACTION" = "uninstall" ]; then
       [ -n "$mark" ] || continue
       # Pinned by DEV_ENVS: not on offer, the start would put it back
       pinned "$name" && continue
       mark=""
     fi
-    menu+=("$(printf '%-9s %s%s' "$name" "${e#*|}" "$mark")")
+    menu+=("$(printf "%-${w}s %s%s" "$name" "${SUMMARY_DESC[$name]}" "$mark")")
   done
   if [ "${#menu[@]}" -eq 0 ]; then
     echo "Nothing installed by devbox dev-env, nothing to remove."
@@ -469,19 +282,36 @@ menu() {
 [ "${#SELECTED[@]}" -gt 0 ] || menu
 
 # The names are validated before the first action: better to refuse right away
-# than to fail in the middle of a list.
+# than to fail in the middle of a list. An environment this machine cannot
+# take is refused, except by --if-missing, which skips it: the same DEV_ENVS
+# may serve an amd64 box and an arm64 one.
+kept=()
 for name in "${SELECTED[@]}"; do
-  env_desc "$name" >/dev/null || {
+  dev_env_exists "$name" || {
     err "unknown environment '$name'"
-    err "Available environments: $(env_names | tr '\n' ' ')"
+    err "Available environments: $(available)"
     exit 1
   }
-  if [ "$ACTION" = "remove" ] && pinned "$name"; then
+  if [ "$ACTION" = "uninstall" ] && pinned "$name"; then
     err "'$name' is listed in DEV_ENVS ($DEV_ENVS_LIST): the next start would install it again."
     err "Take it out of DEV_ENVS in .env on the host, run just up, then remove it."
     exit 1
   fi
+  if [ "$ACTION" = "install" ] && why="$(dev_env_unsupported "$name")"; then
+    if [ "$IF_MISSING" = "true" ]; then
+      log "$name: not available on this machine ($why), skipped"
+      continue
+    fi
+    err "'$name' is not available on this machine: $why"
+    exit 1
+  fi
+  kept+=("$name")
 done
+if [ "${#kept[@]}" -eq 0 ]; then
+  log "Nothing to install."
+  exit 0
+fi
+SELECTED=("${kept[@]}")
 
 # --if-missing: what is already there is left alone, the rest is installed.
 if [ "$IF_MISSING" = "true" ]; then
@@ -491,7 +321,7 @@ if [ "$IF_MISSING" = "true" ]; then
   }
   todo=()
   for name in "${SELECTED[@]}"; do
-    if is_installed "$name"; then
+    if dev_env_call "$name" is_installed >/dev/null 2>&1; then
       log "$name: already installed, skipped"
     else
       todo+=("$name")
@@ -513,7 +343,7 @@ for name in "${SELECTED[@]}"; do
 done
 
 echo
-if [ "$ACTION" = "remove" ]; then
+if [ "$ACTION" = "uninstall" ]; then
   log "Removed from ~/.config/mise/config.toml, unused versions pruned."
   log "Project data was left in place. Reinstall any time: devbox dev-env <name>."
 else

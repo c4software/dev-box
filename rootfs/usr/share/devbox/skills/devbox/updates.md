@@ -22,8 +22,8 @@ It compares five things:
    with the head of its branch: a newer commit means `just rebuild`. A build
    with no `.git` in its context records `unknown` and the check is skipped.
    `devbox check --image` answers this one question on the spot, up to date
-   or not, and `devbox changelog --upcoming` reads the changelog of the repo at
-   that tag, or that branch, to say what the next image brings.
+   or not, and `devbox changelog --upcoming` shows the notes of the releases
+   after this image, to say what the next one brings.
 3. **mise tools**: `mise outdated`.
 4. **the shipped config**: `dev-box-seed --check`.
 5. **pending migrations**: `dev-box-migrate --pending`. The start runs them, so
@@ -45,12 +45,13 @@ With no flag file there is no such line. The message itself is covered in
 
 ## The changelog
 
-`/usr/share/devbox/CHANGELOG.md` ships with the image, so it always describes
-the image the box runs. The first login after an update shows the entries this
-home has not seen, three at most (`~/.config/dev-box/changelog-seen`), and
-`devbox changelog` prints it at any time. Nothing is fetched for that. Only
-`devbox changelog --upcoming` goes to the repository, to read what the next
-image brings before pulling it.
+The changelog is the list of GitHub releases of the dev-box repository, one
+per `v*` tag, its notes written in the annotation of the tag. `devbox check`
+saves them in `~/.cache/dev-box/releases.md`; the first login after an update
+shows, from that cache, the notes this home has not seen, three at most
+(`~/.config/dev-box/changelog-seen`). `devbox changelog` reads them live, up to
+the image the box runs, and `devbox changelog --upcoming` shows the releases
+after it, before pulling.
 
 ## Migrations, the one exception
 
