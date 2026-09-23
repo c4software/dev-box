@@ -570,8 +570,8 @@ environment is installed. Everything else, the
 box, its commands and where the coding accounts stand, is one command away:
 `devbox`, `devbox status` and `devbox agent usage`.
 
-The first login after an update starts with what changed: the notes of the releases
-this home has not seen yet, three at most. The changelog is the list of GitHub
+The first login after an update starts with what changed: the releases this home has
+not seen yet, three at most, one line each (the first line of their notes). The changelog is the list of GitHub
 releases of the repo, one per `v*` tag, written in the annotation of the tag.
 `devbox check` keeps them in `~/.cache/dev-box/releases.md`, so the login reads a file
 and never the network; `devbox changelog` reads them live, and `devbox changelog
@@ -582,10 +582,10 @@ everything marked as seen.
 
 ```
 New in the box
-  v1.7  2026-09-24
-    Dev environments, one script each; Android SDK and Flutter
-    devbox dev-env --info <name> says what an environment installs.
-devbox changelog --all for the whole list
+  v1.7  2026-09-23  dev environments, one script each; Android SDK and Flutter
+  v1.6  2026-09-23  Image check follow-ups
+  v1.5  2026-09-23  Is this image the latest?
+devbox changelog for the details
 ```
 
 To publish one, write the notes in the tag: `git tag -a v1.7` opens the editor, `git

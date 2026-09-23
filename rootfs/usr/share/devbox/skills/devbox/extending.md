@@ -206,7 +206,9 @@ git tag -a v1.7        # the editor opens: the notes
 git push origin v1.7
 ```
 
-The workflow builds the image, then creates the release with that text.
+The first line is what the login shows, next to the tag: make it a summary
+(a leading `v1.7: ` is dropped). The workflow builds the image, then creates
+the release with that text.
 `devbox check` saves the notes in the box, and the first login after `just
 pull` shows them. A release edited on GitHub afterwards is picked up at the next
 check. Keep Markdown headings out of the notes: they are flattened.

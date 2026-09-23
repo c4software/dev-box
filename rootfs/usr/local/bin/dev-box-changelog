@@ -49,20 +49,35 @@ in_box() { ! own_is_versioned || ! devbox_version_newer "$1" "$OWN"; }
 
 # Prints the releases named in the arguments, in the order of the cache,
 # `limit` of them at most (0 for all). The tag stands out, the date is dimmed,
-# the notes are indented under them.
+# the notes are indented under them. With BRIEF=1, one line per release: the
+# first line of its notes, next to the tag, for the login. A first line that
+# starts with the tag ("v1.7: ...") loses it, the tag is already there.
 render() {
   local limit="$1"; shift
-  awk -v limit="$limit" -v sel=" $* " -v o="$C_OFF" -v h="$C_HEAD" -v d="$C_DIM" '
+  awk -v limit="$limit" -v sel=" $* " -v brief="${BRIEF:-0}" \
+    -v o="$C_OFF" -v h="$C_HEAD" -v d="$C_DIM" '
     /^## / {
       keep = index(sel, " " $2 " ") > 0
       if (!keep) next
       n++
       if (limit > 0 && n > limit) exit
+      tag = $2; first = 1
+      if (brief) { printf "  %s%s%s  %s%s%s", h, tag, o, d, $3, o; next }
       if (n > 1) print ""
-      printf "  %s%s%s  %s%s%s\n", h, $2, o, d, $3, o
+      printf "  %s%s%s  %s%s%s\n", h, tag, o, d, $3, o
       next
     }
-    keep && NF { gsub(/`/, ""); printf "    %s\n", $0 }
+    keep && NF {
+      gsub(/`/, "")
+      if (first) {
+        first = 0
+        if (index($0, tag ":") == 1) { $0 = substr($0, length(tag) + 2); sub(/^[ \t]+/, "") }
+        if (brief) { printf "  %s\n", $0; next }
+      }
+      if (!brief) printf "    %s\n", $0
+    }
+    # A release with no notes still ends its line.
+    brief && first == 1 && /^$/ && keep { print ""; first = 0 }
   ' "$CACHE"
 }
 
@@ -149,8 +164,8 @@ new() {
   done
   if [ "${#sel[@]}" -gt 0 ]; then
     printf '%sNew in the box%s\n' "$C_BOLD" "$C_OFF"
-    render "$DEFAULT_LIMIT" "${sel[@]}"
-    printf '%sdevbox changelog --all for the whole list%s\n\n' "$C_DIM" "$C_OFF"
+    BRIEF=1 render "$DEFAULT_LIMIT" "${sel[@]}"
+    printf '%sdevbox changelog for the details%s\n\n' "$C_DIM" "$C_OFF"
   fi
   mark_seen
 }

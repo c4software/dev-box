@@ -257,8 +257,9 @@ of the API. `devbox check --image` says whether a newer image exists at all.
 
 The version of the image whose notes you were shown is kept in
 `~/.config/dev-box/changelog-seen`. When the box runs a newer one, the login
-shows the notes of the releases in between (three at most) once, from the
-cache, without touching the network, then records the version. The entrypoint
+shows the releases in between (three at most, one line each: the first line of
+their notes) once, from the cache, without touching the network, then records
+the version. `devbox changelog` has the full notes. The entrypoint
 marks a brand new home as seen.
 
 ## tour
