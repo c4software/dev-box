@@ -1,5 +1,9 @@
 services:
   dev-box:
+    # Name of the image to run. Left empty, the local build keeps Compose's
+    # default name. Set to the published image (ghcr.io/c4software/dev-box,
+    # built by the GitHub workflow) to skip the build: `just pull`.
+    image: ${DEVBOX_IMAGE:-dev-box-dev-box}
     build:
       context: .
       # Repo commit baked into the image (/etc/devbox/release): the update

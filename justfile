@@ -16,9 +16,19 @@ export DEVBOX_BRANCH := `git rev-parse --abbrev-ref HEAD 2>/dev/null || echo mai
 default:
     @just --list
 
-# Build the image if needed and start the box.
+# With DEVBOX_IMAGE set in .env the image comes from the registry instead of a
+# local build: up and rebuild pull it, the Dockerfile is never run here.
+
+# Build the image if needed (or pull it with DEVBOX_IMAGE) and start the box.
 up:
-    docker compose up -d --build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "${DEVBOX_IMAGE:-}" ]; then
+        docker compose pull
+        docker compose up -d
+    else
+        docker compose up -d --build
+    fi
 
 # --pull fetches a newer archlinux:latest, --no-cache forces the `pacman -Syu`
 # to run again: without it the pacman layer stays cached as long as the base
@@ -27,7 +37,24 @@ up:
 
 # Update Arch (base image and packages) and restart the box.
 rebuild:
-    docker compose build --pull --no-cache
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "${DEVBOX_IMAGE:-}" ]; then
+        docker compose pull
+    else
+        docker compose build --pull --no-cache
+    fi
+    docker compose up -d
+
+# Pull the published image (DEVBOX_IMAGE in .env) and restart on it.
+pull:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -z "${DEVBOX_IMAGE:-}" ]; then
+        echo "DEVBOX_IMAGE is not set in .env: nothing to pull, just up builds the image locally" >&2
+        exit 1
+    fi
+    docker compose pull
     docker compose up -d
 
 # Stop and remove the container (the ./data/ volumes are kept).
@@ -51,12 +78,14 @@ status:
       || echo "health: n/a (container stopped, or no healthcheck)"
     # The commit baked into the image (see compose.yaml) against the local
     # checkout: the comparison the box cannot make alone when the repo is private.
-    built="$(docker run --rm --entrypoint sh dev-box-dev-box -c '. /etc/devbox/release && echo "$DEVBOX_COMMIT"' 2>/dev/null || echo unknown)"
+    built="$(docker run --rm --entrypoint sh "${DEVBOX_IMAGE:-dev-box-dev-box}" -c '. /etc/devbox/release && echo "$DEVBOX_COMMIT"' 2>/dev/null || echo unknown)"
     head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
     if [ "$built" = unknown ]; then
         echo "image: unknown commit (built from a context without .git), just rebuild to bake it in"
     elif [ "$built" = "$head" ]; then
         echo "image: up to date (${built:0:7})"
+    elif [ -n "${DEVBOX_IMAGE:-}" ]; then
+        echo "image: built on ${built:0:7}, repo at ${head:0:7}, run just pull once the workflow has published it"
     else
         echo "image: built on ${built:0:7}, repo at ${head:0:7}, run just rebuild"
     fi

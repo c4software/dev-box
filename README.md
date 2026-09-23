@@ -56,6 +56,33 @@ override that Compose merges automatically and git ignores:
 cp compose.override.example.yaml compose.override.yaml
 ```
 
+### Prebuilt image
+
+A GitHub workflow (`.github/workflows/build.yml`) builds the image on every push to
+`main` that touches the `Dockerfile` or `rootfs/`, on every `v*` tag, and on demand,
+and publishes it on `ghcr.io/c4software/dev-box` for amd64 and arm64 (native runners,
+one manifest). Tags: `latest`, `sha-<short commit>`, and the version for a tagged
+release. Each run starts from a fresh base with no layer cache, the same as
+`just rebuild`, so nothing is ever frozen at a previous build.
+
+To run it instead of building locally, set the image in `.env`:
+
+```bash
+DEVBOX_IMAGE=ghcr.io/c4software/dev-box:latest
+```
+
+`just up` and `just rebuild` then pull instead of building, `just pull` does the same
+on purpose, and the `Dockerfile` is never run on the host. Everything else in `.env`
+applies unchanged: it is read by Compose at run time, not at build time, so the user,
+the volumes, Tailscale, the dotfiles and the dev environments are exactly as
+customisable on the published image as on a local build. The image has no idea which
+`.env` will run it. It is a plain rolling Arch: `just pull` fetches whatever the last
+workflow run produced, no more often than you decide.
+
+The Pi is the main beneficiary: pulling takes a minute where building takes tens of
+them. Leave `DEVBOX_IMAGE` empty to keep building from your own clone, which is the
+only way to run a change that is not on `main` yet.
+
 ### Raspberry Pi 5 (arm64)
 
 The image builds and runs on arm64 as it does on amd64. `docker compose up -d --build`
@@ -94,6 +121,7 @@ by hand. Install [just](https://just.systems) (`sudo pacman -S just` on Arch,
 | --- | --- |
 | `just up` | Build if needed and start the box |
 | `just rebuild` | Update Arch: rebuild from a fresh base image, then restart |
+| `just pull` | Pull the published image (`DEVBOX_IMAGE` in `.env`) and restart on it |
 | `just down` | Stop and remove the container (`./data/` is kept) |
 | `just restart` | Restart without rebuilding |
 | `just logs` | Follow the entrypoint logs (last 100 lines) |
@@ -124,6 +152,7 @@ All settings live in `.env` (see `.env.example`):
 | `USER_SHELL` | `/bin/zsh` | Login shell |
 | `TZ` | `Europe/Paris` | Timezone |
 | `PROJECTS_DIR` | `./data/projets` | Host directory mounted at `~/projets` (separate from the home) |
+| `DEVBOX_IMAGE` | empty | Image to run instead of a local build, see *Prebuilt image*; `just up` and `just rebuild` then pull it |
 | `TS_HOSTNAME` | `dev-box` | Tailscale hostname; also the container hostname and the tmux session name |
 | `TS_LOGIN_SERVER` | `https://controlplane.tailscale.com` | Control server: Tailscale itself (the default), or your Headscale URL |
 | `TS_AUTHKEY` | empty | Auth key; empty means the login URL is printed in the logs |
@@ -513,7 +542,7 @@ apply here if they live in `config/nvim`.
 
 **pacman (image).** Everything the common-no-omarchy config and `try`/`proj` call
 (zsh, tmux, mise, gum, starship, zoxide, fzf, eza, bat, ripgrep, fd, lazygit, jq,
-neovim, luarocks, tree-sitter-cli), the base (tailscale, rsync, base-devel, ...) and
+neovim, luarocks, tree-sitter-cli), the base (tailscale, rsync, base-devel, gh, ...) and
 rootless podman (see *Containers inside the box*).
 
 - Update Arch: `just rebuild`, or `docker compose build --pull --no-cache && docker compose up -d`.
