@@ -286,6 +286,12 @@ OSC 52 directly. `wl-paste` prints the tmux buffer back.
 
 ### Desktop notifications
 
+**Opening a URL.** There is no browser either. `/usr/local/bin/xdg-open` is a shim
+that copies the URL into your clipboard through `wl-copy` and says so, and `BROWSER`
+is set to it system-wide, ahead of the dotarchy default. `gh auth login`, the OAuth
+flows of the agents and anything else that opens a link print one line, and the URL is
+ready to paste in a browser on your machine.
+
 The image also ships `/usr/local/bin/notify-send`. There is no D-Bus in the box, so
 the shim writes the notification to the terminal as OSC 777 instead, wrapped in a
 tmux passthrough sequence when it runs inside tmux. SSH carries it like any other

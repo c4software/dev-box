@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Stand-in for xdg-open in the box: there is no browser and no desktop here,
+# so a URL cannot be opened, only handed over. It goes into the clipboard of
+# the machine you are connected from (through the wl-copy shim: tmux buffer
+# and OSC 52), and a line says so. Anything that opens a link, gh auth login,
+# claude, the OAuth flows of the agents, lands here: BROWSER=xdg-open is
+# exported by /etc/devbox/zshenv, ahead of the dotarchy default.
+# Usage: xdg-open URL
+set -euo pipefail
+
+case "${1:-}" in
+  ""|-h|--help)
+    echo "Usage: xdg-open URL"
+    echo "Copies the URL into the clipboard of your terminal, nothing opens in the box."
+    exit 0 ;;
+  --version)
+    echo "xdg-open (dev-box clipboard shim)"; exit 0 ;;
+esac
+
+url="$1"
+if wl-copy "$url"; then
+  echo "Copied to the clipboard, paste it in a browser on your machine: $url"
+else
+  echo "Nothing to copy into, open this URL yourself: $url"
+fi
