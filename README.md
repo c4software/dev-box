@@ -494,7 +494,7 @@ does not answer, the section says so in one line and nothing else.
 ## The first login, and the tour
 
 The first time a shell opens in a new box, gum asks whether to take the tour:
-fourteen steps at most, two minutes, each one explaining one thing about the box and
+fifteen steps at most, two minutes, each one explaining one thing about the box and
 offering to run the real command right there (`devbox status`, `devbox dev-env
 --list`, `devbox tui --list`, `devbox agent set`, and so on). The databases step only shows when
 podman is on, the tailnet step only with Tailscale, and the steps about the

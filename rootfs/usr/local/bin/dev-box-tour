@@ -155,6 +155,20 @@ tour() {
     "in a tmux pane next to this one, open <file> does the same with nvim." \
     "Try it copies the URL of the repository into your clipboard."
 
+  step "Shortcuts of the shell" "grep -E '^alias (ff|eff|g|gcm|todaystory|repo|p|t|mup)=' ~/.config/zsh/aliases" \
+    "The dotarchy config brings its aliases and functions, the same as on" \
+    "the desktop. The ones worth knowing here:" \
+    "  ls, ll, lt     eza, with icons; lt is a tree      ..  ...  climb up" \
+    "  ff, eff        fzf with a bat preview; eff opens the pick in nvim" \
+    "  n              nvim here (n) or on files        g, gcm, gcam  git" \
+    "  todaystory     the commits of the day, one line each" \
+    "  repo           the page of the repository, into your clipboard" \
+    "  p              proj, jump to a project          t  a tmux session" \
+    "  copy <file>    into your clipboard, stdin without a file" \
+    "  tdl claude     tmux dev layout: editor, agent, terminal; tn, tsl too" \
+    "  killp 3000     kill what listens on a port      mup  mise up, now" \
+    "The full list is in ~/.config/zsh/aliases and ~/.config/zsh/functions."
+
   # Podman is opt-in on the host: without it there is nothing to show here.
   if podman_on; then
     step "Databases, in containers" "devbox dbs --list" \
