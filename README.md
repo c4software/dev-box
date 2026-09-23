@@ -590,6 +590,8 @@ devbox tui --remove btop     # remove, and forget
 devbox tui                   # menu: install or remove, then tick the apps
 ```
 
+![devbox tui --list in the box: the catalogue of terminal apps with a one line description each, the installed one marked with a star](docs/screenshots/devbox-tui-list.png)
+
 lazydocker only makes sense with rootless podman on (`PODMAN_ENABLE=true`). What is
 already in the image stays out of the list: lazygit, yazi, fzf, bat, eza, ripgrep, fd,
 jq, gum, tmux and neovim. Anything else from the Arch repositories goes through
