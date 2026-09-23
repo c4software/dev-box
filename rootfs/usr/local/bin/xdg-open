@@ -5,7 +5,10 @@
 #     (through the wl-copy shim: tmux buffer and OSC 52), and a line says so;
 #   - a directory opens in yazi, a file in $EDITOR (nvim), in a new tmux pane
 #     next to the current one (below it, or to its right when the pane is wide
-#     enough to be split in two), or in the foreground outside tmux.
+#     enough to be split in two), or in the foreground outside tmux;
+#   - an image (SVG aside, which is text) is drawn by chafa in a floating tmux
+#     pane centered over the window, closed by any key. Enter on a picture in
+#     yazi lands here too.
 # Anything that opens a link, gh auth login, claude, the OAuth flows of the
 # agents, lands here: BROWSER=xdg-open is exported by /etc/devbox/zshenv,
 # ahead of the dotarchy default. The `open` function of the dotarchy aliases
@@ -21,6 +24,7 @@ case "${1:-}" in
     echo "Usage: xdg-open URL|FILE|DIRECTORY"
     echo "A URL is copied into the clipboard of your terminal; a directory opens in yazi"
     echo "and a file in \$EDITOR, in a tmux pane on the right (or here, outside tmux)."
+    echo "An image is shown in a floating tmux pane over the window, any key closes it."
     exit 0 ;;
   --version)
     echo "xdg-open (dev-box shim)"; exit 0 ;;
@@ -53,6 +57,30 @@ run_in_pane() {
   fi
 }
 
+# view_image: chafa draws the picture in a floating tmux pane centered over the
+# window, 90% of its size, then waits for a key and the pane goes away (or in
+# the terminal itself outside tmux). A floating pane (tmux 3.7) rather than
+# display-popup: a popup drops Sixel and passthrough, a pane gets Sixel from
+# tmux and the Kitty protocol through passthrough, and chafa probes the
+# terminal to pick what it speaks. A zoomed window is unzoomed first, a
+# floating pane over it crashed tmux 3.7b.
+view_image() {
+  local file="$1" view
+  if [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
+    printf -v view 'chafa --align mid,mid -- %q; read -rsn1' "$file"
+    if [ "$(tmux display-message -p '#{window_zoomed_flag}')" = 1 ]; then
+      tmux resize-pane -Z
+    fi
+    tmux new-pane -x 90% -y 90% -X 5% -Y 5% -c "$(dirname "$file")" bash -c "$view"
+  elif [ -t 0 ] && [ -t 1 ]; then
+    chafa --align mid,mid -- "$file"
+    read -rsn1
+  else
+    say "No tmux and no terminal to show it in, look at it in yazi: $file"
+    exit 1
+  fi
+}
+
 if [ -d "$target" ]; then
   dir="$(realpath "$target")"
   if ! command -v yazi >/dev/null 2>&1; then
@@ -62,6 +90,10 @@ if [ -d "$target" ]; then
   run_in_pane "$dir" yazi
 elif [ -e "$target" ]; then
   file="$(realpath "$target")"
+  case "$(file --brief --mime-type -- "$file")" in
+    image/svg+xml) ;;
+    image/*) view_image "$file"; exit 0 ;;
+  esac
   run_in_pane "$(dirname "$file")" "${EDITOR:-nvim}" "$file"
 else
   # A URL, or anything else: hand it over to the clipboard.

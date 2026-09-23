@@ -307,7 +307,11 @@ the argument:
   to the current one: below it, or to its right when the pane is wide enough (more
   than three times wider than tall) to be split in two. Outside tmux it runs in the
   foreground. `open .` from the dotarchy aliases therefore gives you a file manager
-  next to your shell.
+  next to your shell;
+- an image (SVG aside, which is text and goes to the editor) is drawn by `chafa`
+  in a floating tmux pane centered over the window, 90% of its size; any key
+  closes it. Enter on a picture in yazi comes here too. A floating pane (tmux 3.7)
+  rather than `display-popup`, which draws no image.
 
 The `open` function discards the output of `xdg-open`, so its messages arrive as a
 terminal notification through `notify-send` instead (see below). `EDITOR` and
