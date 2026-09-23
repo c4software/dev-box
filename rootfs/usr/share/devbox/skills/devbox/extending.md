@@ -148,6 +148,15 @@ Put the file under `rootfs/etc/devbox/` and add a
 README. `dev-box-seed` takes care of the rest: laid down if missing, updated if
 untouched, never overwritten if the user changed it.
 
+### A changelog entry
+
+A change a user of the box notices gets an entry at the top of
+`rootfs/usr/share/devbox/CHANGELOG.md`: a `## YYYY-MM-DD Title` line, then one
+or two lines saying what it does and what to run. The first login after the
+update shows it. Never edit the heading of a published entry: it is what
+`~/.config/dev-box/changelog-seen` remembers, and a changed heading shows the
+latest entries again.
+
 ### A guide in this skill
 
 A new `.md` file in `rootfs/usr/share/devbox/skills/devbox/`, and a line for it

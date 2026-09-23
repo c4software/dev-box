@@ -109,6 +109,8 @@ if [ "$FIRST_BOOT" = "true" ]; then
   # The first interactive login proposes the guided tour (dev-box-tour --offer)
   as_user "mkdir -p ~/.config/dev-box && touch ~/.config/dev-box/tour-pending" \
     || log "⚠ could not flag the tour"
+  # Nothing changed for a new home: the changelog starts from this image
+  as_user "dev-box-changelog --mark-seen" || log "⚠ could not mark the changelog as seen"
 else
   as_user "dev-box-migrate" || log "⚠ a migration failed (devbox migrate to try again)"
 fi

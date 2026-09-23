@@ -417,6 +417,7 @@ Adding a command therefore means dropping a `dev-box-<name>` script in
 | `dbs` | `dev-box-dbs` | start a development database in a podman container |
 | `agent` | `dev-box-agent` | the default coding agent: run it, pick it, read its usage |
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates |
+| `changelog` | `dev-box-changelog` | what changed in the box, newest first; the 3 latest, `-n N` or `--all` |
 | `tour` | `dev-box-tour` | a guided tour of the box, two minutes, commands run under your eyes |
 | `migrate` | `dev-box-migrate` | run the migrations shipped by the image, once each |
 | `mise-install` | `dev-box-mise-install` | write a mise-backed wrapper into `~/.local/bin` |
@@ -560,6 +561,21 @@ is waiting stays in `devbox check` and `devbox status`. The `DEV_ENVS` line is
 environment is installed. Everything else, the
 box, its commands and where the coding accounts stand, is one command away:
 `devbox`, `devbox status` and `devbox agent usage`.
+
+The first login after an update starts with what changed: the entries of the
+changelog shipped with the image (`/usr/share/devbox/CHANGELOG.md`, `devbox
+changelog`) that this home has not seen yet, three at most. The heading of the
+newest entry shown is kept in `~/.config/dev-box/changelog-seen`, so the next
+logins stay on the single line until an image brings a new entry. A brand new
+home starts with everything marked as seen.
+
+```
+New in the box
+  2026-09-23  A changelog in the box
+              devbox changelog lists what changed in the box. The first login after an
+              update shows the new entries, three at most.
+devbox changelog --all for the whole list
+```
 
 ## Dotfiles sync
 

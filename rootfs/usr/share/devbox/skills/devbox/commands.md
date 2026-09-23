@@ -43,6 +43,7 @@ the same binary.
 | `dbs` | `dev-box-dbs` | starts a development database in a podman container. `--list`, `--start`, `--stop`, `--remove [--purge]`, or names, or a menu. |
 | `agent` | `dev-box-agent` | the default coding agent. `set`, `which`, `prompt <text>`, `usage [claude\|codex\|proxy]`, or bare for a menu (run, pick, usage). |
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates, `DEV_ENVS` still installing or failed. |
+| `changelog` | `dev-box-changelog` | what changed in the box, newest first. The 3 latest, `-n N`, `--all`; `--new` and `--mark-seen` are for the login and the entrypoint. |
 | `tour` | `dev-box-tour` | a guided tour of the box in a dozen steps, each with the command to try. `--text` prints it at once, `--offer` is what the first login runs. |
 | `migrate` | `dev-box-migrate` | runs the migrations shipped by the image, once each. `--run` with no menu, `--pending`, `--list`, `--mark-done <name>`. |
 | `mise-install` | `dev-box-mise-install` | writes a mise-backed wrapper into `~/.local/bin`. `--list`, `--remove <cmd>`. |
@@ -219,6 +220,25 @@ there. The updates line is a count of `~/.cache/dev-box/updates`; the detail is
 in `devbox check` and `devbox status`. The `DEV_ENVS` line is the first line of
 `~/.cache/dev-box/dev-envs`, which the entrypoint writes at start and removes
 once every environment is installed.
+
+The first login after an update prints the new changelog entries above that
+line, three at most, through `dev-box-changelog --new`. See `changelog`.
+
+## changelog
+
+`devbox changelog` prints `/usr/share/devbox/CHANGELOG.md`, the changelog
+shipped with the image, newest first.
+
+```bash
+devbox changelog          # the 3 latest entries
+devbox changelog -n 10    # the 10 latest
+devbox changelog --all    # all of them
+```
+
+The heading of the newest entry you were shown is kept in
+`~/.config/dev-box/changelog-seen`. When the image brings an entry past it, the
+login message shows the new ones (three at most) once, then records them. The
+entrypoint marks everything as seen on a brand new home.
 
 ## tour
 

@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# devbox:name=changelog
+# devbox:summary=What changed in the box, newest first
+# devbox:args=[-n N|--all]
+#
+# The changelog shipped with the image, /usr/share/devbox/CHANGELOG.md.
+#
+#   dev-box-changelog               the 3 latest entries
+#   dev-box-changelog -n 10         the 10 latest
+#   dev-box-changelog --all         every entry
+#   dev-box-changelog --new         the entries not seen yet, 3 at most
+#   dev-box-changelog --mark-seen   remember the latest entry as seen
+#
+# The heading of the latest entry you were shown is kept in
+# ~/.config/dev-box/changelog-seen. The login message calls --new when the
+# image brings an entry past that one, so the changelog shows once after an
+# update, then stays quiet until the next one.
+set -euo pipefail
+
+CHANGELOG="/usr/share/devbox/CHANGELOG.md"
+SEEN="$HOME/.config/dev-box/changelog-seen"
+DEFAULT_LIMIT=3
+
+usage() { sed -n '6,17p' "$0" | sed 's/^# \?//'; }
+err() { echo "dev-box-changelog: $*" >&2; }
+
+C_OFF=""; C_HEAD=""; C_DIM=""; C_BOLD=""
+if [ -t 1 ] && [ -n "${TERM:-}" ] && [ "${TERM}" != "dumb" ]; then
+  C_OFF=$'\033[0m'; C_HEAD=$'\033[1;36m'; C_DIM=$'\033[2m'; C_BOLD=$'\033[1m'
+fi
+
+# The heading of the newest entry, without the "## ".
+latest() { awk '/^## /{ print substr($0, 4); exit }' "$CHANGELOG"; }
+
+count() { grep -c '^## ' "$CHANGELOG" || true; }
+
+# Prints the entries from the newest one, `limit` of them at most (0 for all),
+# stopping before the one whose heading is `stop` (the last one seen). The
+# date is dimmed, the title stands out, the body is aligned under the title.
+render() {
+  awk -v limit="$1" -v stop="$2" -v o="$C_OFF" -v h="$C_HEAD" -v d="$C_DIM" '
+    /^## / {
+      title = substr($0, 4)
+      if (stop != "" && title == stop) exit
+      n++
+      if (limit > 0 && n > limit) exit
+      if (n > 1) print ""
+      date = title; sub(/ .*/, "", date)
+      printf "  %s%s%s  %s%s%s\n", d, date, o, h, substr(title, length(date) + 2), o
+      next
+    }
+    n > 0 && NF {
+      sub(/^[ \t]+/, ""); gsub(/`/, "")
+      printf "              %s\n", $0
+    }
+  ' "$CHANGELOG"
+}
+
+mark_seen() {
+  local top
+  top="$(latest)"
+  [ -n "$top" ] || return 0
+  mkdir -p "${SEEN%/*}"
+  printf '%s\n' "$top" > "$SEEN"
+}
+
+MODE="list"
+LIMIT="$DEFAULT_LIMIT"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --all|-a) LIMIT=0; shift ;;
+    -n)
+      [ $# -ge 2 ] && [[ "$2" =~ ^[0-9]+$ ]] || { err "-n takes a number"; exit 2; }
+      LIMIT="$2"; shift 2 ;;
+    --new) MODE="new"; shift ;;
+    --mark-seen) MODE="mark"; shift ;;
+    *) err "unknown option '$1'"; usage >&2; exit 2 ;;
+  esac
+done
+
+if [ ! -r "$CHANGELOG" ]; then
+  # Quiet at login: an image without a changelog has nothing to say.
+  [ "$MODE" = "list" ] || exit 0
+  err "no changelog in this image ($CHANGELOG)"
+  exit 1
+fi
+
+case "$MODE" in
+  mark)
+    mark_seen
+    ;;
+  new)
+    # What the login shows: nothing when the newest entry was already seen.
+    # A heading that is not in the file any more (or no state at all, on a
+    # home older than the changelog) shows the latest entries.
+    seen=""
+    [ -r "$SEEN" ] && IFS= read -r seen < "$SEEN" || true
+    [ "$seen" != "$(latest)" ] || exit 0
+    printf '%sNew in the box%s\n' "$C_BOLD" "$C_OFF"
+    render "$DEFAULT_LIMIT" "$seen"
+    printf '%sdevbox changelog --all for the whole list%s\n\n' "$C_DIM" "$C_OFF"
+    mark_seen
+    ;;
+  list)
+    total="$(count)"
+    printf '%sdev-box changelog%s\n\n' "$C_BOLD" "$C_OFF"
+    render "$LIMIT" ""
+    if [ "$LIMIT" -gt 0 ] && [ "$total" -gt "$LIMIT" ]; then
+      printf '\n%s%s older entries: devbox changelog --all%s\n' \
+        "$C_DIM" "$((total - LIMIT))" "$C_OFF"
+    fi
+    mark_seen
+    ;;
+esac
