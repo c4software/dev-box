@@ -78,20 +78,26 @@ COPY rootfs/ /
 ARG DEVBOX_COMMIT=
 ARG DEVBOX_REPO=
 ARG DEVBOX_BRANCH=
+# The release tag (v1.5), and "release" for the image the workflow publishes:
+# the box then compares itself with the newest v* tag of the repo rather than
+# the head of the branch. A local build records git describe and "local".
+ARG DEVBOX_VERSION=
+ARG DEVBOX_SOURCE=local
 RUN --mount=type=bind,target=/ctx,ro \
-    commit="$DEVBOX_COMMIT"; repo="$DEVBOX_REPO"; branch="$DEVBOX_BRANCH"; \
+    commit="$DEVBOX_COMMIT"; repo="$DEVBOX_REPO"; branch="$DEVBOX_BRANCH"; version="$DEVBOX_VERSION"; \
     if [ -e /ctx/.git ]; then \
       # the clone belongs to the host user, not root: git refuses it otherwise
       g="git -c safe.directory=/ctx -C /ctx"; \
       [ -n "$commit" ] && [ "$commit" != unknown ] || commit="$($g rev-parse HEAD 2>/dev/null || echo unknown)"; \
       [ -n "$repo" ] || repo="$($g remote get-url origin 2>/dev/null || true)"; \
       [ -n "$branch" ] || branch="$($g rev-parse --abbrev-ref HEAD 2>/dev/null || true)"; \
+      [ -n "$version" ] || version="$($g describe --tags --always 2>/dev/null || true)"; \
     fi; \
     [ -n "$commit" ] || commit=unknown; \
     [ -n "$branch" ] && [ "$branch" != HEAD ] || branch=main; \
-    printf 'DEVBOX_COMMIT=%s\nDEVBOX_REPO=%s\nDEVBOX_BRANCH=%s\n' \
-      "$commit" "$repo" "$branch" > /etc/devbox/release \
-    && echo "release: $commit $repo ($branch)" \
+    printf 'DEVBOX_COMMIT=%s\nDEVBOX_REPO=%s\nDEVBOX_BRANCH=%s\nDEVBOX_VERSION=%s\nDEVBOX_SOURCE=%s\n' \
+      "$commit" "$repo" "$branch" "$version" "${DEVBOX_SOURCE:-local}" > /etc/devbox/release \
+    && echo "release: $version $commit $repo ($branch, ${DEVBOX_SOURCE:-local})" \
     && chmod +x /usr/local/bin/* \
     # podman-docker exports DOCKER_HOST in every login shell, socket or not:
     # we keep it only when the socket exists (see /etc/devbox/zshenv).

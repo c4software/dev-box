@@ -8,9 +8,8 @@
 #
 # Only a v* tag builds. A push on main publishes nothing, so a release is a
 # deliberate act (git tag -a v0.3.0 && git push origin v0.3.0), and a box
-# pulls it only when its owner runs `just pull`. The commit baked into the
-# image is the tagged one, on main, which is what dev-box-check-updates
-# compares with the head of the branch.
+# pulls it only when its owner runs `just pull`. The image records its tag,
+# and dev-box-check-updates compares it with the newest v* tag of the repo.
 name: Build the image
 
 on:
@@ -48,7 +47,8 @@ jobs:
 
       # The build args feed /etc/devbox/release, which dev-box-check-updates
       # compares with the remote repo. A tag is not a branch to follow, so the
-      # release records main.
+      # release records main; DEVBOX_SOURCE=release makes the box compare
+      # itself with the newest v* tag instead, the next image it can pull.
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v6
@@ -61,6 +61,8 @@ jobs:
             DEVBOX_COMMIT=${{ github.sha }}
             DEVBOX_REPO=${{ github.server_url }}/${{ github.repository }}.git
             DEVBOX_BRANCH=main
+            DEVBOX_VERSION=${{ github.ref_name }}
+            DEVBOX_SOURCE=release
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
       - name: Export the digest

@@ -15,11 +15,15 @@ It compares five things:
 
 1. **dotfiles**: the HEAD of the local clone against the remote branch, with
    `git ls-remote`. No object is pulled.
-2. **the image**: `DEVBOX_COMMIT` from `/etc/devbox/release`, burned in at build
-   time, against the HEAD of the dev-box repository. This one is only known when
-   the image was built through `just`, which passes the commit as a build
-   argument; a bare `docker compose build` records `unknown` and the check is
-   skipped.
+2. **the image**: `/etc/devbox/release`, burned in at build time, against the
+   dev-box repository it came from, with `git ls-remote`. The image published
+   by the workflow (`DEVBOX_SOURCE=release`) is compared with the newest `v*`
+   tag: a newer tag means `just pull` on the host. A local build is compared
+   with the head of its branch: a newer commit means `just rebuild`. A build
+   with no `.git` in its context records `unknown` and the check is skipped.
+   `devbox check --image` answers this one question on the spot, up to date
+   or not, and `devbox changelog --upcoming` reads the changelog of the repo at
+   that tag, or that branch, to say what the next image brings.
 3. **mise tools**: `mise outdated`.
 4. **the shipped config**: `dev-box-seed --check`.
 5. **pending migrations**: `dev-box-migrate --pending`. The start runs them, so
@@ -38,6 +42,15 @@ second flag, `~/.cache/dev-box/dev-envs`, gives one more line while the
 `DEV_ENVS` environments install at start, or when that failed.
 With no flag file there is no such line. The message itself is covered in
 `commands.md`, under `motd`.
+
+## The changelog
+
+`/usr/share/devbox/CHANGELOG.md` ships with the image, so it always describes
+the image the box runs. The first login after an update shows the entries this
+home has not seen, three at most (`~/.config/dev-box/changelog-seen`), and
+`devbox changelog` prints it at any time. Nothing is fetched for that. Only
+`devbox changelog --upcoming` goes to the repository, to read what the next
+image brings before pulling it.
 
 ## Migrations, the one exception
 

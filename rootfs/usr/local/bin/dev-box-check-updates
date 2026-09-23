@@ -1,14 +1,72 @@
 #!/usr/bin/env bash
 # devbox:name=check
 # devbox:summary=Look for updates, install nothing
-# devbox:args=
+# devbox:args=[--image]
 # Checks, without installing anything, what could be updated: dotfiles (HEAD of
-# the clone against the remote branch), the dev-box image (commit baked in at
-# build time against the remote branch), mise tools, config shipped by the image.
-# Writes ~/.cache/dev-box/updates (one line per item) when something is
-# available, and removes the file otherwise. It only downloads metadata and must
-# never block: everything is bounded by a timeout and neutralised on failure.
+# the clone against the remote branch), the dev-box image, mise tools, config
+# shipped by the image. Writes ~/.cache/dev-box/updates (one line per item)
+# when something is available, and removes the file otherwise. It only
+# downloads metadata and must never block: everything is bounded by a timeout
+# and neutralised on failure.
+#
+#   dev-box-check-updates           check everything, print what is waiting
+#   dev-box-check-updates --image   is this image the latest? nothing written
+#
+# The image is compared with the dev-box repository it was built from: the
+# published image with the newest v* tag (just pull), a local build with the
+# head of its branch (just rebuild).
 set -euo pipefail
+
+# shellcheck source=/dev/null
+. /usr/share/devbox/lib/release.sh
+
+# Sets IMAGE_LINE, the line for the flag (empty when nothing is waiting), and
+# IMAGE_STATE, the same thing said for a human, up to date or not.
+image_check() {
+  local own latest tag commit head
+  IMAGE_LINE=""; IMAGE_STATE=""
+  own="$(devbox_version)"
+  if [ "${DEVBOX_COMMIT:-unknown}" = "unknown" ] || [ -z "$DEVBOX_REPO" ]; then
+    IMAGE_STATE="unknown: the image does not say what it was built from, just rebuild on the host"
+    return 0
+  fi
+  if [ "$DEVBOX_SOURCE" = "release" ]; then
+    if ! latest="$(devbox_latest_release)"; then
+      IMAGE_STATE="$own, could not read the releases of $(devbox_repo_url)"
+      return 0
+    fi
+    tag="${latest%% *}"; commit="${latest#* }"
+    if [ "$commit" = "$DEVBOX_COMMIT" ] || ! devbox_version_newer "$tag" "$DEVBOX_VERSION"; then
+      IMAGE_STATE="$own, the latest release"
+    else
+      IMAGE_LINE="dev-box image: $tag released (this box runs $own), just pull on the host"
+      IMAGE_STATE="$tag released, this box runs $own: just pull on the host"
+    fi
+  else
+    if ! head="$(devbox_branch_head)"; then
+      IMAGE_STATE="$own, could not read $DEVBOX_BRANCH on $(devbox_repo_url)"
+      return 0
+    fi
+    if [ "$head" = "$DEVBOX_COMMIT" ]; then
+      IMAGE_STATE="$own, built locally from the head of $DEVBOX_BRANCH"
+    else
+      IMAGE_LINE="dev-box image: new version in the repo (${DEVBOX_COMMIT:0:7} -> ${head:0:7}), just rebuild on the host"
+      IMAGE_STATE="$DEVBOX_BRANCH is at ${head:0:7}, this box was built from $own: just rebuild on the host"
+    fi
+  fi
+}
+
+case "${1:-}" in
+  -h|--help) sed -n '5,17p' "$0" | sed 's/^# \?//'; exit 0 ;;
+  --image)
+    image_check
+    printf 'dev-box image: %s\n' "$IMAGE_STATE"
+    [ -z "$IMAGE_LINE" ] || echo "What it brings: devbox changelog --upcoming"
+    exit 0
+    ;;
+  "") ;;
+  *) echo "dev-box-check-updates: unknown option '$1'" >&2; exit 2 ;;
+esac
 
 FLAG_DIR="$HOME/.cache/dev-box"
 FLAG="$FLAG_DIR/updates"
@@ -20,6 +78,8 @@ SRC="$HOME/.local/share/dotarchy"
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
+image_check
+
 # --- 1. Dotfiles: local HEAD against remote HEAD (git ls-remote, no object pulled) ---
 if [ -d "$SRC/.git" ]; then
   local_head="$(git -C "$SRC" rev-parse HEAD 2>/dev/null || true)"
@@ -30,32 +90,9 @@ if [ -d "$SRC/.git" ]; then
   fi
 fi
 
-# --- 2. dev-box image: commit baked in at build time against the remote repo HEAD ---
-if [ -r /etc/devbox/release ]; then
-  DEVBOX_COMMIT=""; DEVBOX_REPO=""; DEVBOX_BRANCH="main"
-  . /etc/devbox/release
-  if [ -n "$DEVBOX_REPO" ] && [ "${DEVBOX_COMMIT:-unknown}" != "unknown" ]; then
-    # ssh URL (git@github.com:x/y.git) becomes https: the box has no key for it
-    repo_url="$DEVBOX_REPO"
-    case "$repo_url" in
-      # host:path becomes host/path before the scheme goes in front, so that
-      # the colon replaced is the one after the host, not the one of https:
-      git@*:*)     repo_url="${repo_url#git@}"; repo_url="https://${repo_url/:/\/}" ;;
-      ssh://git@*) repo_url="https://${repo_url#ssh://git@}" ;;
-    esac
-    # Private GitHub repo: GITHUB_TOKEN is the authentication, when it can read
-    # the repo (otherwise the call fails and the check is simply skipped;
-    # `just status` on the host makes the same comparison).
-    auth=()
-    if [ -n "${GITHUB_TOKEN:-}" ]; then
-      auth=(-c "http.extraheader=Authorization: Bearer $GITHUB_TOKEN")
-    fi
-    image_remote="$(GIT_TERMINAL_PROMPT=0 timeout 30 \
-        git "${auth[@]}" ls-remote "$repo_url" "refs/heads/$DEVBOX_BRANCH" 2>/dev/null | awk 'NR==1{print $1}' || true)"
-    if [ -n "$image_remote" ] && [ "$image_remote" != "$DEVBOX_COMMIT" ]; then
-      echo "dev-box image: new version in the repo (${DEVBOX_COMMIT:0:7} -> ${image_remote:0:7}), just rebuild on the host" >> "$tmp"
-    fi
-  fi
+# --- 2. dev-box image: against the latest release, or the branch head ---
+if [ -n "$IMAGE_LINE" ]; then
+  echo "$IMAGE_LINE" >> "$tmp"
 fi
 
 # --- 3. mise tools (registry metadata only) ---
@@ -98,4 +135,12 @@ if [ -s "$tmp" ]; then
   cp "$tmp" "$FLAG"
 else
   rm -f "$FLAG"
+fi
+
+# Said out loud when run by hand; the entrypoint discards it.
+if [ -s "$FLAG" ]; then
+  sed 's/^/  /' "$FLAG"
+  echo "devbox update installs what is in the box; the image is updated on the host."
+else
+  echo "Nothing to update."
 fi

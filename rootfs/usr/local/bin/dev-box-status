@@ -20,8 +20,14 @@ item() {
 title "Image"
 if [ -r /etc/devbox/release ]; then
   DEVBOX_COMMIT="unknown"; DEVBOX_REPO=""; DEVBOX_BRANCH="main"
+  DEVBOX_VERSION=""; DEVBOX_SOURCE=""
   # shellcheck source=/dev/null
   . /etc/devbox/release
+  if [ "${DEVBOX_SOURCE:-}" = "release" ]; then
+    item "version" "${DEVBOX_VERSION:-unknown}, published image (just pull on the host)"
+  else
+    item "version" "${DEVBOX_VERSION:-unknown}, built locally (just rebuild on the host)"
+  fi
   item "commit" "${DEVBOX_COMMIT:-unknown}"
   item "repo" "${DEVBOX_REPO:-unknown} (${DEVBOX_BRANCH:-main})"
 else
@@ -118,5 +124,6 @@ if [ -s "$flag" ]; then
   printf '  \033[2mdevbox update\033[0m\n'
 else
   item "none" "up to date at the last check (devbox check to run it again)"
+  item "image" "devbox check --image says whether it is the latest"
 fi
 echo

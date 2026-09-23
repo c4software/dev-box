@@ -16,7 +16,7 @@ vanishes without warning.
 | `/etc/devbox/` | the config shipped to the home (`mise-config.toml`, the Claude agents, `llm-proxy.ts`, the yazi keymap), plus `zshenv`, `zshrc`, `sshd_config`, `updates-motd.sh` |
 | `/usr/share/devbox/skills/` | this skill and its guides |
 | `/usr/share/devbox/migrations/` | the one-off repairs run at start, once each |
-| `/etc/devbox/release` | `DEVBOX_COMMIT`, `DEVBOX_REPO`, `DEVBOX_BRANCH`, burned in at build time |
+| `/etc/devbox/release` | `DEVBOX_COMMIT`, `DEVBOX_REPO`, `DEVBOX_BRANCH`, `DEVBOX_VERSION` (the tag), `DEVBOX_SOURCE` (`release` or `local`), burned in at build time; read through `/usr/share/devbox/lib/release.sh` |
 | `/etc/containers/` | the rootless podman setup |
 
 System packages come from pacman, in the `Dockerfile`. `sudo pacman -S` inside

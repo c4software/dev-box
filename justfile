@@ -11,6 +11,7 @@ container := "dev-box"
 export DEVBOX_COMMIT := `git rev-parse HEAD 2>/dev/null || echo unknown`
 export DEVBOX_REPO := `git remote get-url origin 2>/dev/null || true`
 export DEVBOX_BRANCH := `git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main`
+export DEVBOX_VERSION := `git describe --tags --always 2>/dev/null || true`
 
 # List the available commands.
 default:

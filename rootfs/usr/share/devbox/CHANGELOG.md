@@ -7,6 +7,10 @@ One entry per change a user of the box notices: a `## YYYY-MM-DD Title` line,
 then one or two lines saying what it does and what to run. The heading is what
 the box remembers as seen, so never edit the heading of a published entry.
 
+## 2026-09-23 Is this image the latest?
+`devbox check --image` compares the box with the newest release of the repo,
+and `devbox changelog --upcoming` shows what the next image brings.
+
 ## 2026-09-23 A changelog in the box
 `devbox changelog` lists what changed in the box. The first login after an
 update shows the new entries, three at most.

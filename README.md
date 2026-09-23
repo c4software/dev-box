@@ -81,6 +81,14 @@ customisable on the published image as on a local build. The image has no idea w
 `.env` will run it. It is a plain rolling Arch: `just pull` fetches whatever the last
 workflow run produced, no more often than you decide.
 
+The published image records its tag. The box compares it with the newest `v*`
+tag of the repository, with `git ls-remote`, at start and once a day: a newer
+release shows up in the login line and in `devbox status`, with `just pull` to
+run on the host. `devbox check --image` asks the question on the spot, and
+`devbox changelog --upcoming` reads the changelog of that release in the repo,
+to see what it brings before pulling. A local build is compared with the head
+of its branch instead, and asks for `just rebuild`.
+
 The Pi is the main beneficiary: pulling takes a minute where building takes tens of
 them. Leave `DEVBOX_IMAGE` empty to keep building from your own clone, which is the
 only way to run a change that is not on `main` yet.
@@ -408,7 +416,7 @@ Adding a command therefore means dropping a `dev-box-<name>` script in
 | `devbox` | Binary | Does |
 | --- | --- | --- |
 | `status` | `dev-box-status` | image commit and repo, Tailscale or sshd, podman, mise tools, pending updates |
-| `check` | `dev-box-check-updates` | look for what could be updated, install nothing |
+| `check` | `dev-box-check-updates` | look for what could be updated, install nothing; `--image` says whether the image is the latest |
 | `update` | `dev-box-update` | `dotfiles`, `tools`, `seed`, or all of them |
 | `seed` | `dev-box-seed` | lay down the config shipped by the image |
 | `sync` | `dotarchy-sync` | pull the dotfiles and apply them |
@@ -417,7 +425,7 @@ Adding a command therefore means dropping a `dev-box-<name>` script in
 | `dbs` | `dev-box-dbs` | start a development database in a podman container |
 | `agent` | `dev-box-agent` | the default coding agent: run it, pick it, read its usage |
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates |
-| `changelog` | `dev-box-changelog` | what changed in the box, newest first; the 3 latest, `-n N` or `--all` |
+| `changelog` | `dev-box-changelog` | what changed in the box, newest first; the 3 latest, `-n N`, `--all`, `--upcoming` for what the next image brings |
 | `tour` | `dev-box-tour` | a guided tour of the box, two minutes, commands run under your eyes |
 | `migrate` | `dev-box-migrate` | run the migrations shipped by the image, once each |
 | `mise-install` | `dev-box-mise-install` | write a mise-backed wrapper into `~/.local/bin` |

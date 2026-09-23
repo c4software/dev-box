@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # devbox:name=changelog
 # devbox:summary=What changed in the box, newest first
-# devbox:args=[-n N|--all]
+# devbox:args=[-n N|--all|--upcoming]
 #
 # The changelog shipped with the image, /usr/share/devbox/CHANGELOG.md.
 #
 #   dev-box-changelog               the 3 latest entries
 #   dev-box-changelog -n 10         the 10 latest
 #   dev-box-changelog --all         every entry
+#   dev-box-changelog --upcoming    what the next image brings, read from the repo
 #   dev-box-changelog --new         the entries not seen yet, 3 at most
 #   dev-box-changelog --mark-seen   remember the latest entry as seen
 #
@@ -15,13 +16,22 @@
 # ~/.config/dev-box/changelog-seen. The login message calls --new when the
 # image brings an entry past that one, so the changelog shows once after an
 # update, then stays quiet until the next one.
+#
+# --upcoming reads the changelog in the dev-box repository instead: at the
+# latest release for the published image, at the head of the branch for a
+# local build. It prints the entries this image does not have yet.
 set -euo pipefail
 
+# shellcheck source=/dev/null
+. /usr/share/devbox/lib/release.sh
+
 CHANGELOG="/usr/share/devbox/CHANGELOG.md"
+# The same file in the dev-box repository, for --upcoming
+REPO_CHANGELOG="rootfs/usr/share/devbox/CHANGELOG.md"
 SEEN="$HOME/.config/dev-box/changelog-seen"
 DEFAULT_LIMIT=3
 
-usage() { sed -n '6,17p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '6,22p' "$0" | sed 's/^# \?//'; }
 err() { echo "dev-box-changelog: $*" >&2; }
 
 C_OFF=""; C_HEAD=""; C_DIM=""; C_BOLD=""
@@ -30,13 +40,14 @@ if [ -t 1 ] && [ -n "${TERM:-}" ] && [ "${TERM}" != "dumb" ]; then
 fi
 
 # The heading of the newest entry, without the "## ".
-latest() { awk '/^## /{ print substr($0, 4); exit }' "$CHANGELOG"; }
+latest() { [ -r "$CHANGELOG" ] || return 0; awk '/^## /{ print substr($0, 4); exit }' "$CHANGELOG"; }
 
 count() { grep -c '^## ' "$CHANGELOG" || true; }
 
-# Prints the entries from the newest one, `limit` of them at most (0 for all),
-# stopping before the one whose heading is `stop` (the last one seen). The
-# date is dimmed, the title stands out, the body is aligned under the title.
+# Prints the entries of a changelog (the shipped one by default) from the
+# newest one, `limit` of them at most (0 for all), stopping before the one
+# whose heading is `stop` (the last one seen). The date is dimmed, the title
+# stands out, the body is aligned under the title.
 render() {
   awk -v limit="$1" -v stop="$2" -v o="$C_OFF" -v h="$C_HEAD" -v d="$C_DIM" '
     /^## / {
@@ -53,7 +64,36 @@ render() {
       sub(/^[ \t]+/, ""); gsub(/`/, "")
       printf "              %s\n", $0
     }
-  ' "$CHANGELOG"
+  ' "${3:-$CHANGELOG}"
+}
+
+# The changelog of the repo at the ref the next image comes from, entries
+# down to the newest one this image already has.
+upcoming() {
+  local ref label remote
+  if ! ref="$(devbox_upcoming_ref)"; then
+    err "could not read the releases of $(devbox_repo_url)"
+    exit 1
+  fi
+  label="${ref#* }"; ref="${ref%% *}"
+  remote="$(mktemp)"
+  # shellcheck disable=SC2064
+  trap "rm -f '$remote'" EXIT
+  if ! devbox_repo_file "$ref" "$REPO_CHANGELOG" > "$remote"; then
+    err "could not read the changelog of $label in $(devbox_repo_url)"
+    exit 1
+  fi
+  if ! grep -q '^## ' "$remote" || [ "$(awk '/^## /{ print substr($0, 4); exit }' "$remote")" = "$(latest)" ]; then
+    printf 'Nothing new in %s: this box runs %s.\n' "$label" "$(devbox_version)"
+    return 0
+  fi
+  printf '%sComing with %s%s (this box runs %s)\n\n' "$C_BOLD" "$label" "$C_OFF" "$(devbox_version)"
+  render 0 "$(latest)" "$remote"
+  if [ "$DEVBOX_SOURCE" = "release" ]; then
+    printf '\n%sjust pull on the host to get it%s\n' "$C_DIM" "$C_OFF"
+  else
+    printf '\n%sjust rebuild on the host to get it%s\n' "$C_DIM" "$C_OFF"
+  fi
 }
 
 mark_seen() {
@@ -75,9 +115,15 @@ while [ $# -gt 0 ]; do
       LIMIT="$2"; shift 2 ;;
     --new) MODE="new"; shift ;;
     --mark-seen) MODE="mark"; shift ;;
+    --upcoming) MODE="upcoming"; shift ;;
     *) err "unknown option '$1'"; usage >&2; exit 2 ;;
   esac
 done
+
+if [ "$MODE" = "upcoming" ]; then
+  upcoming
+  exit 0
+fi
 
 if [ ! -r "$CHANGELOG" ]; then
   # Quiet at login: an image without a changelog has nothing to say.

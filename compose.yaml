@@ -13,6 +13,7 @@ services:
         DEVBOX_COMMIT: ${DEVBOX_COMMIT:-}
         DEVBOX_REPO: ${DEVBOX_REPO:-}
         DEVBOX_BRANCH: ${DEVBOX_BRANCH:-}
+        DEVBOX_VERSION: ${DEVBOX_VERSION:-}
     container_name: dev-box
     hostname: ${TS_HOSTNAME:-dev-box}
     init: true

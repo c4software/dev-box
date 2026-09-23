@@ -34,7 +34,7 @@ the same binary.
 | `devbox` | Binary | Does |
 |---|---|---|
 | `status` | `dev-box-status` | image commit and repo, Tailscale or sshd, podman, mise tools, the `DEV_ENVS` environments, pending updates. Read only. |
-| `check` | `dev-box-check-updates` | looks for what could be updated and writes the flag. Installs nothing. |
+| `check` | `dev-box-check-updates` | looks for what could be updated, writes the flag and prints it. `--image` only says whether the image is the latest. Installs nothing. |
 | `update` | `dev-box-update` | `[dotfiles\|tools\|seed\|all]`, default `all`. The only command that installs. |
 | `seed` | `dev-box-seed` | lays down the config shipped by the image. `--apply` with no menu, `--check` to look, `--force [path]` to take a new version. |
 | `sync` | `dotarchy-sync` | clones or updates the dotfiles repo and applies the config. Never runs its install scripts. |
@@ -43,7 +43,7 @@ the same binary.
 | `dbs` | `dev-box-dbs` | starts a development database in a podman container. `--list`, `--start`, `--stop`, `--remove [--purge]`, or names, or a menu. |
 | `agent` | `dev-box-agent` | the default coding agent. `set`, `which`, `prompt <text>`, `usage [claude\|codex\|proxy]`, or bare for a menu (run, pick, usage). |
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates, `DEV_ENVS` still installing or failed. |
-| `changelog` | `dev-box-changelog` | what changed in the box, newest first. The 3 latest, `-n N`, `--all`; `--new` and `--mark-seen` are for the login and the entrypoint. |
+| `changelog` | `dev-box-changelog` | what changed in the box, newest first. The 3 latest, `-n N`, `--all`, `--upcoming` for what the next image brings, read from the repo; `--new` and `--mark-seen` are for the login and the entrypoint. |
 | `tour` | `dev-box-tour` | a guided tour of the box in a dozen steps, each with the command to try. `--text` prints it at once, `--offer` is what the first login runs. |
 | `migrate` | `dev-box-migrate` | runs the migrations shipped by the image, once each. `--run` with no menu, `--pending`, `--list`, `--mark-done <name>`. |
 | `mise-install` | `dev-box-mise-install` | writes a mise-backed wrapper into `~/.local/bin`. `--list`, `--remove <cmd>`. |
@@ -233,7 +233,13 @@ shipped with the image, newest first.
 devbox changelog          # the 3 latest entries
 devbox changelog -n 10    # the 10 latest
 devbox changelog --all    # all of them
+devbox changelog --upcoming   # what the next image brings, from the repo
 ```
+
+`--upcoming` is the one that touches the network: it reads the changelog of
+the dev-box repository at the newest `v*` tag for the published image, at the
+head of the branch for a local build, and prints the entries this image does
+not have. `devbox check --image` says whether there is such an image at all.
 
 The heading of the newest entry you were shown is kept in
 `~/.config/dev-box/changelog-seen`. When the image brings an entry past it, the
