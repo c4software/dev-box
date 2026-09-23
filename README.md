@@ -59,7 +59,7 @@ cp compose.override.example.yaml compose.override.yaml
 ### Prebuilt image
 
 A GitHub workflow (`.github/workflows/build.yml`) builds the image on every push to
-`main` that touches the `Dockerfile` or `rootfs/`, on every `v*` tag, and on demand,
+`main`, on every `v*` tag, and on demand,
 and publishes it on `ghcr.io/c4software/dev-box` for amd64 and arm64 (native runners,
 one manifest). Tags: `latest`, `sha-<short commit>`, and the version for a tagged
 release. Each run starts from a fresh base with no layer cache, the same as

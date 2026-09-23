@@ -10,15 +10,12 @@
 # image, a box pulls it only when its owner runs `just pull`.
 name: Build the image
 
+# No paths filter: with one, GitHub ignores the tag pushes. Every push to
+# main builds, so the published commit is always the head of the branch.
 on:
   push:
     branches: [main]
     tags: ["v*"]
-    paths:
-      - Dockerfile
-      - .dockerignore
-      - rootfs/**
-      - .github/workflows/build.yml
   workflow_dispatch:
 
 env:
