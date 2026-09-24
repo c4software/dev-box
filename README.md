@@ -21,6 +21,10 @@ config as-is, and its dev tools are managed by [mise](https://mise.jdx.dev/).
 
 ![A tmux session in the box: devbox serve 3000 publishes a dev server on the tailnet and prints its URL, devbox serve off stops it, and devbox agent shows the Claude Code limit windows as bars with a countdown to the reset](docs/screenshots/serve-and-agent.jpg)
 
+A step by step guide in French, written for students, with videos of the install and
+of a first Laravel and Python project, lives on
+[cours.brosseau.ovh](https://cours.brosseau.ovh/cheatsheets/dev-box/).
+
 ## Quick start
 
 1. Create `.env` from the example, set `TS_LOGIN_SERVER` if you use Headscale, and add
