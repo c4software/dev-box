@@ -122,7 +122,9 @@ whole point of the command. The removal takes out what the environment brought
 and nothing more: no project data, and not a base another environment may rely
 on (say in the message how to remove it). PHP is the one exception, baked into
 the image through the `Dockerfile` because mise would have to compile it; OCaml
-is not in it for the same reason.
+is not in it for the same reason. `browser` and `media` (for ffmpeg) go through
+`devbox pkg add` instead: the mise registry has no usable build, the Arch package
+works on amd64 and ARM, and `devbox pkg` puts it back after a rebuild.
 
 The same file dropped in `~/.config/dev-box/dev-envs/` of a box adds an
 environment to that box only, or replaces the image's one of the same name:

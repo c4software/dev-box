@@ -31,8 +31,8 @@ ENV LANG=C.UTF-8
 #   tmux and SSH; chafa is the text fallback for a terminal that has none.
 #   7zip lists archives, resvg renders SVG, imagemagick handles HEIC, AVIF and
 #   fonts, poppler (pdftoppm) the PDF pages. ffmpeg (video thumbnails) is left
-#   out on purpose: 50 MB and a pile of audio libraries, `devbox pkg add ffmpeg`
-#   for the boxes that want it.
+#   out on purpose: 50 MB and a pile of audio libraries, `devbox dev-env
+#   media` for the boxes that want it.
 # + sqlite: the sqlite3 shell. Already pulled by python and php-sqlite, listed
 #   so that it stays whatever those dependencies do.
 # podman already pulls passt, shadow, conmon and containers-common, and netavark

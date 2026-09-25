@@ -337,7 +337,7 @@ directory listing:
   image is rendered as text by `chafa`. The image ships `chafa`, `7zip`
   (archives), `resvg` (SVG), `imagemagick` (HEIC, AVIF, fonts) and `poppler`
   (PDF). Video thumbnails need `ffmpeg`, left out of the image for its size:
-  `devbox pkg add ffmpeg` brings them back after every rebuild. `yazi --debug`
+  `devbox dev-env media` installs it and brings it back after every rebuild. `yazi --debug`
   lists what yazi found, and which protocol it settled on;
 - **`c c` copies the path into your clipboard**, `c f` the file name, `c d` the
   directory, as yazi does everywhere: it sends OSC 52 straight to the terminal,
@@ -738,7 +738,7 @@ GitHub API rate limits.
 ### Dev environments
 
 `devbox dev-env` installs or removes a whole language environment in one call,
-through mise. No `curl | sh`, and no pacman except for PHP and the browser (see
+through mise. No `curl | sh`, and no pacman except for PHP, the browser and media (see
 below). Whatever
 mise installs is declared in `~/.config/mise/config.toml`, survives a rebuild, and
 is upgraded by `devbox update tools` like the rest.
@@ -821,6 +821,15 @@ as it is on amd64 and on Arch Linux ARM, and `devbox pkg` reinstalls it after a
 rebuild. Chromium is not baked into the image because it weighs about half a
 gigabyte and most boxes never need it. How to use it, screenshots, DOM dumps and
 Playwright on the system Chromium, is in the `browser.md` guide of the agent skill.
+
+`media` gathers the tools to fetch, convert and inspect audio, video and pictures.
+`yt-dlp` and `oxipng` come through mise, so `devbox update tools` keeps `yt-dlp` current:
+it breaks whenever a site changes. The rest goes through `devbox pkg`, like the browser:
+`ffmpeg` (the mise registry only builds it from source), `pngquant`, `jpegoptim`,
+`cwebp` (`libwebp-utils`), `exiftool`, `mediainfo` and `aria2`. `ffmpeg` stays out of
+the image for its size; once there, yazi shows video thumbnails. YouTube wants a
+JavaScript runtime for `yt-dlp`: `devbox dev-env deno`. A removal takes everything
+out, `ffmpeg` included.
 
 OCaml is not offered: upstream it goes through the opam installer, which would be
 wiped by the next image rebuild.
