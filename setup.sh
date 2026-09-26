@@ -509,34 +509,36 @@ if [ "$access" = tailscale ]; then
   say "An auth key attaches the box on its own; without one, a login URL is printed to open once."
   ts_authkey="$(ask_secret "Tailscale auth key")"
 else
+  # Two sources of keys, both asked every time: a GitHub account, then this
+  # machine. Every key given is allowed in.
+  say "Public keys allowed to log in: those of your GitHub account, then one of this machine."
+  gh_keys=""
+  while :; do
+    gh_user="$(ask "GitHub user whose public keys are allowed in (empty to skip)" "")"
+    gh_user="${gh_user#github:}"
+    [ -n "$gh_user" ] || break
+    if gh_keys="$(read_keys "github:$gh_user")"; then
+      say "  $(printf '%s\n' "$gh_keys" | grep -c .) public key(s) taken from https://github.com/$gh_user.keys"
+      break
+    fi
+    warn "no public key found at https://github.com/$gh_user.keys
+  Check the user name, and that the account has an SSH key (GitHub, Settings, SSH and GPG keys)."
+  done
+  local_keys=""
   found="$(default_ssh_key_file)"
-  if [ -z "$found" ]; then
-    say "No public key in ~/.ssh. The keys of your GitHub account can be used"
-    say "(the ones listed on https://github.com/<user>.keys), or create one with: ssh-keygen -t ed25519"
-  fi
-  ssh_keys=""
+  [ -n "$found" ] || say "No public key in ~/.ssh on this machine (ssh-keygen -t ed25519 creates one)."
   while :; do
     if [ -n "$found" ]; then
-      ssh_key="$(ask "Public key allowed in (a .pub file, the key itself, or github:<your GitHub user>)" "$found")"
+      ssh_key="$(ask "Public key of this machine allowed in (a .pub file or the key itself)" "$found")"
     else
-      gh_user="$(ask "GitHub user to take the public keys from (empty to skip)" "")"
-      if [ -n "$gh_user" ]; then
-        ssh_key="github:${gh_user#github:}"
-      else
-        ssh_key="$(ask "Public key allowed in (a .pub file or the key itself, empty for none)" "")"
-      fi
+      ssh_key="$(ask "Public key of this machine allowed in (a .pub file or the key itself, empty to skip)" "")"
     fi
     [ -n "$ssh_key" ] || break
-    ssh_keys="$(read_keys "$ssh_key")" && break
-    case "$ssh_key" in
-      github:*) warn "no public key found at https://github.com/${ssh_key#github:}.keys
-  Check the user name, and that the account has an SSH key (GitHub, Settings, SSH and GPG keys)." ;;
-      *) warn "not a public key, nor a file of public keys: $ssh_key" ;;
-    esac
+    local_keys="$(read_keys "$ssh_key")" && break
+    warn "not a public key, nor a file of public keys: $ssh_key"
   done
-  case "$ssh_key" in
-    github:*) say "  $(printf '%s\n' "$ssh_keys" | grep -c .) public key(s) taken from https://github.com/${ssh_key#github:}.keys" ;;
-  esac
+  # Both lists together, each key once.
+  ssh_keys="$(printf '%s\n%s\n' "$gh_keys" "$local_keys" | awk 'NF && !seen[$0]++')"
   if [ -z "$ssh_keys" ]; then
     warn "no public key: sshd will not start. Add one to SSH_AUTHORIZED_KEYS in .env later,
   or get in with docker exec -it -u $user $container zsh -l"
