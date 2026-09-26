@@ -92,7 +92,7 @@ curl -fsSL https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh \
 | `--hostname NAME` | `DEVBOX_HOSTNAME` | Tailscale hostname, default `dev-box` |
 | `--login-server URL` | `DEVBOX_LOGIN_SERVER` | Tailscale control server, or your Headscale |
 | `--authkey KEY` | `DEVBOX_AUTHKEY` | Tailscale auth key; empty prints a login URL |
-| `--ssh-key KEY\|FILE` | `DEVBOX_SSH_KEY` | public key(s) for `--access ssh`, a key or a `.pub` file; default the first of `~/.ssh/id_{ed25519,ecdsa,rsa}.pub` |
+| `--ssh-key KEY\|FILE\|github:USER` | `DEVBOX_SSH_KEY` | public key(s) for `--access ssh`: a key, a `.pub` file, or `github:USER` for the keys published at `https://github.com/USER.keys`; default the first of `~/.ssh/id_{ed25519,ecdsa,rsa}.pub`. Asked interactively, with no key in `~/.ssh` the script offers the GitHub user straight away |
 | `--ssh-port PORT` | `DEVBOX_SSH_PORT` | host port for `--access ssh`, default `2222` |
 | `--ssh-bind ADDR` | `DEVBOX_SSH_BIND` | host address for it, default `127.0.0.1` (`0.0.0.0`: the LAN) |
 | `--tz ZONE` | `DEVBOX_TZ` | timezone, default the host's |

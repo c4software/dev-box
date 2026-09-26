@@ -42,7 +42,9 @@ everything that was not given, and asks nothing.
   --hostname NAME       Tailscale hostname, default dev-box        [DEVBOX_HOSTNAME]
   --login-server URL    Tailscale control server, or your Headscale [DEVBOX_LOGIN_SERVER]
   --authkey KEY         Tailscale auth key, empty prints a login URL [DEVBOX_AUTHKEY]
-  --ssh-key KEY|FILE    public key(s) for --access ssh, a key or a .pub file,
+  --ssh-key KEY|FILE|github:USER
+                        public key(s) for --access ssh: a key, a .pub file, or
+                        github:USER for the keys of that GitHub account,
                         default the first of ~/.ssh/id_{ed25519,ecdsa,rsa}.pub [DEVBOX_SSH_KEY]
   --ssh-port PORT       host port for --access ssh, default 2222   [DEVBOX_SSH_PORT]
   --ssh-bind ADDR       host address for it, default 127.0.0.1 (0.0.0.0: the LAN) [DEVBOX_SSH_BIND]
@@ -264,6 +266,15 @@ fetch() {
   esac
 }
 
+# fetch_url URL: the body on stdout, or an error.
+fetch_url() {
+  if [ "$downloader" = curl ]; then
+    curl -fsSL --retry 3 "$1"
+  else
+    wget -q -O - "$1"
+  fi
+}
+
 # --- Install directory ---
 say ""
 dir_default="$HOME/dev-box"
@@ -477,14 +488,23 @@ default_ssh_key_file() {
   done
 }
 
-# read_keys KEY|FILE: the public keys, one per line, or an error.
+# read_keys KEY|FILE|github:USER: the public keys, one per line, or an error.
 read_keys() {
-  src="$(expand_home "$1")"
-  if [ -f "$src" ]; then
-    keys="$(grep -v '^[[:space:]]*\(#.*\)\{0,1\}$' "$src" || true)"
-  else
-    keys="$1"
-  fi
+  case "$1" in
+    github:*)
+      gh_user="${1#github:}"
+      printf '%s' "$gh_user" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9-]{0,38}$' || return 1
+      keys="$(fetch_url "https://github.com/$gh_user.keys" 2>/dev/null || true)"
+      ;;
+    *)
+      src="$(expand_home "$1")"
+      if [ -f "$src" ]; then
+        keys="$(grep -v '^[[:space:]]*\(#.*\)\{0,1\}$' "$src" || true)"
+      else
+        keys="$1"
+      fi
+      ;;
+  esac
   [ -n "$keys" ] || return 1
   # every line a key type: ssh-ed25519, ssh-rsa, ecdsa-sha2-*, sk-*
   if printf '%s\n' "$keys" | grep -Evq '^(ssh-|ecdsa-|sk-)'; then return 1; fi
@@ -537,17 +557,32 @@ else
     found="$(default_ssh_key_file)"
     if [ "$interactive" = 1 ]; then
       if [ -n "$found" ]; then
-        opt_ssh_key="$(ask "Public key allowed in (a .pub file or the key itself)" "$found")"
+        opt_ssh_key="$(ask "Public key allowed in (a .pub file, the key itself, or github:<your GitHub user>)" "$found")"
       else
-        say "No public key in ~/.ssh. Create one with: ssh-keygen -t ed25519"
-        opt_ssh_key="$(ask "Public key allowed in (a .pub file or the key itself, empty for none)" "")"
+        say "No public key in ~/.ssh. The keys of your GitHub account can be used"
+        say "(the ones listed on https://github.com/<user>.keys), or create one with: ssh-keygen -t ed25519"
+        gh_user="$(ask "GitHub user to take the public keys from (empty to skip)" "")"
+        if [ -n "$gh_user" ]; then
+          opt_ssh_key="github:${gh_user#github:}"
+        else
+          opt_ssh_key="$(ask "Public key allowed in (a .pub file or the key itself, empty for none)" "")"
+        fi
       fi
     else
       opt_ssh_key="$found"
     fi
   fi
   if [ -n "$opt_ssh_key" ]; then
-    ssh_keys="$(read_keys "$opt_ssh_key")" || die "not a public key, nor a file of public keys: $opt_ssh_key"
+    if ! ssh_keys="$(read_keys "$opt_ssh_key")"; then
+      case "$opt_ssh_key" in
+        github:*) die "no public key found at https://github.com/${opt_ssh_key#github:}.keys
+  Check the user name, and that the account has an SSH key (GitHub, Settings, SSH and GPG keys)." ;;
+        *) die "not a public key, nor a file of public keys: $opt_ssh_key" ;;
+      esac
+    fi
+    case "$opt_ssh_key" in
+      github:*) say "  $(printf '%s\n' "$ssh_keys" | grep -c .) public key(s) taken from https://github.com/${opt_ssh_key#github:}.keys" ;;
+    esac
   else
     warn "no public key: sshd will not start. Add one to SSH_AUTHORIZED_KEYS in .env later,
   or get in with docker exec -it -u $opt_user $container zsh -l"
