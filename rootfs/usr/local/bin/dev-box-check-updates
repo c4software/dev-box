@@ -16,19 +16,26 @@
 #
 # The image is compared with the dev-box repository it was built from: the
 # published image with the newest v* tag (pulled on the host), a local build with the
-# head of its branch (rebuilt on the host). The release notes of the repo are saved on
-# the way, in ~/.cache/dev-box/releases.md, for devbox changelog and the login.
+# head of its branch (rebuilt on the host). The arm64 image, built by hand after
+# the release, is compared with the newest -arm64 tag of the registry instead.
+# The release notes of the repo are saved on the way, in
+# ~/.cache/dev-box/releases.md, for devbox changelog and the login.
 set -euo pipefail
 
 # shellcheck source=/dev/null
 . /usr/share/devbox/lib/release.sh
 
 # Sets IMAGE_LINE, the line for the flag (empty when nothing is waiting), and
-# IMAGE_STATE, the same thing said for a human, up to date or not.
+# IMAGE_STATE, the same thing said for a human, up to date or not. ARCH_LINE
+# is set when the published image is not the one of this machine (an arm64
+# box on the amd64 latest): DEVBOX_IMAGE has to change before the next pull.
 image_check() {
-  local own latest tag commit head
-  IMAGE_LINE=""; IMAGE_STATE=""
+  local own latest tag commit head advice note=""
+  IMAGE_LINE=""; IMAGE_STATE=""; ARCH_LINE=""
   own="$(devbox_version)"
+  if advice="$(devbox_image_arch_advice)"; then
+    ARCH_LINE="dev-box image: $advice"
+  fi
   if [ "${DEVBOX_COMMIT:-unknown}" = "unknown" ] || [ -z "$DEVBOX_REPO" ]; then
     IMAGE_STATE="unknown: the image does not say what it was built from, rebuild the container on the host"
     return 0
@@ -39,11 +46,18 @@ image_check() {
       return 0
     fi
     tag="${latest%% *}"; commit="${latest#* }"
+    # The arm64 image is compared with the newest -arm64 tag of the registry,
+    # which gives no commit. A commit means the registry could not be read
+    # and the newest v* tag stands in for it: its arm64 image, built by hand,
+    # may not be out yet.
+    if [ "$DEVBOX_TAG_SUFFIX" = "-arm64" ] && [ -n "$commit" ]; then
+      note=" (its arm64 image may not be published yet)"
+    fi
     if [ "$commit" = "$DEVBOX_COMMIT" ] || ! devbox_version_newer "$tag" "$DEVBOX_VERSION"; then
       IMAGE_STATE="$own, the latest release"
     else
-      IMAGE_LINE="dev-box image: $tag released (this box runs $own), pull the image and restart the container on the host"
-      IMAGE_STATE="$tag released, this box runs $own: pull the image and restart the container on the host"
+      IMAGE_LINE="dev-box image: $tag released$note (this box runs $own), pull $(devbox_pull_ref) and restart the container on the host"
+      IMAGE_STATE="$tag released$note, this box runs $own: pull $(devbox_pull_ref) and restart the container on the host"
     fi
   else
     if ! head="$(devbox_branch_head)"; then
@@ -61,10 +75,11 @@ image_check() {
 
 QUIET=0
 case "${1:-}" in
-  -h|--help) sed -n '6,19p' "$0" | sed 's/^# \?//'; exit 0 ;;
+  -h|--help) sed -n '6,22p' "$0" | sed 's/^# \?//'; exit 0 ;;
   --image)
     image_check
     printf 'dev-box image: %s\n' "$IMAGE_STATE"
+    [ -z "$ARCH_LINE" ] || printf '%s\n' "$ARCH_LINE"
     [ -z "$IMAGE_LINE" ] || echo "What it brings: devbox changelog --upcoming"
     exit 0
     ;;
@@ -99,6 +114,10 @@ if [ -d "$SRC/.git" ]; then
 fi
 
 # --- 2. dev-box image: against the latest release, or the branch head ---
+# The architecture line first: it says what to change before pulling.
+if [ -n "$ARCH_LINE" ]; then
+  echo "$ARCH_LINE" >> "$tmp"
+fi
 if [ -n "$IMAGE_LINE" ]; then
   echo "$IMAGE_LINE" >> "$tmp"
 fi

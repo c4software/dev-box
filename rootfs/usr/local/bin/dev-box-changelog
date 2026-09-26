@@ -124,7 +124,7 @@ list() {
 }
 
 upcoming() {
-  local t sel=()
+  local t sel=() advice arm
   own_is_versioned || {
     err "this image does not record its version, it cannot be placed among the releases: rebuild the container on the host"
     exit 1
@@ -139,7 +139,19 @@ upcoming() {
   printf '%sComing after %s%s\n\n' "$C_BOLD" "$OWN" "$C_OFF"
   render 0 "${sel[@]}"
   if [ "$DEVBOX_SOURCE" = "release" ]; then
-    printf '\n%spull the image and restart the container on the host to get it%s\n' "$C_DIM" "$C_OFF"
+    printf '\n%spull %s and restart the container on the host to get it%s\n' "$C_DIM" "$(devbox_pull_ref)" "$C_OFF"
+    # The arm64 image is built by hand after the release: the newest ones
+    # may have none yet.
+    if [ "$DEVBOX_TAG_SUFFIX" = "-arm64" ]; then
+      if ! arm="$(devbox_latest_arm64_release)"; then
+        printf '%sthe arm64 image of the newest releases may not be published yet%s\n' "$C_DIM" "$C_OFF"
+      elif devbox_version_newer "${sel[0]}" "$arm"; then
+        printf '%sthe arm64 image is published up to %s, the releases after it come later%s\n' "$C_DIM" "$arm" "$C_OFF"
+      fi
+    fi
+    if advice="$(devbox_image_arch_advice)"; then
+      printf '%s%s%s\n' "$C_BOLD" "$advice" "$C_OFF"
+    fi
   else
     printf '\n%srebuild the container on the host to get it%s\n' "$C_DIM" "$C_OFF"
   fi

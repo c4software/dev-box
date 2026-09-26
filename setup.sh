@@ -20,10 +20,12 @@
 # otherwise. It downloads compose.yaml, .env.example,
 # compose.override.example.yaml and the backup scripts from the main branch
 # into an install directory (~/dev-box by default), writes .env from
-# .env.example with the answers, then offers to pull
-# ghcr.io/c4software/dev-box:latest and start the box. Run again on the same
-# directory, it refreshes those files and offers to pull the latest image, and
-# never touches .env, compose.override.yaml or data/.
+# .env.example with the answers, then offers to pull the image of this
+# machine and start the box: ghcr.io/c4software/dev-box:latest on x86_64,
+# ghcr.io/c4software/dev-box:latest-arm64 on arm64 (Raspberry Pi 5, Apple
+# silicon). Run again on the same directory, it refreshes those files and
+# offers to pull the latest image, and never touches .env,
+# compose.override.yaml or data/.
 #
 # Needs only a POSIX sh, curl or wget, Docker with the Compose plugin, and a
 # terminal.
@@ -34,7 +36,9 @@
 set -eu
 
 REPO_SLUG="c4software/dev-box"
-IMAGE="ghcr.io/c4software/dev-box:latest"
+# One image per architecture, not one multi-arch tag: latest is amd64 only,
+# latest-arm64 the arm64 one. IMAGE is set from uname -m below.
+IMAGE_NAME="ghcr.io/c4software/dev-box"
 BASE_URL="${DEVBOX_SETUP_BASE_URL:-https://raw.githubusercontent.com/$REPO_SLUG/main}"
 # Files needed to run the box, relative to the root of the repo.
 SHIPPED="compose.yaml .env.example compose.override.example.yaml scripts/backup.sh scripts/restore.sh"
@@ -218,11 +222,34 @@ if ! info_err="$(docker info 2>&1 >/dev/null)"; then
   esac
 fi
 
-arch="$(docker info --format '{{.Architecture}}' 2>/dev/null || echo unknown)"
-case "$arch" in
-  x86_64 | amd64 | aarch64 | arm64) ;;
-  *) warn "the image is published for amd64 and arm64, Docker reports '$arch': the pull may fail" ;;
+# The image of this machine. Docker says which images it runs too; when it
+# disagrees with uname (a terminal under Rosetta on a Mac with Apple silicon,
+# a remote Docker context), it is said, and uname still decides.
+machine="$(uname -m 2>/dev/null || echo unknown)"
+case "$machine" in
+  x86_64 | amd64)
+    arch=amd64
+    IMAGE="$IMAGE_NAME:latest"
+    ;;
+  aarch64 | arm64)
+    arch=arm64
+    IMAGE="$IMAGE_NAME:latest-arm64"
+    ;;
+  *)
+    die "this machine is $machine: the dev-box image is published for x86_64 (amd64) and aarch64 (arm64) only.
+  Building it from a clone of the repository is the only way left, and Arch Linux
+  has no base image for $machine either." ;;
 esac
+docker_arch="$(docker info --format '{{.Architecture}}' 2>/dev/null || echo unknown)"
+case "$docker_arch" in
+  x86_64 | amd64) docker_arch=amd64 ;;
+  aarch64 | arm64) docker_arch=arm64 ;;
+esac
+if [ "$docker_arch" != "$arch" ]; then
+  warn "this machine says $machine (so $IMAGE), but Docker runs $docker_arch images.
+  If Docker is right, set DEVBOX_IMAGE in .env to the image of $docker_arch afterwards:
+    $IMAGE_NAME:latest for amd64, $IMAGE_NAME:latest-arm64 for arm64"
+fi
 
 say "  $downloader, docker $(docker version --format '{{.Server.Version}}' 2>/dev/null || echo '?'), compose $(docker compose version --short 2>/dev/null || echo '?'), $arch: fine"
 
@@ -408,7 +435,29 @@ if [ "$mode" = update ]; then
     die "DEVBOX_IMAGE is empty in $SHOW_DIR/.env, and this directory has no Dockerfile to build from.
   Set DEVBOX_IMAGE=$IMAGE in it, then run this again."
   fi
-  if ! ask_yn "Pull the latest image ($image_in_env) and restart the box?" y; then
+  # The published image of the other architecture. Before the images were
+  # split per architecture, latest held both, and an arm64 install still
+  # names it: its next pull would bring the amd64 image, which does not run
+  # here. .env is not touched, the line to change is printed instead.
+  wrong_arch=""
+  case "$arch:$image_in_env" in
+    arm64:"$IMAGE_NAME" | arm64:"$IMAGE_NAME:latest" | arm64:"$IMAGE_NAME":v*)
+      case "$image_in_env" in *-arm64) ;; *) wrong_arch=amd64 ;; esac ;;
+    amd64:"$IMAGE_NAME":*-arm64) wrong_arch=arm64 ;;
+  esac
+  pull_default=y
+  if [ -n "$wrong_arch" ]; then
+    say ""
+    warn "this machine is $arch, and $SHOW_DIR/.env names the $wrong_arch image:
+    $image_in_env
+  $IMAGE_NAME:latest is the amd64 image and $IMAGE_NAME:latest-arm64 the arm64 one
+  (they were a single image before). Pulling this one would bring an image that
+  does not run here. In $SHOW_DIR/.env, change the DEVBOX_IMAGE line to:
+    DEVBOX_IMAGE=$IMAGE
+  then run this again, or run docker compose pull && docker compose up -d there."
+    pull_default=n
+  fi
+  if ! ask_yn "Pull the latest image ($image_in_env) and restart the box?" "$pull_default"; then
     say "Files refreshed, nothing else done. To update later:"
     say "  cd $SHOW_DIR"
     say "  docker compose pull && docker compose up -d"

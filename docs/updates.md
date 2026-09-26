@@ -64,10 +64,27 @@ shipped files (see [manual-install.md](manual-install.md#running-it-again-updati
 The published image records its tag. The box compares it with the newest `v*`
 tag of the repository, with `git ls-remote`, at start and once a day: a newer
 release shows up in the login line and in `devbox status`, with the pull to run
-on the host. `devbox check --image` asks the question on the spot, and
+on the host. The arm64 image records the same tag (`v1.12`, published as
+`v1.12-arm64`) and names `latest-arm64` as the image to pull, but it is built
+by hand after the release (see
+[Publishing a release](architecture.md#publishing-a-release)): an arm64 box
+compares itself with the newest `-arm64` tag of the registry instead
+(`ghcr.io`, read anonymously), so it only reports a release whose arm64 image
+exists. When the registry cannot be read, it falls back on the tags of the
+repository and says the arm64 image may not be published yet.
+
+`devbox check --image` asks the question on the spot, and
 `devbox changelog --upcoming` reads the changelog of that release in the repo,
 to see what it brings before pulling. A local build is compared with the head
 of its branch instead, and asks for a rebuild.
+
+An arm64 box that runs the amd64 image (`latest`, emulated) is told at login,
+in `devbox status` and in `devbox check`, with the `DEVBOX_IMAGE=...:latest-arm64`
+line to put in `.env` on the host. An arm64 box installed before the images
+were split per architecture, when `latest` held both, cannot know about the
+split: the notes of the release that made it (`devbox changelog --upcoming`)
+and the setup script, run again on the host, say to change `DEVBOX_IMAGE`
+before pulling (see [manual-install.md](manual-install.md#prebuilt-image)).
 
 The image learns its commit at build time: `docker compose build` reads it from the clone the build
 runs in. Only a build from a context without `.git` (a tarball) records

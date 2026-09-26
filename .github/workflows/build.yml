@@ -1,11 +1,18 @@
-# Build the image and publish it on ghcr.io/<owner>/dev-box.
+# Build the amd64 image and publish it on ghcr.io/<owner>/dev-box, as latest
+# and under the release tag (v1.12).
 #
-# One native build per architecture (amd64 and arm64 runners, no qemu), each
-# pushed by digest, then a single multi-arch manifest, always tagged latest
-# and nothing else. Every build starts from a fresh base image with no layer
-# cache, exactly like `docker compose build --pull --no-cache`: an Arch image
-# built from a cached pacman layer would carry packages frozen at the first
-# build.
+# The arm64 image (Raspberry Pi 5, Apple silicon) is another image, with its
+# own tags (latest-arm64, v1.12-arm64), built by hand only: build-arm64.yml,
+# from the Actions tab or `gh workflow run build-arm64.yml -f ref=v1.12`. The
+# two are not merged into one multi-arch manifest: each box names the image of
+# its machine in DEVBOX_IMAGE (setup.sh picks it from uname -m).
+#
+# Every build starts from a fresh base image with no layer cache, exactly like
+# `docker compose build --pull --no-cache`: an Arch image built from a cached
+# pacman layer would carry packages frozen at the first build. The image is a
+# single layer (FROM scratch at the end of the Dockerfile), pushed compressed
+# with zstd rather than gzip: smaller to pull, and every Docker from 23 on and
+# podman read it.
 #
 # Only a v* tag builds. A push on main publishes nothing, so a release is a
 # deliberate act (git tag -a v0.3.0 && git push origin v0.3.0), and a box
@@ -27,19 +34,11 @@ env:
 
 jobs:
   build:
-    name: Build ${{ matrix.platform }}
-    runs-on: ${{ matrix.runner }}
+    name: Build amd64
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: linux/amd64
-            runner: ubuntu-24.04
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
 
@@ -55,70 +54,46 @@ jobs:
       # compares with the remote repo. A tag is not a branch to follow, so the
       # release records main; DEVBOX_SOURCE=release makes the box compare
       # itself with the newest v* tag instead, the next image it can pull.
-      - name: Build and push by digest
-        id: build
+      # DEVBOX_IMAGE_NAME and an empty DEVBOX_TAG_SUFFIX say which image this
+      # is, so the box names it when it says what to pull.
+      #
+      # zstd level 19: buildkit maps every level from 10 up to the best
+      # setting of its zstd encoder. Measured on amd64: 649 MB in gzip, 596 MB
+      # at zstd 3, 523 MB at 19, for about the time gzip takes (two minutes
+      # on a laptop, next to a build of ten or more). force-compression
+      # recompresses the layer even if buildkit had it in gzip already.
+      #
+      # provenance keeps the pushed tag an image index (the image plus its
+      # attestation) rather than a bare manifest: an arm64 host that pulls
+      # latest is then refused with "no matching manifest for linux/arm64"
+      # instead of getting the amd64 image, which would not start.
+      - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: ${{ matrix.platform }}
+          platforms: linux/amd64
           pull: true
           no-cache: true
+          provenance: mode=min
           build-args: |
             DEVBOX_COMMIT=${{ github.sha }}
             DEVBOX_REPO=${{ github.server_url }}/${{ github.repository }}.git
             DEVBOX_BRANCH=main
             DEVBOX_VERSION=${{ github.ref_name }}
             DEVBOX_SOURCE=release
-          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
-
-      - name: Export the digest
-        run: |
-          mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: digest-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-          path: /tmp/digests/*
-          if-no-files-found: error
-          retention-days: 1
-
-  merge:
-    name: Publish the multi-arch manifest
-    needs: build
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: /tmp/digests
-          pattern: digest-*
-          merge-multiple: true
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create the manifest, tagged latest
-        working-directory: /tmp/digests
-        run: |
-          refs=()
-          for d in *; do refs+=("${IMAGE}@sha256:${d}"); done
-          docker buildx imagetools create -t "${IMAGE}:latest" "${refs[@]}"
+            DEVBOX_IMAGE_NAME=${{ env.IMAGE }}
+            DEVBOX_TAG_SUFFIX=
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.ref_name }}
+          outputs: type=registry,oci-mediatypes=true,compression=zstd,compression-level=19,force-compression=true
 
       - name: Inspect the result
-        run: docker buildx imagetools inspect "${IMAGE}:latest"
+        run: docker buildx imagetools inspect "${IMAGE}:${GITHUB_REF_NAME}"
 
   release:
     name: Publish the release notes
-    needs: merge
+    needs: build
     runs-on: ubuntu-24.04
     permissions:
       contents: write

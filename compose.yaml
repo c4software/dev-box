@@ -2,8 +2,8 @@ services:
   dev-box:
     # Name of the image to run. Left empty, the local build keeps Compose's
     # default name. Set to the published image (ghcr.io/c4software/dev-box,
-    # built by the GitHub workflow) to skip the build:
-    # `docker compose pull && docker compose up -d`.
+    # built by the GitHub workflow: latest on amd64, latest-arm64 on arm64) to
+    # skip the build: `docker compose pull && docker compose up -d`.
     image: ${DEVBOX_IMAGE:-dev-box-dev-box}
     build:
       context: .

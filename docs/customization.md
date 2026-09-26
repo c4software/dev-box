@@ -26,7 +26,7 @@ All settings live in `.env` (see `.env.example`). After a change, run
 | `TZ` | `Europe/Paris` | Timezone |
 | `LANG` | `C.UTF-8` | Language of the box, e.g. `fr_FR.UTF-8`: dates and sorting, and in French the `devbox` menu and the login tips, see [Language](#language). Empty means `C.UTF-8` |
 | `PROJECTS_DIR` | `./data/projets` | Host directory mounted at `~/projets` (separate from the home) |
-| `DEVBOX_IMAGE` | empty | Image to run instead of a local build, see [Prebuilt image](manual-install.md#prebuilt-image). The setup script sets it to `ghcr.io/c4software/dev-box:latest` |
+| `DEVBOX_IMAGE` | empty | Image to run instead of a local build, see [Prebuilt image](manual-install.md#prebuilt-image). The setup script sets it to `ghcr.io/c4software/dev-box:latest` on amd64, `ghcr.io/c4software/dev-box:latest-arm64` on arm64 |
 | `TS_HOSTNAME` | `dev-box` | Tailscale hostname; also the container hostname and the tmux session name |
 | `TS_LOGIN_SERVER` | `https://controlplane.tailscale.com` | Control server: Tailscale itself (the default), or your Headscale URL |
 | `TS_AUTHKEY` | empty | Auth key; empty means the login URL is printed in the logs |

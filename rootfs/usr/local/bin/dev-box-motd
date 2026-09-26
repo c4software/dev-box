@@ -138,6 +138,20 @@ updates_line() {
   fi
 }
 
+# The one update line that cannot wait for devbox status: this arm64 box
+# follows an image that is not the arm64 one, and the next pull on the host
+# would bring the amd64 image. Written in full by dev-box-check-updates, with
+# the DEVBOX_IMAGE line to put in .env. Read in bash, no fork.
+image_arch_line() {
+  local line
+  [ -s "$UPDATES" ] || return 0
+  while IFS= read -r line; do
+    case "$line" in
+      "dev-box image: "*"DEVBOX_IMAGE="*) printf '%s%s%s\n' "$C_WARN" "$line" "$C_OFF" ;;
+    esac
+  done < "$UPDATES"
+}
+
 # DEV_ENVS at start: one line while it installs, one when it failed. The
 # entrypoint removes the flag once everything is there.
 dev_envs_line() {
@@ -165,5 +179,6 @@ printf '\n'
 changelog_block
 tip_line
 updates_line
+image_arch_line
 dev_envs_line
 printf '\n'

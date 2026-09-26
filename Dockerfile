@@ -7,9 +7,11 @@
 FROM archlinux:latest AS base-amd64
 FROM menci/archlinuxarm:base AS base-arm64
 
-# Declared before the final FROM so it can be used in its stage name.
+# Declared before the FROM so it can be used in its stage name.
 ARG TARGETARCH
-FROM base-${TARGETARCH}
+# Everything is built in this stage, then copied into an empty one at the end
+# (FROM scratch below): the published image is a single layer.
+FROM base-${TARGETARCH} AS build
 
 ENV LANG=C.UTF-8
 
@@ -105,6 +107,12 @@ ARG DEVBOX_BRANCH=
 # the head of the branch. A local build records git describe and "local".
 ARG DEVBOX_VERSION=
 ARG DEVBOX_SOURCE=local
+# The published images the workflow pushes: the name (ghcr.io/c4software/dev-box)
+# and the suffix of their tags, -arm64 for the arm64 one (latest-arm64,
+# v1.12-arm64), empty for amd64 (latest, v1.12). The box names the right image
+# when it says what to pull, and notices when it runs on arm64 from another one.
+ARG DEVBOX_IMAGE_NAME=
+ARG DEVBOX_TAG_SUFFIX=
 RUN --mount=type=bind,target=/ctx,ro \
     commit="$DEVBOX_COMMIT"; repo="$DEVBOX_REPO"; branch="$DEVBOX_BRANCH"; version="$DEVBOX_VERSION"; \
     if [ -e /ctx/.git ]; then \
@@ -117,8 +125,8 @@ RUN --mount=type=bind,target=/ctx,ro \
     fi; \
     [ -n "$commit" ] || commit=unknown; \
     [ -n "$branch" ] && [ "$branch" != HEAD ] || branch=main; \
-    printf 'DEVBOX_COMMIT=%s\nDEVBOX_REPO=%s\nDEVBOX_BRANCH=%s\nDEVBOX_VERSION=%s\nDEVBOX_SOURCE=%s\n' \
-      "$commit" "$repo" "$branch" "$version" "${DEVBOX_SOURCE:-local}" > /etc/devbox/release \
+    printf 'DEVBOX_COMMIT=%s\nDEVBOX_REPO=%s\nDEVBOX_BRANCH=%s\nDEVBOX_VERSION=%s\nDEVBOX_SOURCE=%s\nDEVBOX_IMAGE_NAME=%s\nDEVBOX_TAG_SUFFIX=%s\n' \
+      "$commit" "$repo" "$branch" "$version" "${DEVBOX_SOURCE:-local}" "$DEVBOX_IMAGE_NAME" "$DEVBOX_TAG_SUFFIX" > /etc/devbox/release \
     && echo "release: $version $commit $repo ($branch, ${DEVBOX_SOURCE:-local})" \
     && chmod +x /usr/local/bin/* \
     # podman-docker exports DOCKER_HOST in every login shell, socket or not:
@@ -133,6 +141,29 @@ RUN --mount=type=bind,target=/ctx,ro \
     && echo '. /etc/devbox/tmux-auto.sh' >> /etc/zsh/zshrc \
     && echo '. /etc/devbox/updates-motd.sh' >> /etc/zsh/zshrc \
     && cat /etc/devbox/bashrc >> /etc/bash.bashrc
+
+# The final image: the file system of the build stage in one layer. A stack of
+# layers would carry every file the build replaced or deleted (the pacman
+# database, the glibc reinstalled for the locales) once per layer; a single
+# layer is smaller to pull and to store. COPY keeps the owners, the modes and
+# the file capabilities (newuidmap, newgidmap). Nothing of the metadata of the
+# build stage survives FROM scratch: what the box relies on is declared again
+# below. The labels of the Arch base image are dropped on purpose, they
+# describe Arch, not this image.
+FROM scratch
+COPY --from=build / /
+
+ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    LANG=C.UTF-8
+WORKDIR /
+
+ARG DEVBOX_VERSION=
+ARG DEVBOX_COMMIT=
+LABEL org.opencontainers.image.title="dev-box" \
+      org.opencontainers.image.description="A persistent Arch Linux development box, reached over Tailscale or SSH" \
+      org.opencontainers.image.source="https://github.com/c4software/dev-box" \
+      org.opencontainers.image.version="${DEVBOX_VERSION}" \
+      org.opencontainers.image.revision="${DEVBOX_COMMIT}"
 
 # Healthy when Tailscale is connected, or when sshd listens (TS_DISABLE=true).
 HEALTHCHECK --interval=60s --timeout=5s --start-period=30s \

@@ -24,6 +24,12 @@ if [ -r /etc/devbox/release ]; then
   . /usr/share/devbox/lib/release.sh
   if [ "$DEVBOX_SOURCE" = "release" ]; then
     item "version" "$(devbox_version), published image (pull it and restart the container on the host)"
+    item "image" "$(devbox_image_ref)"
+    # An arm64 box on the amd64 image, or on the multi-arch latest of before
+    # the split: DEVBOX_IMAGE has to change on the host before the next pull.
+    if advice="$(devbox_image_arch_advice)"; then
+      printf '  \033[33m%s\033[0m\n' "$advice"
+    fi
   else
     item "version" "$(devbox_version), built locally (rebuild the container on the host)"
   fi

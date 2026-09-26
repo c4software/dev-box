@@ -25,7 +25,9 @@ There are two ways to install a box:
   Desktop and loses the Unix file permissions; a directory under `/mnt/c/` from
   WSL is slow too. The setup script warns in both cases.
 
-The image is published for amd64 and arm64.
+The image is published for amd64 (`ghcr.io/c4software/dev-box:latest`) and
+arm64 (`ghcr.io/c4software/dev-box:latest-arm64`, a Raspberry Pi 5 or a Mac
+with Apple silicon), as two separate images: see [Prebuilt image](#prebuilt-image).
 
 ## The setup script
 
@@ -67,8 +69,10 @@ What it does on a new install:
    `scripts/backup.sh` and `scripts/restore.sh` into it;
 3. asks the [questions](#the-questions), each one with a default;
 4. writes `.env` from `.env.example` with those answers, mode 600, with
-   `DEVBOX_IMAGE` set to `ghcr.io/c4software/dev-box:latest`, so the stock
-   `compose.yaml` pulls instead of building;
+   `DEVBOX_IMAGE` set to the image of the machine, chosen from `uname -m`:
+   `ghcr.io/c4software/dev-box:latest` on x86_64,
+   `ghcr.io/c4software/dev-box:latest-arm64` on aarch64 (any other machine is
+   refused), so the stock `compose.yaml` pulls instead of building;
 5. when podman was asked for, writes a `compose.override.yaml` with the podman
    block, unless one already exists (then it says to add the block by hand);
 6. creates `data/home`, `data/tailscale` and the projects directory as you,
@@ -116,7 +120,8 @@ In this order, with their default. Enter keeps the default.
 
 A key, a GitHub user or a port that is not valid is refused with the reason,
 and the question is asked again. `.env` also gets
-`DEVBOX_IMAGE=ghcr.io/c4software/dev-box:latest`; everything else keeps the
+`DEVBOX_IMAGE=ghcr.io/c4software/dev-box:latest` (x86_64) or
+`DEVBOX_IMAGE=ghcr.io/c4software/dev-box:latest-arm64` (arm64); everything else keeps the
 value of `.env.example`, `PROJECTS_DIR` included. An existing install is not
 asked anything: its `.env` is left alone, so the box stays in English until
 `LANG` is added to it.
@@ -142,6 +147,11 @@ Other cases it handles:
 
 - an empty `DEVBOX_IMAGE` in `.env` is refused, since that directory has no
   `Dockerfile` to build from;
+- an arm64 machine whose `.env` still names `ghcr.io/c4software/dev-box:latest`
+  (an install made before the images were split per architecture) gets a
+  warning with the exact `DEVBOX_IMAGE=` line to put in `.env` instead, and the
+  pull question defaults to no: `latest` is the amd64 image now, and does not
+  run there. The same goes for an amd64 machine on `latest-arm64`;
 - a `data/home` left over from an earlier install whose `.env` is gone is
   reused, nothing in it is erased (it asks first);
 - `compose.yaml` names the container `dev-box`, so only one such box runs per
@@ -209,20 +219,33 @@ cp compose.override.example.yaml compose.override.yaml
 
 ## Prebuilt image
 
-A GitHub workflow (`.github/workflows/build.yml`) builds the image when a `v*`
-tag is pushed, and only then, and publishes it on `ghcr.io/c4software/dev-box`
-for amd64 and arm64 (native runners, one manifest), always as `latest` and
-under no other tag. A push on `main` publishes nothing: a release is a
+The image is published on `ghcr.io/c4software/dev-box` as two images, one
+per architecture, each built on a native GitHub runner:
+
+| Machine | Tags | Built |
+| --- | --- | --- |
+| amd64 (x86_64) | `latest`, and the release tag (`v1.12`) | by `.github/workflows/build.yml`, on every `v*` tag pushed |
+| arm64 (Raspberry Pi 5, Apple silicon) | `latest-arm64`, and `v1.12-arm64` | by `.github/workflows/build-arm64.yml`, by hand only |
+
+They are not merged into one multi-arch tag: `latest` is the amd64 image only,
+and an arm64 machine that pulls it is refused (`no matching manifest for
+linux/arm64`). A release tag pins a version, `latest` follows the releases.
+The arm64 image follows the releases later, when it is built by hand (see
+[Publishing a release](architecture.md#publishing-a-release)): until then,
+`latest-arm64` stays on the previous release it was built for. A push on
+`main` publishes nothing: a release is a
 deliberate act, `git tag -a v0.3.0 && git push origin v0.3.0`. Each run starts
 from a fresh base with no layer cache, the same as
 `docker compose build --pull --no-cache`, so nothing is ever frozen at a
-previous build.
+previous build. The image is a single layer compressed with zstd, which every
+Docker from 23 on and podman can pull.
 
-To run it instead of building locally, set the image in `.env` (the setup
-script does this for you):
+To run it instead of building locally, set the image of the machine in `.env`
+(the setup script does this for you):
 
 ```bash
-DEVBOX_IMAGE=ghcr.io/c4software/dev-box:latest
+DEVBOX_IMAGE=ghcr.io/c4software/dev-box:latest          # amd64
+DEVBOX_IMAGE=ghcr.io/c4software/dev-box:latest-arm64    # arm64
 ```
 
 then pull and start it with `docker compose pull && docker compose up -d`: the
@@ -237,13 +260,24 @@ more often than you decide.
 The published image records its tag, and the box tells you when a newer
 release exists (see [updates.md](updates.md#the-image)).
 
+Before these two images, `latest` held both architectures. An arm64 box
+installed then still has `DEVBOX_IMAGE=ghcr.io/c4software/dev-box:latest` in
+its `.env`, and must switch to `latest-arm64` before its next pull: edit the
+line in `.env`, then `docker compose pull && docker compose up -d`. Running the
+setup script again says so, and so does the box once it runs an image that
+knows about the split. Nothing in the home changes.
+
 The Pi is the main beneficiary: pulling takes a minute where building takes
 tens of them. Leave `DEVBOX_IMAGE` empty to keep building from your own clone,
 which is the only way to run a change that is not on `main` yet.
 
 ## Raspberry Pi 5 (arm64)
 
-The image builds and runs on arm64 as it does on amd64.
+The image builds and runs on arm64 as it does on amd64. The published one is
+`ghcr.io/c4software/dev-box:latest-arm64`, not `latest` (see
+[Prebuilt image](#prebuilt-image)); the setup script picks it by itself. It is
+built by hand after a release, so it may lag the amd64 image by a release or
+two, and the box only reports a new arm64 image once it exists.
 `docker compose up -d --build` picks the right base by itself. On the Pi,
 `archlinux:latest` is replaced by the community image `menci/archlinuxarm:base`
 (Arch Linux ARM, rebuilt daily). That is a third-party base, not an official

@@ -1,0 +1,113 @@
+# Build the arm64 image (Raspberry Pi 5, Apple silicon) and publish it on
+# ghcr.io/<owner>/dev-box as v1.12-arm64, and as latest-arm64 when it is the
+# newest release.
+#
+# By hand only, never on a tag push: build.yml publishes the amd64 image and
+# the release notes on its own, and the arm64 image follows when its owner
+# asks for it, from the Actions tab (Build the arm64 image, Run workflow) or:
+#
+#   gh workflow run build-arm64.yml               # the newest v* tag
+#   gh workflow run build-arm64.yml -f ref=v1.12  # a given release
+#
+# An arm64 box compares itself with the newest -arm64 tag of the registry,
+# not with the newest v* tag of the repo, so it is only told about a release
+# once this has run for it.
+#
+# Same build as build.yml: a native arm runner (free for public repositories,
+# no qemu), a fresh base image with no layer cache, one layer compressed with
+# zstd. The base is the community image menci/archlinuxarm, picked by the
+# Dockerfile from TARGETARCH.
+name: Build the arm64 image
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Release tag to build (v1.12); empty for the newest v* tag"
+        required: false
+        default: ""
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  build:
+    name: Build arm64
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      # Every tag, to find the newest one and to check out the one asked for.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Only a release tag: the image records it as its version, and the box
+      # compares it with the other ones. latest-arm64 moves only to the
+      # newest release, so rebuilding an older one never takes it back.
+      - name: Pick the release to build
+        id: ref
+        env:
+          ASKED: ${{ inputs.ref }}
+        run: |
+          newest="$(git tag -l 'v*' | grep -E '^v[0-9][0-9.]*$' | sort -V | tail -n 1)"
+          ref="${ASKED:-$newest}"
+          if ! printf '%s\n' "$ref" | grep -Eq '^v[0-9][0-9.]*$' || ! git rev-parse -q --verify "refs/tags/$ref" >/dev/null; then
+            echo "::error::$ref is not a release tag of this repository (v1.12, say)"
+            exit 1
+          fi
+          git checkout -q "refs/tags/$ref"
+          # A release from before the split into one image per architecture
+          # would not record DEVBOX_TAG_SUFFIX, and the box would take itself
+          # for an arm64 machine on the amd64 image.
+          if ! grep -q 'DEVBOX_TAG_SUFFIX' Dockerfile; then
+            echo "::error::$ref predates the arm64 image of its own, build a newer release"
+            exit 1
+          fi
+          {
+            echo "ref=$ref"
+            echo "sha=$(git rev-parse HEAD)"
+            echo "tags<<EOF"
+            echo "${IMAGE}:${ref}-arm64"
+            [ "$ref" != "$newest" ] || echo "${IMAGE}:latest-arm64"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building $ref ($(git rev-parse --short HEAD)), newest release: $newest"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The same build args as build.yml, DEVBOX_VERSION being the git tag
+      # (v1.12, never v1.12-arm64): the suffix goes in DEVBOX_TAG_SUFFIX,
+      # which makes the box look for the newest -arm64 tag and name
+      # latest-arm64 as the image to pull. The context is the checked out
+      # tag, not the default branch this workflow runs from.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          pull: true
+          no-cache: true
+          provenance: mode=min
+          build-args: |
+            DEVBOX_COMMIT=${{ steps.ref.outputs.sha }}
+            DEVBOX_REPO=${{ github.server_url }}/${{ github.repository }}.git
+            DEVBOX_BRANCH=main
+            DEVBOX_VERSION=${{ steps.ref.outputs.ref }}
+            DEVBOX_SOURCE=release
+            DEVBOX_IMAGE_NAME=${{ env.IMAGE }}
+            DEVBOX_TAG_SUFFIX=-arm64
+          tags: ${{ steps.ref.outputs.tags }}
+          outputs: type=registry,oci-mediatypes=true,compression=zstd,compression-level=19,force-compression=true
+
+      - name: Inspect the result
+        env:
+          REF: ${{ steps.ref.outputs.ref }}
+        run: docker buildx imagetools inspect "${IMAGE}:${REF}-arm64"
