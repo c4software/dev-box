@@ -15,7 +15,7 @@ On the host:
 1. uncomment the podman block (`/dev/fuse` and the three `security_opt`) in
    `compose.override.example.yaml`, copied to `compose.override.yaml`;
 2. set `PODMAN_ENABLE=true` in `.env`;
-3. `just up`.
+3. restart the container: `docker compose up -d`.
 
 The setup script does steps 1 and 2 for you with `--podman`, or when you
 answer yes to its podman question, unless a `compose.override.yaml` already
@@ -69,8 +69,8 @@ but the socket never came up. `PODMAN_FORCE=1 docker ...`, or
 - Storage uses `fuse-overlayfs`, since overlayfs cannot always stack on the
   overlay the box itself runs on. It is correct everywhere, and slower than
   native overlay on heavy I/O.
-- Docker on the host still owns the box itself. `just up`, `just rebuild` and
-  friends run on the host, not in here.
+- Docker on the host still owns the box itself. Restarting or rebuilding the
+  container happens on the host, not in here.
 - On a Raspberry Pi, rootless podman has not been confirmed on real hardware
   yet (see [manual-install.md](manual-install.md#raspberry-pi-5-arm64)).
 

@@ -291,7 +291,7 @@ fi
 # Only what the box can see from any shell: an SSH session does not inherit the
 # environment of PID 1, so the values come from what the entrypoint wrote down.
 # The defaults are those of compose.yaml and entrypoint.sh.
-section "Settings from .env (on the host: edit .env, then just up)"
+section "Settings from .env (on the host: edit .env, then restart the container)"
 setting() { # <NAME> <value> <default> [shown default]
   if [ "$2" = "$3" ]; then return 0; fi
   entry "$1" "${2:-empty} (default: ${4:-${3:-empty}})" "remove $1 from .env, or set it back to ${4:-${3:-empty}}"
@@ -338,11 +338,11 @@ if [ -n "$home_root" ] && [ -n "$proj_root" ] && [ "$home_dev" = "$proj_dev" ] \
    && [ "${home_root%/data/home}" != "$home_root" ] \
    && [ "$proj_root" != "${home_root%/home}/projets" ]; then
   entry "PROJECTS_DIR" "~/projets comes from another host directory than ./data/projets" \
-    "remove PROJECTS_DIR from .env (./data/projets), then just up"
+    "remove PROJECTS_DIR from .env (./data/projets), then restart the container"
 fi
 
-section "Container (compose.override.yaml on the host, then just up)"
-container_undo="remove it from compose.override.yaml on the host, then just up"
+section "Container (compose.override.yaml on the host, then restart the container)"
+container_undo="remove it from compose.override.yaml on the host, then restart the container"
 # Extra volumes: every mount but the ones of compose.yaml and Docker's own.
 while read -r _ _ _ _ mp opts _; do
   mp="$(unescape "$mp")"

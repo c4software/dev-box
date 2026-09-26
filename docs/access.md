@@ -13,7 +13,7 @@ The box is reached in one of two ways, never both:
 ```bash
 ssh dev@dev-box                # Tailscale, from any machine of the tailnet
 ssh -p 2222 dev@127.0.0.1      # TS_DISABLE=true, from the host
-docker exec -it -u dev dev-box zsh -l   # always works, on the host (just shell)
+docker exec -it -u dev dev-box zsh -l   # always works, on the host
 ```
 
 The login shell runs `exec tmux new-session -A -s "$(hostname)" -c ~`. You

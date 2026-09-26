@@ -125,7 +125,7 @@ list() {
 upcoming() {
   local t sel=()
   own_is_versioned || {
-    err "this image does not record its version, it cannot be placed among the releases: just rebuild on the host"
+    err "this image does not record its version, it cannot be placed among the releases: rebuild the container on the host"
     exit 1
   }
   for t in $(tags); do devbox_version_newer "$t" "$OWN" && sel+=("$t"); done
@@ -138,9 +138,9 @@ upcoming() {
   printf '%sComing after %s%s\n\n' "$C_BOLD" "$OWN" "$C_OFF"
   render 0 "${sel[@]}"
   if [ "$DEVBOX_SOURCE" = "release" ]; then
-    printf '\n%sjust pull on the host to get it%s\n' "$C_DIM" "$C_OFF"
+    printf '\n%spull the image and restart the container on the host to get it%s\n' "$C_DIM" "$C_OFF"
   else
-    printf '\n%sjust rebuild on the host to get it%s\n' "$C_DIM" "$C_OFF"
+    printf '\n%srebuild the container on the host to get it%s\n' "$C_DIM" "$C_OFF"
   fi
 }
 

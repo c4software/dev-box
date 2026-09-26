@@ -106,7 +106,7 @@ step() {
 tour() {
   step "The box in one minute" "" \
     "This is a disposable Arch Linux image around a persistent home." \
-    "The image is rebuilt or pulled on the host (just rebuild, just pull):" \
+    "The image is rebuilt or pulled on the host, and the container restarted:" \
     "whatever was installed in it by hand is gone afterwards. The home, ~ and" \
     "~/projets, survives everything, and the box knows how to put back what" \
     "you declared in it." \
@@ -213,7 +213,7 @@ tour() {
   step "Changing the box for good" "" \
     "Anything the image should ship, a package, a command, a seeded file, a" \
     "dev environment, goes through the dev-box repository (Dockerfile," \
-    "rootfs/), then just rebuild on the host, or just pull once the GitHub" \
+    "rootfs/), then rebuild the container on the host, or pull once the GitHub" \
     "workflow has published the image. The recipe for each kind of change," \
     "and how to test it without touching your box, is in extending.md:" \
     "" \

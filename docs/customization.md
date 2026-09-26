@@ -17,7 +17,7 @@ A change that every box should get belongs in the repository instead, see
 ## `.env` settings
 
 All settings live in `.env` (see `.env.example`). After a change, run
-`docker compose up -d` (or `just up`) on the host.
+`docker compose up -d` on the host.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -25,7 +25,7 @@ All settings live in `.env` (see `.env.example`). After a change, run
 | `USER_SHELL` | `/bin/zsh` | Login shell |
 | `TZ` | `Europe/Paris` | Timezone |
 | `PROJECTS_DIR` | `./data/projets` | Host directory mounted at `~/projets` (separate from the home) |
-| `DEVBOX_IMAGE` | empty | Image to run instead of a local build, see [Prebuilt image](manual-install.md#prebuilt-image); `just up` and `just rebuild` then pull it. The setup script sets it to `ghcr.io/c4software/dev-box:latest` |
+| `DEVBOX_IMAGE` | empty | Image to run instead of a local build, see [Prebuilt image](manual-install.md#prebuilt-image). The setup script sets it to `ghcr.io/c4software/dev-box:latest` |
 | `TS_HOSTNAME` | `dev-box` | Tailscale hostname; also the container hostname and the tmux session name |
 | `TS_LOGIN_SERVER` | `https://controlplane.tailscale.com` | Control server: Tailscale itself (the default), or your Headscale URL |
 | `TS_AUTHKEY` | empty | Auth key; empty means the login URL is printed in the logs |

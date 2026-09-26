@@ -59,7 +59,7 @@ Rules for this step:
   file: harmless, but say so before running them.
 - The start log of the container (`docker logs dev-box`) is on the host. When
   the box's own traces do not explain a start failure, ask the user to run
-  `just logs` or `docker logs dev-box` on the host and paste the end.
+  `docker logs dev-box` on the host and paste the end.
 
 ## 2. Diagnose
 
@@ -70,7 +70,7 @@ Known causes, by symptom:
 
 - **`docker` or `podman` says podman is not active**: rootless podman is off by
   design. Enabling it is a host-side change (the podman block of
-  `compose.override.yaml`, `PODMAN_ENABLE=true` in `.env`, `just up`). With
+  `compose.override.yaml`, `PODMAN_ENABLE=true` in `.env`, restart the container). With
   `podman.state` at `enabled` and no socket, the service failed at start: read
   `~/.cache/dev-box-podman.log`, usually `/dev/fuse` or `security_opt`
   missing from the override.
@@ -101,7 +101,7 @@ Known causes, by symptom:
 - **SSH or Tailscale login fails**: with Tailscale, `tailscale status` says
   whether the node is logged in and online; a node that needs a login again
   is fixed from the host (`docker logs dev-box` shows the login URL, or a new
-  `TS_AUTHKEY` in `.env` and `just up`). With `TS_DISABLE=true`, sshd only
+  `TS_AUTHKEY` in `.env` and restart the container). With `TS_DISABLE=true`, sshd only
   accepts the keys of `SSH_AUTHORIZED_KEYS`, and refuses a home or `~/.ssh`
   writable by group or others (StrictModes). Both are host-side settings.
 - **Permission denied in the home**: files owned by root or another UID, left
@@ -134,8 +134,8 @@ Read-only commands need no permission. Restarting a stopped database with
 `devbox dbs --start <db>` or re-running a failed `devbox dev-env <env>` is
 safe to propose and quick to accept, but still ask.
 
-When the fix is on the host (`.env`, `compose.override.yaml`, `just up`,
-`just rebuild`, `just logs`), say so plainly and print the commands for the
+When the fix is on the host (`.env`, `compose.override.yaml`, restarting
+or rebuilding the container, `docker logs dev-box`), say so plainly and print the commands for the
 user to run there: the box cannot run them.
 
 ## 4. Check, and hand over

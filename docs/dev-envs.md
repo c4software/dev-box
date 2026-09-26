@@ -38,7 +38,7 @@ everything is there.
 environment stays until `devbox dev-env --remove`. The other way round, an
 environment listed in `DEV_ENVS` cannot be removed, since the next start would
 install it again: `devbox dev-env --remove` refuses it and the remove menu
-leaves it out. Take it out of `.env` first, `just up`, then remove it.
+leaves it out. Take it out of `.env` first, restart the container, then remove it.
 
 ## What a removal leaves
 

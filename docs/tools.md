@@ -10,9 +10,10 @@ gum, starship, zoxide, fzf, eza, bat, ripgrep, fd, lazygit, jq, neovim,
 luarocks, tree-sitter-cli), the base (tailscale, rsync, base-devel, gh, yazi,
 ...) and rootless podman (see [containers.md](containers.md)).
 
-- Update Arch: `just rebuild`, or
-  `docker compose build --pull --no-cache && docker compose up -d`;
-  `just pull` when the box runs the published image.
+- Update Arch: rebuild the container,
+  `docker compose build --pull --no-cache && docker compose up -d`, or
+  `docker compose pull && docker compose up -d` when the box runs the
+  published image.
 - A `sudo pacman -S` inside the box is lost on rebuild. Add the package to the
   `Dockerfile` for good, or let `devbox pkg` (or `devbox tui`, for the
   catalogue) put it back at every start.

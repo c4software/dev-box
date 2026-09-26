@@ -14,8 +14,8 @@
 #   dev-box-check-updates --quiet   write the flag, print nothing
 #
 # The image is compared with the dev-box repository it was built from: the
-# published image with the newest v* tag (just pull), a local build with the
-# head of its branch (just rebuild). The release notes of the repo are saved on
+# published image with the newest v* tag (pulled on the host), a local build with the
+# head of its branch (rebuilt on the host). The release notes of the repo are saved on
 # the way, in ~/.cache/dev-box/releases.md, for devbox changelog and the login.
 set -euo pipefail
 
@@ -29,7 +29,7 @@ image_check() {
   IMAGE_LINE=""; IMAGE_STATE=""
   own="$(devbox_version)"
   if [ "${DEVBOX_COMMIT:-unknown}" = "unknown" ] || [ -z "$DEVBOX_REPO" ]; then
-    IMAGE_STATE="unknown: the image does not say what it was built from, just rebuild on the host"
+    IMAGE_STATE="unknown: the image does not say what it was built from, rebuild the container on the host"
     return 0
   fi
   if [ "$DEVBOX_SOURCE" = "release" ]; then
@@ -41,8 +41,8 @@ image_check() {
     if [ "$commit" = "$DEVBOX_COMMIT" ] || ! devbox_version_newer "$tag" "$DEVBOX_VERSION"; then
       IMAGE_STATE="$own, the latest release"
     else
-      IMAGE_LINE="dev-box image: $tag released (this box runs $own), just pull on the host"
-      IMAGE_STATE="$tag released, this box runs $own: just pull on the host"
+      IMAGE_LINE="dev-box image: $tag released (this box runs $own), pull the image and restart the container on the host"
+      IMAGE_STATE="$tag released, this box runs $own: pull the image and restart the container on the host"
     fi
   else
     if ! head="$(devbox_branch_head)"; then
@@ -52,8 +52,8 @@ image_check() {
     if [ "$head" = "$DEVBOX_COMMIT" ]; then
       IMAGE_STATE="$own, built locally from the head of $DEVBOX_BRANCH"
     else
-      IMAGE_LINE="dev-box image: new version in the repo (${DEVBOX_COMMIT:0:7} -> ${head:0:7}), just rebuild on the host"
-      IMAGE_STATE="$DEVBOX_BRANCH is at ${head:0:7}, this box was built from $own: just rebuild on the host"
+      IMAGE_LINE="dev-box image: new version in the repo (${DEVBOX_COMMIT:0:7} -> ${head:0:7}), rebuild the container on the host"
+      IMAGE_STATE="$DEVBOX_BRANCH is at ${head:0:7}, this box was built from $own: rebuild the container on the host"
     fi
   fi
 }

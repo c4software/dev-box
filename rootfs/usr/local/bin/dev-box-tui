@@ -189,7 +189,7 @@ if [ "$ACTION" = "install" ]; then
   dev-box-pkg add "${SELECTED[@]}"
   for name in "${SELECTED[@]}"; do
     [ "$name" = lazydocker ] && ! [ -S "/run/user/$(id -u)/podman/podman.sock" ] &&
-      log "lazydocker needs podman: PODMAN_ENABLE=true in .env on the host, then just up."
+      log "lazydocker needs podman: PODMAN_ENABLE=true in .env on the host, then restart the container."
     [ "$name" = visidata ] && log "visidata runs as vd."
     [ "$name" = tealdeer ] && log "tealdeer runs as tldr; the first tldr --update fetches the pages."
   done

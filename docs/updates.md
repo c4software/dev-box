@@ -1,15 +1,15 @@
 # Updates
 
 Nothing is updated automatically. The box looks, tells you, and waits for you
-to run `devbox update` inside, or `just pull` (or the setup script again) on
-the host for the image. The only exception is the migrations shipped with a
+to run `devbox update` inside, or the setup script again on the host for
+the image. The only exception is the migrations shipped with a
 new image, see [below](#migrations).
 
 There are two layers to update:
 
 | What | Where | How |
 | --- | --- | --- |
-| the image (Arch, the `devbox` commands, the shipped config) | the host | run the setup script again, or `just pull` (published image), or `just rebuild` (local build) |
+| the image (Arch, the `devbox` commands, the shipped config) | the host | run the setup script again (published image), or `docker compose pull && docker compose up -d`; rebuild the container for a local build |
 | the dotfiles, the mise tools, the seeded config | the box | `devbox update` |
 
 ## The check
@@ -41,8 +41,7 @@ devbox update seed       # shipped config (see customization.md)
 ```
 
 `dev-box-update` is the binary and keeps working under that name. `devbox
-update` is the form to remember, and `just update [what]` runs it from the
-host. Migrations are separate, see below.
+update` is the form to remember. Migrations are separate, see below.
 
 It clears the flag and re-runs the check when it is done.
 
@@ -56,28 +55,23 @@ and prints the `devbox seed --force` command (see
 
 ## The image
 
-The one item the box cannot act on is the image itself. That line points to
-`just pull` for the published image, `just rebuild` for a local build, on the
-host. With an install made by the setup script, running the setup script again
-does the same as `just pull` and also refreshes `compose.yaml` and the other
+The one item the box cannot act on is the image itself. That line says to pull
+the image and restart the container for the published image, or to rebuild
+the container for a local build, on the host. With an install made by the setup script, running the setup script again
+does the same as `docker compose pull && docker compose up -d` and also refreshes `compose.yaml` and the other
 shipped files (see [manual-install.md](manual-install.md#running-it-again-updating)).
 
 The published image records its tag. The box compares it with the newest `v*`
 tag of the repository, with `git ls-remote`, at start and once a day: a newer
-release shows up in the login line and in `devbox status`, with `just pull` to
-run on the host. `devbox check --image` asks the question on the spot, and
+release shows up in the login line and in `devbox status`, with the pull to run
+on the host. `devbox check --image` asks the question on the spot, and
 `devbox changelog --upcoming` reads the changelog of that release in the repo,
 to see what it brings before pulling. A local build is compared with the head
-of its branch instead, and asks for `just rebuild`.
+of its branch instead, and asks for a rebuild.
 
-The image learns its commit at build time: `just` passes it as a build
-argument, and a bare `docker compose build` reads it from the clone the build
+The image learns its commit at build time: `docker compose build` reads it from the clone the build
 runs in. Only a build from a context without `.git` (a tarball) records
-`unknown`, and that check is then skipped. `just status` on the host makes the
-same comparison: the published image against the newest release tag of
-`origin`, a local build against the local checkout:
-
-![just status on the host: the container state from docker compose ps, the healthcheck status, and the image commit compared to the local checkout](screenshots/just-status.png)
+`unknown`, and that check is then skipped.
 
 For a private fork, the in-box check needs a `GITHUB_TOKEN` that can read the
 repo.

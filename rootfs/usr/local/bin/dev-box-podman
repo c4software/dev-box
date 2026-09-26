@@ -23,7 +23,7 @@ if [ "${PODMAN_FORCE:-0}" != "1" ] && [ ! -S "$sock" ]; then
       echo "    1. uncomment the podman block of compose.override.example.yaml"
       echo "       (/dev/fuse + security_opt) in compose.override.yaml;"
       echo "    2. PODMAN_ENABLE=true in .env;"
-      echo "    3. just up"
+      echo "    3. restart the container."
       echo "  That block loosens the isolation of the box: see docs/containers.md"
       echo "  in the dev-box repository."
     else

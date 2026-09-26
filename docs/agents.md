@@ -133,7 +133,7 @@ The point is the rule it carries: never edit `/usr/local/bin`, `/etc/devbox` or
 `/usr/share/devbox` inside the box, because those come from the image and a
 change there disappears silently on the next rebuild. Reading them is
 encouraged. Changes go to `~/.config/dev-box/overrides/`, to
-`~/.config/mise/config.toml`, or to the repository followed by `just rebuild`.
+`~/.config/mise/config.toml`, or to the repository followed by a rebuild of the container.
 
 Adding a guide means dropping an `.md` file in
 `rootfs/usr/share/devbox/skills/devbox/` and listing it in the Topic Guides

@@ -11,7 +11,7 @@ devbox diagnostic --report > ~/diagnostic.txt # the facts, no agent, to share
 `devbox diagnostic` starts your default coding agent (see
 [agents.md](agents.md)) on the box's diagnostic guide: it gathers facts with
 read-only commands, says what is wrong, and asks before changing anything.
-When the fix is on the host (`.env`, `compose.override.yaml`, `just up`), it
+When the fix is on the host (`.env`, `compose.override.yaml`, restarting the container), it
 prints the commands for you to run there.
 
 `--report` prints the same facts without an agent, to paste to someone (a
@@ -35,7 +35,7 @@ the agent skill.
 - **What differs from a stock box?** `devbox override` lists every change made
   to this box, with how to undo each (see
   [customization.md](customization.md#reviewing-it-all-devbox-override)).
-- **Logs.** `docker compose logs -f` (or `just logs`) on the host shows the
+- **Logs.** `docker compose logs -f` on the host shows the
   entrypoint, `dotarchy-sync`, `dev-box-seed` and `tailscale up` output,
   including the login URL when `TS_AUTHKEY` is empty.
 - **Run without Tailscale.** See

@@ -298,7 +298,7 @@ for name in "${SELECTED[@]}"; do
   }
   if [ "$ACTION" = "uninstall" ] && pinned "$name"; then
     err "'$name' is listed in DEV_ENVS ($DEV_ENVS_LIST): the next start would install it again."
-    err "Take it out of DEV_ENVS in .env on the host, run just up, then remove it."
+    err "Take it out of DEV_ENVS in .env on the host, restart the container, then remove it."
     exit 1
   fi
   if [ "$ACTION" = "install" ] && why="$(dev_env_unsupported "$name")"; then

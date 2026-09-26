@@ -94,7 +94,7 @@ carries one line, shown at login and by `devbox status`, while it runs or when
 it failed. `DEV_ENVS` never removes anything, and an environment it lists
 cannot be removed: `--remove` refuses it and the menu leaves it out, because
 the next start would install it again. Take it out of `.env` on the host,
-`just up`, then remove it.
+restart the container, then remove it.
 
 Re-running on an environment already installed, or already removed, is
 harmless. A removal (`mise unuse -g`) only takes out what the environment

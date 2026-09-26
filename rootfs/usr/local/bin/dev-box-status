@@ -22,9 +22,9 @@ if [ -r /etc/devbox/release ]; then
   # shellcheck source=/dev/null
   . /usr/share/devbox/lib/release.sh
   if [ "$DEVBOX_SOURCE" = "release" ]; then
-    item "version" "$(devbox_version), published image (just pull on the host)"
+    item "version" "$(devbox_version), published image (pull it and restart the container on the host)"
   else
-    item "version" "$(devbox_version), built locally (just rebuild on the host)"
+    item "version" "$(devbox_version), built locally (rebuild the container on the host)"
   fi
   item "commit" "$DEVBOX_COMMIT"
   item "repo" "${DEVBOX_REPO:-unknown} ($DEVBOX_BRANCH)"
