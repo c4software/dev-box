@@ -13,7 +13,7 @@ description: >
   with Taildrop, checking how a web page renders (screenshot of a dev server,
   headless chromium, playwright or puppeteer in the box), and any change to
   the dev-box repository (Dockerfile, rootfs/,
-  compose.yaml, justfile, README). Triggers: devbox, dev-box, dev-box-update,
+  compose.yaml, justfile, README, docs/). Triggers: devbox, dev-box, dev-box-update,
   dev-box-seed, dev-box-dev-env, dev-box-pkg, dev-box-agent, mise config, box
   update, rebuild the image, "install go/python/ruby in the box", "install a
   pacman package", "screenshot the page", "check the layout", "headless

@@ -207,7 +207,7 @@ tour() {
     "overrides/.config/tmux/tmux.conf becomes ~/.config/tmux/tmux.conf, and" \
     "it is re-applied at the end of every sync, so it always wins." \
     "" \
-    "  $(doc_url 'README.md#dotfiles-sync')" \
+    "  $(doc_url 'docs/customization.md#dotfiles-sync-and-overrides')" \
     "  $(doc_url 'rootfs/usr/share/devbox/skills/devbox/architecture.md#overrides')"
 
   step "Changing the box for good" "" \

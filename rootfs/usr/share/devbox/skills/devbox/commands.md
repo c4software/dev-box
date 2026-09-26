@@ -345,7 +345,7 @@ this skill, the overrides, and where a change belongs. Each step offers to
 run the real command under your eyes. Nothing is installed by the tour
 itself. The `dbs` step only shows when podman is on, the tailnet step only
 with Tailscale; the overrides and repository steps print links into the
-repository the image was built from (`/etc/devbox/release`), to the README,
+repository the image was built from (`/etc/devbox/release`), to `docs/customization.md`,
 `architecture.md`, `extending.md` and `AGENTS.md`.
 
 ```bash

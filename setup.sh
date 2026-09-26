@@ -666,6 +666,8 @@ next_steps() {
   say "  docker compose down                           stop the box, data/ is kept"
   say "  just (https://just.systems) wraps all of this: just pull, just logs, just shell, just backup"
   say ""
+  say "Documentation: https://github.com/$REPO_SLUG/tree/main/docs"
+  say ""
   say "Uninstall: cd $DIR && docker compose down --rmi all, then delete $DIR"
   say "  (that deletes your home and projects in data/; some files there belong to root: sudo rm -rf on Linux)"
 }

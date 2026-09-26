@@ -16,7 +16,7 @@
 #   dev-box-dbs --remove --purge <db...>   drop the data too
 #
 # Ports are published on 127.0.0.1: reachable from the box, not from outside
-# (an SSH tunnel for that, see the README). The data lives in a podman volume
+# (an SSH tunnel for that, see docs/databases.md). The data lives in a podman volume
 # named "devbox-<db>", which survives --remove.
 #
 # Nothing restarts on its own: after a restart of the box, bring the database
@@ -77,8 +77,8 @@ require_podman() {
       echo "       (/dev/fuse + security_opt) in compose.override.yaml;"
       echo "    2. PODMAN_ENABLE=true in .env;"
       echo "    3. just up"
-      echo "  That block loosens the isolation of the box: see 'Containers inside"
-      echo "  the box' in the README."
+      echo "  That block loosens the isolation of the box: see docs/containers.md"
+      echo "  in the dev-box repository."
     else
       echo "  PODMAN_ENABLE=true but the socket $SOCK is missing:"
       echo "  the service did not start. See ~/.cache/dev-box-podman.log and check"

@@ -67,24 +67,30 @@ respect:
 | A package every box needs | `Dockerfile`, in the `pacman -Syu` list, with a comment saying why; check it exists on Arch Linux ARM too |
 | A dev tool every box needs | `rootfs/etc/devbox/mise-config.toml` |
 | A new `devbox` command | `rootfs/usr/local/bin/dev-box-<name>` with the `# devbox:` headers; nothing to register |
-| A config file shipped to the home | `rootfs/etc/devbox/` plus a line in the `SEEDS` array of `dev-box-seed` and the seed table in the README |
+| A config file shipped to the home | `rootfs/etc/devbox/` plus a line in the `SEEDS` array of `dev-box-seed` and a row in the seed table of `docs/customization.md` |
 | A new `devbox dev-env` environment | a `rootfs/usr/share/devbox/dev-envs/<name>.sh` with `details`, `install` and `uninstall` (`is_installed` when the mise config cannot tell, `is_supported` when it does not run everywhere), found on its own; `mise use -g` only (`php` from the image, `browser` and `media` through `devbox pkg` are the exceptions) |
 | A change a user of the box notices | a line in the annotation of the next release tag (`git tag -a v1.7`): the workflow turns it into the GitHub release that `devbox changelog` and the next login show |
-| A guide for the in-box skill | `rootfs/usr/share/devbox/skills/devbox/*.md`, listed in `SKILL.md` |
+| A guide for the in-box skill | `rootfs/usr/share/devbox/skills/devbox/*.md`, listed in `SKILL.md` and in the skill table of `docs/agents.md` |
+| User documentation | `README.md` for the essentials, `docs/<topic>.md` for the rest, linked from the Documentation list of the README |
 
-Keep existing file names and their options untouched: the README, the
-`justfile` and `entrypoint.sh` call them by name.
+Keep existing file names and their options untouched: the README, the pages
+of `docs/`, the `justfile` and `entrypoint.sh` call them by name.
 
 ## Conventions
 
 - bash, `set -euo pipefail`, no `eval`, shellcheck clean:
   `shellcheck -e SC1091,SC2088 <files>` in the box, or from the host
   `docker run --rm -v "$PWD:/mnt:ro" koalaman/shellcheck:stable -e SC1091,SC2088 <files>`
-- Comments, script output, README and commit messages in English, plain prose,
+- Comments, script output, README, `docs/` and commit messages in English, plain prose,
   no arrows and no typographic dashes.
 - Commands say what they are doing and what to run next, and install nothing
   the user did not ask for. Running a command twice must not break anything.
-- Update the README when a command, a variable or a seeded file changes.
+- Update the documentation when a command, a variable or a seeded file changes:
+  the README only keeps the essentials (install, connecting, the main
+  commands, updating), the rest lives in `docs/`, one page per topic. A
+  command goes in `docs/commands.md` (and the page of its topic), a `.env`
+  variable or a seeded file in `docs/customization.md`, a `setup.sh` option in
+  `docs/manual-install.md`, a dev environment in `docs/dev-envs.md`.
 
 ## Testing
 

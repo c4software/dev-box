@@ -146,7 +146,8 @@ headers `devbox` reads:
 
 There is nothing to register anywhere. `devbox` finds it on the next start.
 Keep the existing file names and their options untouched: the README, the
-`justfile` and `entrypoint.sh` call them by name.
+pages of `docs/`, the `justfile` and `entrypoint.sh` call them by name. Add
+the command to the table of `docs/commands.md`.
 
 ### A migration for existing boxes
 
@@ -197,8 +198,8 @@ and the entrypoint runs it at the next start.
 
 Put the file under `rootfs/etc/devbox/` and add a
 `<source>:<path relative to the home>` line to the `SEEDS` array of
-`rootfs/usr/local/bin/dev-box-seed`. Then add it to the seed table in the
-README. `dev-box-seed` takes care of the rest: laid down if missing, updated if
+`rootfs/usr/local/bin/dev-box-seed`. Then add it to the seed table in
+`docs/customization.md`. `dev-box-seed` takes care of the rest: laid down if missing, updated if
 untouched, never overwritten if the user changed it.
 
 ### Release notes
@@ -233,7 +234,7 @@ linked into the home, so the guide is there on the next start.
   in the seeded mise config), or from the host:
   `docker run --rm -v "$PWD:/mnt:ro" koalaman/shellcheck:stable -e SC1091,SC2088 <files>`
 - Comments and script output in English, plain prose, no arrows and no
-  typographic dashes. Same for the README.
+  typographic dashes. Same for the README and the pages of `docs/`.
 - The commands say what they are doing and what to run next. They install
   nothing the user did not ask for.
 - Idempotent: running a command twice must not break anything.

@@ -19,7 +19,7 @@ ENV LANG=C.UTF-8
 #
 # Packages = what the dotarchy/common-no-omarchy config and its try/proj scripts
 # call (zsh, tmux, LazyVim, gum, fzf, jq, ...) + the base (tailscale, rsync, ...)
-# + rootless podman (see /etc/containers/ and "Containers inside the box")
+# + rootless podman (see /etc/containers/ and docs/containers.md)
 # + libyaml, which the precompiled ruby laid down by dev-box-dev-env needs (psych)
 # + php, composer, php-sqlite, php-gd, php-sodium, xdebug: mise can only build PHP
 #   (5 to 15 minutes and a pile of headers), so PHP is the one dev-box-dev-env
