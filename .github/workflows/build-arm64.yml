@@ -2,12 +2,20 @@
 # ghcr.io/<owner>/dev-box as v1.12-arm64, and as latest-arm64 when it is the
 # newest release.
 #
-# By hand only, never on a tag push: build.yml publishes the amd64 image and
+# Never on the release tag itself: build.yml publishes the amd64 image and
 # the release notes on its own, and the arm64 image follows when its owner
-# asks for it, from the Actions tab (Build the arm64 image, Run workflow) or:
+# asks for it, with a second tag named after the release plus -arm:
+#
+#   git tag v1.12-arm v1.12 && git push origin v1.12-arm
+#
+# or by hand, from the Actions tab (Build the arm64 image, Run workflow) or:
 #
 #   gh workflow run build-arm64.yml               # the newest v* tag
 #   gh workflow run build-arm64.yml -f ref=v1.12  # a given release
+#
+# Either way the image is built from the release tag (v1.12), which must exist;
+# the -arm tag only triggers the build. The box never takes a -arm tag for a
+# release (it only reads v followed by numbers and dots).
 #
 # An arm64 box compares itself with the newest -arm64 tag of the registry,
 # not with the newest v* tag of the repo, so it is only told about a release
@@ -20,6 +28,8 @@
 name: Build the arm64 image
 
 on:
+  push:
+    tags: ["v*-arm"]
   workflow_dispatch:
     inputs:
       ref:
@@ -51,6 +61,10 @@ jobs:
         env:
           ASKED: ${{ inputs.ref }}
         run: |
+          # A push of v1.12-arm asks for v1.12.
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            ASKED="${GITHUB_REF_NAME%-arm}"
+          fi
           newest="$(git tag -l 'v*' | grep -E '^v[0-9][0-9.]*$' | sort -V | tail -n 1)"
           ref="${ASKED:-$newest}"
           if ! printf '%s\n' "$ref" | grep -Eq '^v[0-9][0-9.]*$' || ! git rev-parse -q --verify "refs/tags/$ref" >/dev/null; then

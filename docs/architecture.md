@@ -85,15 +85,19 @@ starts the workflow, which builds the amd64 image, publishes it on
 [manual-install.md](manual-install.md#prebuilt-image)), and then creates the
 GitHub release from that text.
 
-The arm64 image is never built on a tag push. It is built by hand, when it is
-wanted, by the `Build the arm64 image` workflow (`build-arm64.yml`): from the
-Actions tab of the repository (Run workflow, with the tag or empty for the
-newest one), or from a machine with `gh`:
+The arm64 image is never built on the release tag. It is built on demand, by
+the `Build the arm64 image` workflow (`build-arm64.yml`), in one of three ways:
 
 ```bash
-gh workflow run build-arm64.yml               # the newest v* tag
-gh workflow run build-arm64.yml -f ref=v1.7   # a given release
+git tag v1.7-arm v1.7 && git push origin v1.7-arm   # a second tag, release name + -arm
+gh workflow run build-arm64.yml                     # the newest v* tag
+gh workflow run build-arm64.yml -f ref=v1.7         # a given release
 ```
+
+or from the Actions tab of the repository (Run workflow, with the tag or empty
+for the newest one). The `-arm` tag only triggers the build: the image is built
+from the release tag it names, which must exist, and neither `build.yml` nor
+the box takes a `-arm` tag for a release.
 
 It publishes `v1.7-arm64`, and moves `latest-arm64` when that is the newest
 release (rebuilding an older one never takes it back). An arm64 box compares

@@ -2,8 +2,9 @@
 # and under the release tag (v1.12).
 #
 # The arm64 image (Raspberry Pi 5, Apple silicon) is another image, with its
-# own tags (latest-arm64, v1.12-arm64), built by hand only: build-arm64.yml,
-# from the Actions tab or `gh workflow run build-arm64.yml -f ref=v1.12`. The
+# own tags (latest-arm64, v1.12-arm64), built on demand only: build-arm64.yml,
+# by pushing a v1.12-arm tag, from the Actions tab or
+# `gh workflow run build-arm64.yml -f ref=v1.12`. The
 # two are not merged into one multi-arch manifest: each box names the image of
 # its machine in DEVBOX_IMAGE (setup.sh picks it from uname -m).
 #
@@ -27,7 +28,8 @@ name: Build the image
 
 on:
   push:
-    tags: ["v*"]
+    # v1.12-arm is not a release: it only triggers build-arm64.yml.
+    tags: ["v*", "!v*-arm"]
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}

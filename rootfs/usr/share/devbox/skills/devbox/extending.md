@@ -235,9 +235,10 @@ git push origin v1.7
 
 The first line is what the login shows, next to the tag: make it a summary
 (a leading `v1.7: ` is dropped). The workflow builds the amd64 image, then
-creates the release with that text. The arm64 image is built by hand
-afterwards, when it is wanted: `gh workflow run build-arm64.yml -f ref=v1.7`,
-or the Actions tab of the repository.
+creates the release with that text. The arm64 image is built on demand
+afterwards, when it is wanted: push a second tag, `git tag v1.7-arm v1.7 &&
+git push origin v1.7-arm`, or run `gh workflow run build-arm64.yml -f ref=v1.7`,
+or use the Actions tab of the repository.
 `devbox check` saves the notes in the box, and the first login after the
 image is pulled and the container restarted shows them. A release edited on GitHub afterwards is picked up at the next
 check. Keep Markdown headings out of the notes: they are flattened.
