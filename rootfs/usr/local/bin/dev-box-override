@@ -1,0 +1,446 @@
+#!/usr/bin/env bash
+# devbox:name=override
+# devbox:summary=What this box changes from the image defaults, and how to undo it
+# devbox:args=[--diff [path]]
+#
+# Lists the overrides of this box: every place where it departs from what the
+# image ships, where that lives, and the command that goes back to the default.
+# Read only: nothing is installed, nothing is changed, no network.
+#
+#   dev-box-override                 the overrides, by kind
+#   dev-box-override --diff          the changes in the files, as a unified diff
+#   dev-box-override --diff <path>   the same, for one file (~/.config/mise/config.toml)
+#
+# What it looks at:
+#   - the config laid down by `devbox seed`, compared with the shipped version;
+#   - ~/.config/dev-box/overrides, the tweaks `devbox sync` applies last;
+#   - the dotfiles changed since the last sync, which the next one overwrites;
+#   - your own dev environments, and the commands of ~/.local/bin that shadow
+#     the image's;
+#   - the default agent and the packages kept by `devbox pkg`;
+#   - the .env settings the box can see (TS_DISABLE, PODMAN_ENABLE, DEV_ENVS,
+#     USER_NAME, USER_SHELL, TS_HOSTNAME, DOTARCHY_*, LLM_PROXY_URL,
+#     PROJECTS_DIR);
+#   - what compose.override.yaml adds to the container: volumes, resource
+#     limits, devices, capabilities, seccomp, /proc/sys, AppArmor.
+set -euo pipefail
+
+DIFF=false
+ONLY=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --diff) DIFF=true; shift ;;
+    -h|--help) sed -n '6,25p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -*) echo "dev-box-override: unknown option: $1" >&2; exit 2 ;;
+    *)
+      if [ -n "$ONLY" ]; then echo "dev-box-override: one path at a time" >&2; exit 2; fi
+      ONLY="$1"; shift ;;
+  esac
+done
+if [ -n "$ONLY" ] && ! $DIFF; then
+  DIFF=true
+fi
+
+if [ -t 1 ]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; RESET=$'\033[0m'; DIFF_COLOR=always
+else
+  BOLD=""; DIM=""; RESET=""; DIFF_COLOR=never
+fi
+
+# ~/x, /home/dev/x, ./x and x all become x
+normalize() {
+  local p="$1"
+  p="${p#"$HOME"/}"
+  p="${p#\~/}"
+  p="${p#./}"
+  printf '%s' "$p"
+}
+ONLY="$(normalize "$ONLY")"
+
+# The path as the user reads it: ~/x for what sits in the home.
+tilde() {
+  case "$1" in
+    "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+COUNT=0
+MATCHED=false
+PENDING_TITLE=""
+section() { PENDING_TITLE="$1"; }
+
+# entry <what> <detail> <undo> [<from> <to>]
+# <from> and <to> are the two files of a file override: the default, then this
+# box's version. They are what --diff prints; entries without them have no diff.
+entry() {
+  local what="$1" detail="$2" undo="$3" from="${4:-}" to="${5:-}"
+  COUNT=$((COUNT + 1))
+  if $DIFF; then
+    [ -n "$to" ] || return 0
+    if [ -n "$ONLY" ] && [ "$ONLY" != "$(normalize "$what")" ] \
+       && [ "$ONLY" != "$(normalize "$to")" ]; then
+      return 0
+    fi
+    MATCHED=true
+    printf '\n%s%s%s  %s\n' "$BOLD" "$what" "$RESET" "$detail"
+    [ -e "$from" ] || from=/dev/null
+    [ -e "$to" ] || to=/dev/null
+    diff -u --color="$DIFF_COLOR" --label "default: $(tilde "$from")" \
+      --label "this box: $(tilde "$to")" "$from" "$to" || true
+    return 0
+  fi
+  if [ -n "$PENDING_TITLE" ]; then
+    printf '\n%s%s%s\n' "$BOLD" "$PENDING_TITLE" "$RESET"
+    PENDING_TITLE=""
+  fi
+  printf '  %s  %s\n' "$what" "$detail"
+  printf '    %sundo: %s%s\n' "$DIM" "$undo" "$RESET"
+}
+
+# Value of `export NAME=...` or `NAME=...` in a file the entrypoint writes with
+# %q. Read, never sourced: an empty value is '' and spaces are escaped.
+read_var() {
+  local v
+  [ -r "$2" ] || return 0
+  v="$(sed -n -E "s/^(export )?$1=//p" "$2" | tail -n 1)"
+  v="${v#\'}"; v="${v%\'}"; v="${v//\\ / }"
+  printf '%s' "$v"
+}
+
+# --- 1. The config laid down by dev-box-seed ----------------------------------
+# The SEEDS table of dev-box-seed is the one source of truth: read, not copied.
+# A file is an override when it differs from the version the image ships now.
+# One equal to the reference copy was never touched: the seed updates it at the
+# next start, it is not the user's doing.
+toml_tools() {
+  awk '
+    /^[[:space:]]*\[/ { s = ($0 ~ /^[[:space:]]*\[tools\][[:space:]]*$/); next }
+    s && /=/ && !/^[[:space:]]*#/ {
+      k = $0; sub(/[[:space:]]*=.*/, "", k); gsub(/^[[:space:]]+|"/, "", k)
+      v = $0; sub(/^[^=]*=[[:space:]]*/, "", v); sub(/[[:space:]]+#.*$/, "", v); gsub(/"/, "", v)
+      print k "\t" v
+    }' "$1"
+}
+
+# What changed in the [tools] of the mise config, in one line.
+mise_summary() {
+  local -A img=() box=()
+  local k v out="" added=() removed=() changed=()
+  while IFS=$'\t' read -r k v; do [ -n "$k" ] && img["$k"]="$v"; done < <(toml_tools "$1")
+  while IFS=$'\t' read -r k v; do [ -n "$k" ] && box["$k"]="$v"; done < <(toml_tools "$2")
+  for k in "${!box[@]}"; do
+    if [ -z "${img[$k]+x}" ]; then
+      added+=("$k")
+    elif [ "${img[$k]}" != "${box[$k]}" ]; then
+      changed+=("$k ${box[$k]} (image: ${img[$k]})")
+    fi
+  done
+  for k in "${!img[@]}"; do
+    [ -n "${box[$k]+x}" ] || removed+=("$k")
+  done
+  # One sorted, comma separated list per kind
+  join() { [ "$#" -gt 0 ] && printf '%s\n' "$@" | sort | paste -sd, - | sed 's/,/, /g'; }
+  [ "${#added[@]}" -eq 0 ] || out="$out; tools added: $(join "${added[@]}")"
+  [ "${#removed[@]}" -eq 0 ] || out="$out; tools removed: $(join "${removed[@]}")"
+  [ "${#changed[@]}" -eq 0 ] || out="$out; other version: $(join "${changed[@]}")"
+  printf '%s' "$out"
+}
+
+section "Shipped config (devbox seed)"
+SEED_BIN="$(command -v dev-box-seed || true)"
+SEEDS=()
+if [ -n "$SEED_BIN" ]; then
+  mapfile -t SEEDS < <(sed -n '/^SEEDS=(/,/^)/ s/^[[:space:]]*"\([^"]*:[^"]*\)".*/\1/p' "$SEED_BIN")
+fi
+for s in "${SEEDS[@]}"; do
+  src="${s%%:*}"
+  rel="${s#*:}"
+  [ -f "$src" ] || continue
+  dst="$HOME/$rel"
+  ref="$HOME/.config/dev-box/seed/$rel"
+  if [ ! -e "$dst" ]; then
+    entry "~/$rel" "removed" "devbox seed --apply" "$src" "$dst"
+    continue
+  fi
+  cmp -s "$dst" "$src" && continue
+  if [ -e "$ref" ] && cmp -s "$dst" "$ref"; then
+    continue
+  fi
+  detail="changed locally"
+  if [ "$rel" = ".config/mise/config.toml" ]; then
+    detail="$detail$(mise_summary "$src" "$dst")"
+  fi
+  entry "~/$rel" "$detail" "devbox seed --force ~/$rel" "$src" "$dst"
+done
+
+# --- 2. ~/.config/dev-box/overrides, re-applied last by dotarchy-sync ----------
+DOTARCHY_SUBDIR="$(read_var DOTARCHY_SUBDIR /etc/devbox/dotarchy.env)"
+DOTARCHY_SUBDIR="${DOTARCHY_SUBDIR:-common-no-omarchy}"
+DOT_SRC="$HOME/.local/share/dotarchy/$DOTARCHY_SUBDIR"
+DOT_CFG="$DOT_SRC/config"
+DOT_DEF="$DOT_SRC/default"
+
+# The dotarchy file a home path comes from, when there is one.
+dotarchy_source() {
+  case "$1" in
+    .config/nvim/*) return 1 ;;
+    .config/*) printf '%s' "$DOT_CFG/${1#.config/}" ;;
+    .zshrc|.bashrc|.profile) printf '%s' "$DOT_DEF/${1#.}" ;;
+    *) return 1 ;;
+  esac
+}
+
+OVERRIDES="$HOME/.config/dev-box/overrides"
+section "Box overrides (~/.config/dev-box/overrides, applied by devbox sync)"
+if [ -d "$OVERRIDES" ]; then
+  while IFS= read -r -d '' f; do
+    rel="${f#"$OVERRIDES"/}"
+    base="$(dotarchy_source "$rel" || true)"
+    [ -n "$base" ] && [ ! -f "$base" ] && base=""
+    if cmp -s "$f" "$HOME/$rel"; then state="in effect"; else state="not applied yet (devbox sync)"; fi
+    if [ -n "$base" ]; then
+      entry "~/$rel" "replaces the dotarchy version, $state" \
+        "rm $(tilde "$f") && devbox sync" "$base" "$f"
+    else
+      entry "~/$rel" "added, dotarchy has no such file, $state" \
+        "rm $(tilde "$f") (~/$rel stays until you remove it)" "" "$f"
+    fi
+  done < <(find "$OVERRIDES" -type f -print0 | sort -z)
+fi
+
+# --- 3. Dotfiles changed by hand since the last sync --------------------------
+# dotarchy-sync copies config/ into ~/.config and default/ onto ~/.zshrc,
+# ~/.bashrc and ~/.profile: a change made there directly is lost on the next
+# sync, unless an override carries it. nvim is left out, dotarchy-sync lays a
+# starter under it and keeps lazy-lock.json.
+section "Dotfiles changed since the last sync (devbox sync overwrites them)"
+if [ -d "$DOT_CFG" ] && command -v rsync >/dev/null 2>&1; then
+  changed_files() {
+    rsync -rcn --exclude nvim --out-format='%n' "$DOT_CFG/" "$HOME/.config/" 2>/dev/null \
+      | grep -v '/$' | sed 's|^|.config/|' || true
+    for f in zshrc bashrc profile; do
+      [ -f "$DOT_DEF/$f" ] || continue
+      cmp -s "$DOT_DEF/$f" "$HOME/.$f" || echo ".$f"
+    done
+  }
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    # Carried by an override: already listed above.
+    [ -e "$OVERRIDES/$rel" ] && continue
+    base="$(dotarchy_source "$rel" || true)"
+    if [ ! -e "$HOME/$rel" ]; then
+      entry "~/$rel" "deleted locally, devbox sync puts it back" \
+        "devbox sync" "$base" "$HOME/$rel"
+    else
+      entry "~/$rel" "changed locally, lost on the next devbox sync" \
+        "devbox sync; to keep it instead: mkdir -p $(tilde "$(dirname "$OVERRIDES/$rel")") && cp ~/$rel $(tilde "$OVERRIDES/$rel")" \
+        "$base" "$HOME/$rel"
+    fi
+  done < <(changed_files)
+fi
+
+# --- 4. Your own dev environments ---------------------------------------------
+section "Dev environments of this box (~/.config/dev-box/dev-envs)"
+for f in "$HOME/.config/dev-box/dev-envs"/*.sh; do
+  [ -f "$f" ] || continue
+  name="$(basename "$f" .sh)"
+  img="/usr/share/devbox/dev-envs/$name.sh"
+  if [ -f "$img" ]; then
+    entry "$name" "replaces the image's environment ($(tilde "$f"))" "rm $(tilde "$f")" "$img" "$f"
+  else
+    entry "$name" "not in the image ($(tilde "$f"))" "rm $(tilde "$f")"
+  fi
+done
+
+# --- 5. Commands of ~/.local/bin shadowing the image's -------------------------
+# ~/.local/bin comes first on the PATH (/etc/devbox/zshenv).
+section "Commands shadowing the image's (~/.local/bin comes first on the PATH)"
+for f in "$HOME/.local/bin"/*; do
+  [ -f "$f" ] || continue
+  name="$(basename "$f")"
+  for dir in /usr/local/bin /usr/bin; do
+    [ -e "$dir/$name" ] || continue
+    if grep -qxF '# dev-box-mise-install' "$f" 2>/dev/null; then
+      entry "$name" "a devbox mise-install wrapper replaces $dir/$name" \
+        "devbox mise-install --remove $name"
+    else
+      entry "$name" "$(tilde "$f") replaces $dir/$name" "rm $(tilde "$f")"
+    fi
+    break
+  done
+done
+
+# --- 6. Choices kept in the home ----------------------------------------------
+section "Choices kept in the home (~/.config/dev-box)"
+agent_file="$HOME/.config/dev-box/agent"
+if [ -s "$agent_file" ]; then
+  entry "agent" "default coding agent: $(head -n 1 "$agent_file" | tr -d '[:space:]') (the image has none)" \
+    "devbox agent set <name> to change it, rm ~/.config/dev-box/agent to have none"
+fi
+pkg_file="$HOME/.config/dev-box/packages"
+if [ -s "$pkg_file" ]; then
+  pkgs="$(grep -vE '^[[:space:]]*(#|$)' "$pkg_file" | tr '\n' ' ' || true)"
+  pkgs="${pkgs% }"
+  if [ -n "$pkgs" ]; then
+    entry "packages" "added to the image, reinstalled at start: $pkgs" "devbox pkg drop $pkgs"
+  fi
+fi
+
+# --- 7. Settings from .env ----------------------------------------------------
+# Only what the box can see from any shell: an SSH session does not inherit the
+# environment of PID 1, so the values come from what the entrypoint wrote down.
+# The defaults are those of compose.yaml and entrypoint.sh.
+section "Settings from .env (on the host: edit .env, then just up)"
+setting() { # <NAME> <value> <default> [shown default]
+  if [ "$2" = "$3" ]; then return 0; fi
+  entry "$1" "${2:-empty} (default: ${4:-${3:-empty}})" "remove $1 from .env, or set it back to ${4:-${3:-empty}}"
+}
+if [ -r /etc/devbox/env ]; then
+  setting TS_DISABLE "$(read_var TS_DISABLE /etc/devbox/env)" false
+  setting DEV_ENVS "$(read_var DEV_ENVS /etc/devbox/env)" ""
+  proxy="$(read_var LLM_PROXY_URL /etc/devbox/env)"
+  [ -z "$proxy" ] || setting LLM_PROXY_URL "$proxy" "http://llmproxy"
+fi
+if [ -r /etc/devbox/podman.state ]; then
+  if [ "$(cat /etc/devbox/podman.state)" = "enabled" ]; then setting PODMAN_ENABLE true false; fi
+fi
+setting USER_NAME "$(id -un)" dev
+setting USER_SHELL "$(getent passwd "$(id -un)" | cut -d: -f7)" /bin/zsh
+setting TS_HOSTNAME "$(cat /proc/sys/kernel/hostname)" dev-box
+if [ -r /etc/devbox/dotarchy.env ]; then
+  setting DOTARCHY_REPO "$(read_var DOTARCHY_REPO /etc/devbox/dotarchy.env)" \
+    https://github.com/c4software/dotarchy.git
+  setting DOTARCHY_BRANCH "$(read_var DOTARCHY_BRANCH /etc/devbox/dotarchy.env)" main
+  setting DOTARCHY_SUBDIR "$DOTARCHY_SUBDIR" common-no-omarchy
+fi
+
+# --- 8. The container itself: compose.override.yaml ---------------------------
+# Read from the kernel, as seen from inside: mounts, cgroup limits, devices,
+# capabilities, seccomp, /proc/sys, AppArmor. The references are what
+# compose.yaml asks Docker for.
+MOUNTS="$(cat /proc/self/mountinfo 2>/dev/null || true)"
+# mountinfo escapes spaces and friends as \040: decoded for display.
+unescape() { printf '%b' "$1"; }
+mount_field() { # <mount point> <field number>: 3 device, 4 root, 5 mount point
+  awk -v mp="$1" -v n="$2" '$5 == mp { print $n; exit }' <<< "$MOUNTS"
+}
+
+# PROJECTS_DIR: its default, ./data/projets, sits next to ./data/home. Only
+# told when both come from the same host device and the home is at ./data/home.
+# The root field is relative to that device (a btrfs subvolume, a tmpfs), so it
+# is compared, never printed as a host path.
+home_dev="$(mount_field "$HOME" 3)"
+home_root="$(mount_field "$HOME" 4)"
+proj_dev="$(mount_field "$HOME/projets" 3)"
+proj_root="$(mount_field "$HOME/projets" 4)"
+if [ -n "$home_root" ] && [ -n "$proj_root" ] && [ "$home_dev" = "$proj_dev" ] \
+   && [ "${home_root%/data/home}" != "$home_root" ] \
+   && [ "$proj_root" != "${home_root%/home}/projets" ]; then
+  entry "PROJECTS_DIR" "~/projets comes from another host directory than ./data/projets" \
+    "remove PROJECTS_DIR from .env (./data/projets), then just up"
+fi
+
+section "Container (compose.override.yaml on the host, then just up)"
+container_undo="remove it from compose.override.yaml on the host, then just up"
+# Extra volumes: every mount but the ones of compose.yaml and Docker's own.
+while read -r _ _ _ _ mp opts _; do
+  mp="$(unescape "$mp")"
+  case "$mp" in
+    /|/proc|/proc/*|/sys|/sys/*|/dev|/dev/*) continue ;;
+    /etc/hosts|/etc/hostname|/etc/resolv.conf|*/docker-init) continue ;;
+    /run/.containerenv|/run/secrets|/run/secrets/*) continue ;;
+    "$HOME"|"$HOME/projets"|/var/lib/tailscale) continue ;;
+    /run/user/*|/tmp/*) continue ;;
+  esac
+  ro=""
+  case ",$opts," in *,ro,*) ro=", read only" ;; esac
+  entry "volume" "$(tilde "$mp")$ro" "$container_undo"
+done <<< "$MOUNTS"
+
+# Resource limits, cgroup v2 (private cgroup namespace, Docker's default).
+# pids.max is left out: systemd puts its own TasksMax on the container's scope,
+# so a value there does not say that compose.override.yaml asked for it.
+CG=/sys/fs/cgroup
+if [ -r "$CG/memory.max" ]; then
+  mem="$(cat "$CG/memory.max")"
+  if [ "$mem" != "max" ]; then
+    entry "mem_limit" "memory capped at $(numfmt --to=iec "$mem" 2>/dev/null || echo "$mem bytes")" "$container_undo"
+  fi
+fi
+if [ -r "$CG/cpu.max" ]; then
+  read -r quota period < "$CG/cpu.max"
+  if [ "$quota" != "max" ] && [ -n "${period:-}" ]; then
+    entry "cpus" "$(awk -v q="$quota" -v p="$period" 'BEGIN { printf "%g", q / p }') CPU(s) at most" "$container_undo"
+  fi
+fi
+
+# Devices: compose.yaml only adds /dev/net/tun to Docker's default set.
+podman_note=""
+[ "$(cat /etc/devbox/podman.state 2>/dev/null || true)" = "enabled" ] && podman_note=" (part of the podman block)"
+while IFS= read -r d; do
+  case "$d" in
+    /dev/null|/dev/zero|/dev/full|/dev/random|/dev/urandom|/dev/tty|/dev/console|/dev/ptmx|/dev/net/tun) continue ;;
+  esac
+  note=""
+  [ "$d" = /dev/fuse ] && note="$podman_note"
+  entry "devices" "$d$note" "$container_undo"
+done < <(find /dev -maxdepth 2 -path /dev/pts -prune -o \( -type c -o -type b \) -print 2>/dev/null | sort)
+
+# Capabilities: Docker's default bounding set plus the NET_ADMIN and NET_RAW of
+# compose.yaml. CapBnd is inherited by every process, this one included.
+cap_bnd="$(awk '/^CapBnd:/ { print $2 }' /proc/self/status 2>/dev/null || true)"
+if [ -n "$cap_bnd" ]; then
+  expected=0
+  for bit in 0 1 3 4 5 6 7 8 10 12 13 18 27 29 31; do expected=$((expected | (1 << bit))); done
+  actual=$((16#$cap_bnd))
+  cap_names() { # <mask>
+    if command -v capsh >/dev/null 2>&1; then
+      capsh --decode="$(printf '%x' "$1")" | sed 's/^.*=//; s/cap_//g; s/,/ /g' | tr '[:lower:]' '[:upper:]'
+    else
+      printf 'mask 0x%x' "$1"
+    fi
+  }
+  extra=$((actual & ~expected))
+  missing=$((expected & ~actual))
+  if [ "$(cat /proc/sys/kernel/cap_last_cap 2>/dev/null || echo 0)" -gt 0 ] \
+     && [ "$actual" -eq $(( (1 << ($(cat /proc/sys/kernel/cap_last_cap) + 1)) - 1 )) ]; then
+    entry "privileged" "every capability (privileged: true)" "$container_undo"
+  elif [ "$extra" -ne 0 ]; then
+    entry "cap_add" "$(cap_names "$extra")" "$container_undo"
+  fi
+  if [ "$missing" -ne 0 ]; then
+    entry "cap_drop" "$(cap_names "$missing")" "$container_undo"
+  fi
+fi
+
+# security_opt: seccomp=unconfined turns the filter off (Seccomp: 0),
+# systempaths=unconfined drops the read-only mount of /proc/sys,
+# apparmor=unconfined only says something where AppArmor is active.
+if [ "$(awk '/^Seccomp:/ { print $2 }' /proc/self/status 2>/dev/null)" = "0" ]; then
+  entry "security_opt" "seccomp=unconfined$podman_note" "$container_undo"
+fi
+if [ -n "$MOUNTS" ] && ! awk '$5 == "/proc/sys" { f = 1 } END { exit !f }' <<< "$MOUNTS"; then
+  entry "security_opt" "systempaths=unconfined, /proc/sys is writable$podman_note" "$container_undo"
+fi
+if [ "$(cat /sys/module/apparmor/parameters/enabled 2>/dev/null || true)" = "Y" ] \
+   && [ "$(cat /proc/self/attr/current 2>/dev/null | tr -d '\0')" = "unconfined" ]; then
+  entry "security_opt" "apparmor=unconfined$podman_note" "$container_undo"
+fi
+
+# --- Summary --------------------------------------------------------------------
+if $DIFF; then
+  if [ -n "$ONLY" ] && ! $MATCHED; then
+    echo "dev-box-override: ~/$ONLY is not a file this box overrides" >&2
+    echo "The list: devbox override" >&2
+    exit 1
+  fi
+  $MATCHED || echo "No file override: this box runs the config the image and dotarchy ship."
+  exit 0
+fi
+echo
+if [ "$COUNT" -eq 0 ]; then
+  echo "No override: this box runs what the image ships."
+else
+  echo "$COUNT override(s). devbox override --diff [path] shows what changed in the files."
+fi

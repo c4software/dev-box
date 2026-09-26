@@ -95,6 +95,11 @@ the very end of every pass, after the steps that overwrite, so they always win.
 This is the right place for a tweak that belongs to this box and not to the
 dotfiles repository.
 
+`devbox override` lists them, together with every other place where the box
+departs from the image: changed seeded config, dotfiles edited since the last
+sync, `.env` settings, what `compose.override.yaml` adds to the container. Each
+one comes with the command that goes back to the default.
+
 ## Access
 
 Either Tailscale or a plain sshd, never both:

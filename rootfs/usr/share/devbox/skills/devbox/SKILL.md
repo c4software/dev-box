@@ -3,7 +3,7 @@ name: devbox
 description: >
   REQUIRED whenever work touches the dev-box container itself rather than a
   project inside it. Use for the `devbox` command and any `dev-box-*` binary
-  (seed, update, check, status, dev-env, dbs, podman), for `/etc/devbox/`,
+  (seed, update, check, status, override, dev-env, dbs, podman), for `/etc/devbox/`,
   `/usr/share/devbox/`, `~/.config/dev-box/`, the global mise config
   `~/.config/mise/config.toml`, installing a language or dev environment in the
   box, rootless podman inside the box, dotfiles sync (dotarchy-sync), updating
@@ -18,7 +18,10 @@ description: >
   update, rebuild the image, "install go/python/ruby in the box", "install a
   pacman package", "screenshot the page", "check the layout", "headless
   chrome", "add a gemini wrapper", "fix my old mise config",
-  "why is my change gone after a rebuild".
+  "why is my change gone after a rebuild". Also for diagnosing a broken or
+  misbehaving box (devbox diagnostic): "the box is broken", "command not
+  found", "postgres does not start", "docker does not work", "disk full",
+  "no network", "cannot ssh into the box", "the dev-env install failed".
 ---
 
 # dev-box Skill
@@ -50,6 +53,7 @@ Read the matching guide before starting:
 - [`extending.md`](extending.md) - how to change the box for good, through the repository
 - [`updates.md`](updates.md) - what updates, when, and on whose command
 - [`browser.md`](browser.md) - rendering a page in the box: headless Chromium, screenshots, Playwright and Puppeteer
+- [`diagnostic.md`](diagnostic.md) - something in the box is broken: facts first, then a diagnosis, then a fix the user agreed to
 
 ## Critical Safety Rules
 
@@ -125,7 +129,9 @@ Never guess a command name. Run `devbox commands`.
    repository, not to this box. `devbox sync` only copies them here.
 13. **Is it an update?** Nothing is automatic except migrations. See
     `updates.md`.
-14. **Unsure?** `devbox status`, then `devbox commands`.
+14. **Is something in the box broken?** Follow `diagnostic.md`: start with
+    `devbox diagnostic --report`, read only, and ask before fixing.
+15. **Unsure?** `devbox status`, then `devbox commands`.
 
 ## Out of Scope
 
@@ -170,3 +176,5 @@ Never guess a command name. Run `devbox commands`.
   `# devbox:` headers, see `extending.md`
 - "Why is my edit to /usr/local/bin gone?" -> it was in the image; see
   `extending.md`
+- "Postgres does not start" / "the box is broken" -> `diagnostic.md`, starting
+  with `devbox diagnostic --report`; nothing is changed without asking

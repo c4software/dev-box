@@ -1,0 +1,379 @@
+#!/usr/bin/env bash
+# devbox:name=diagnostic
+# devbox:summary=Diagnose the box with the coding agent, or print a report to share
+# devbox:args=[--report|--prompt|--dry-run] [problem...]
+# Starts the default coding agent (devbox agent) on the diagnostic guide of the
+# devbox skill, with the problem as the user describes it. The agent gathers
+# facts with read-only commands, explains the cause, and asks before changing
+# anything. Without an agent, --report prints the same facts.
+#
+#   dev-box-diagnostic [problem...]           run the agent on the problem
+#   dev-box-diagnostic --report [problem...]  print the facts, no agent, no change
+#   dev-box-diagnostic --prompt [problem...]  print the instruction given to the agent
+#   dev-box-diagnostic --dry-run [problem...] say which agent would run, and how
+#   dev-box-diagnostic --force [problem...]   run the agent even with no credentials found
+#
+# The report runs read-only commands only, each bounded by a timeout, and
+# prints no secret: it can be pasted to someone else as it is.
+set -euo pipefail
+
+GUIDE="/usr/share/devbox/skills/devbox/diagnostic.md"
+
+usage() { sed -n '5,17p' "$0" | sed 's/^# \?//'; }
+
+MODE="agent"
+FORCE=false
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    --report)  MODE="report"; shift ;;
+    --prompt)  MODE="prompt"; shift ;;
+    --dry-run) MODE="dry-run"; shift ;;
+    --force)   FORCE=true; shift ;;
+    --)        shift; break ;;
+    -*) echo "dev-box-diagnostic: unknown option '$1'" >&2; usage >&2; exit 2 ;;
+    *)  break ;;
+  esac
+done
+PROBLEM="$*"
+
+# --- the instruction given to the agent ---------------------------------------
+# One line: every agent takes it as its first message, and some TUIs send a
+# pasted newline on the spot. The path works for the agents that do not load
+# skills (codex, opencode) as well as for the ones that do.
+build_prompt() {
+  local ask
+  if [ -n "$PROBLEM" ]; then
+    ask="The problem, in my words: $PROBLEM"
+  else
+    ask="I did not describe a problem: look for anything wrong in the box and report it."
+  fi
+  printf '%s\n' "Diagnose this dev-box. Read $GUIDE (the diagnostic guide of the devbox skill) and follow its procedure: gather the facts with read-only commands first, starting with \`devbox diagnostic --report\`, then say what is wrong and what shows it, propose the fix as exact commands, and ask me before running anything that changes or deletes something. Never print a secret (tokens, keys, /etc/devbox/env). Answer in the language I write in. $ask"
+}
+
+# --- does the agent look logged in? -------------------------------------------
+# 0: credentials found, 1: none found, 2: this agent cannot be told from here.
+# Only the presence of a file or a variable is tested, never its content.
+has_credentials() {
+  case "$1" in
+    claude)
+      [ -s "$HOME/.claude/.credentials.json" ] && return 0
+      [ -n "${ANTHROPIC_API_KEY:-}${ANTHROPIC_AUTH_TOKEN:-}${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && return 0
+      # A key helper or a provider set in the settings works without /login.
+      grep -qs -e '"apiKeyHelper"' -e '"ANTHROPIC_' "$HOME/.claude/settings.json" && return 0
+      grep -qs '"primaryApiKey"' "$HOME/.claude.json" && return 0
+      return 1
+      ;;
+    codex)
+      [ -s "$HOME/.codex/auth.json" ] && return 0
+      [ -n "${OPENAI_API_KEY:-}${CODEX_API_KEY:-}" ] && return 0
+      grep -qs '^model_provider' "$HOME/.codex/config.toml" && return 0
+      return 1
+      ;;
+    *) return 2 ;;
+  esac
+}
+
+login_hint() {
+  case "$1" in
+    claude) echo "  Run 'claude', log in with /login, quit, then devbox diagnostic again." ;;
+    codex)  echo "  Run 'codex', log in with /login, quit, then devbox diagnostic again." ;;
+    *)      echo "  Run '$1' once and log in, then devbox diagnostic again." ;;
+  esac
+}
+
+# --- the report ---------------------------------------------------------------
+# Colors on a terminal only, so the report stays plain in a file or a pipe.
+B=""; O=""
+if [ -t 1 ]; then B=$'\033[1m'; O=$'\033[0m'; fi
+FINDINGS=()
+
+title() { printf '\n%s%s%s\n' "$B" "$*" "$O"; }
+item() { printf '  %-12s %s\n' "$1" "$2"; }
+indent() { sed 's/^/  /'; }
+# dev-box-status colors its titles unconditionally: stripped when not a terminal.
+plain() { if [ -t 1 ]; then cat; else sed 's/\x1b\[[0-9;]*m//g'; fi; }
+finding() { FINDINGS+=("$*"); }
+
+# Runs a read-only command under a timeout, output indented; says so when the
+# command fails or times out rather than stopping the report.
+run() {
+  local secs="$1"; shift
+  local out rc=0
+  out="$(timeout "$secs" "$@" 2>&1)" || rc=$?
+  [ -n "$out" ] && printf '%s\n' "$out" | indent
+  if [ "$rc" -eq 124 ]; then
+    echo "  ($1 timed out after ${secs}s)"
+  fi
+  return "$rc"
+}
+
+# One value of /etc/devbox/env, without printing the file (it holds tokens).
+from_devbox_env() {
+  [ -r /etc/devbox/env ] || return 0
+  # shellcheck source=/dev/null
+  ( . /etc/devbox/env 2>/dev/null; printf '%s' "${!1:-}" )
+}
+
+# True when every shim named on the "Missing shims:" line of mise doctor exists.
+shims_all_there() {
+  local dir="${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims" names name
+  names="$(printf '%s\n' "$1" | sed -n 's/^Missing shims: //p' | tr ',' ' ')"
+  [ -n "$names" ] || return 1
+  for name in $names; do
+    [ -e "$dir/$name" ] || return 1
+  done
+}
+
+report() {
+  local uid agent rc out use n full=false
+  uid="$(id -u)"
+
+  printf '%sdev-box diagnostic report%s, %s\n' "$B" "$O" "$(date '+%F %T %Z')"
+  [ -z "$PROBLEM" ] || printf 'Problem: %s\n' "$PROBLEM"
+
+  # Image, access, podman, mise tools, DEV_ENVS, update flag: all in status.
+  [ -n "${TS_DISABLE:-}" ] || TS_DISABLE="$(from_devbox_env TS_DISABLE)"
+  [ -n "${DEV_ENVS:-}" ] || DEV_ENVS="$(from_devbox_env DEV_ENVS)"
+  export TS_DISABLE DEV_ENVS
+  # Its last line is blank, and every title below opens with one.
+  timeout 30 dev-box-status 2>&1 | plain | sed '${/^$/d;}' \
+    || echo "  (devbox status failed or timed out)"
+
+  title "System"
+  item "arch" "$(uname -m), kernel $(uname -r)"
+  item "user" "$(id -un) ($uid:$(id -g))"
+  item "uptime" "$(uptime -p 2>/dev/null || true)"
+  item "cpus" "$(nproc 2>/dev/null || echo '?')"
+  item "memory" "$(free -h 2>/dev/null | awk '/^Mem:/ { print $3 " used of " $2 ", " $7 " available" }')"
+
+  title "Disk"
+  df -h / "$HOME" "$HOME/projets" /tmp 2>/dev/null | awk 'NR == 1 || !seen[$0]++' | indent
+  while read -r use mnt; do
+    use="${use%\%}"
+    case "$use" in ''|*[!0-9]*) continue ;; esac
+    [ "$use" -lt 90 ] && continue
+    finding "disk: $mnt is ${use}% full"
+    full=true
+  done < <(df -P / "$HOME" "$HOME/projets" /tmp 2>/dev/null | awk 'NR > 1 { print $5, $6 }' | sort -u)
+  if $full; then
+    echo "  largest usual suspects:"
+    timeout 30 du -xsh "$HOME/.local/share/mise" "$HOME/.local/share/containers" \
+      "$HOME/.cache" 2>/dev/null | indent | indent || true
+  fi
+
+  title "The home"
+  # The user is always 1000:1000; root-owned files come from a sudo command.
+  for d in "$HOME" "$HOME/.config" "$HOME/.local" "$HOME/projets"; do
+    [ -e "$d" ] || continue
+    item "$(basename "$d")" "$(stat -c '%U:%G %a' "$d")"
+    [ "$(stat -c %u "$d")" = "$uid" ] || finding "ownership: $d is not owned by $(id -un)"
+  done
+  out="$(timeout 15 find "$HOME" -maxdepth 2 ! -user "$uid" 2>/dev/null | head -n 20 || true)"
+  if [ -n "$out" ]; then
+    echo "  not owned by $(id -un), depth 2 (first 20):"
+    printf '%s\n' "$out" | indent | indent
+    finding "ownership: files in the home not owned by $(id -un) (sudo chown, ask first)"
+  else
+    item "ownership" "everything down to depth 2 belongs to $(id -un)"
+  fi
+
+  title "Coding agent"
+  if agent="$(dev-box-agent which 2>/dev/null)"; then
+    item "default" "$agent"
+    if command -v "$agent" >/dev/null 2>&1; then
+      item "command" "$(command -v "$agent")"
+    else
+      item "command" "not on the PATH"
+      finding "agent: $agent is not on the PATH"
+    fi
+    rc=0; has_credentials "$agent" || rc=$?
+    case "$rc" in
+      0) item "login" "credentials found" ;;
+      1) item "login" "no credentials found"; finding "agent: $agent does not look logged in" ;;
+      *) item "login" "cannot tell for $agent" ;;
+    esac
+  else
+    item "default" "none (devbox agent set <name>)"
+  fi
+
+  title "Shipped config (devbox seed --check)"
+  out="$(timeout 20 dev-box-seed --check 2>&1 || true)"
+  if [ -n "$out" ]; then
+    printf '%s\n' "$out" | indent
+  else
+    item "seed" "nothing newly shipped, nothing held back"
+  fi
+
+  title "Migrations (devbox migrate --pending)"
+  out="$(timeout 20 dev-box-migrate --pending 2>&1 || true)"
+  if printf '%s\n' "$out" | grep -q '\.sh'; then
+    printf '%s\n' "$out" | indent
+    finding "migrations: some are pending (devbox migrate)"
+  else
+    item "migrations" "none pending"
+  fi
+
+  title "mise"
+  if command -v mise >/dev/null 2>&1; then
+    item "version" "$(timeout 10 mise --version 2>/dev/null | head -n 1)"
+    # Only the errors of mise doctor; the rest is in `mise doctor` itself.
+    out="$(timeout 30 mise doctor --json 2>/dev/null | jq -r '.errors[]?' 2>/dev/null || true)"
+    # In a shell where mise is activated, doctor calls shims missing that are
+    # sitting in the shims directory: that error only counts when one really is.
+    if printf '%s\n' "$out" | grep -q '^shims are missing' && shims_all_there "$out"; then
+      out="$(printf '%s\n' "$out" | grep -v -e '^shims are missing' -e '^Missing shims:' || true)"
+    fi
+    if [ -n "$out" ]; then
+      echo "  mise doctor:"
+      printf '%s\n' "$out" | indent | indent
+      finding "mise: mise doctor reports problems"
+    else
+      item "doctor" "no problem reported"
+    fi
+    out="$(timeout 20 mise ls --missing 2>/dev/null || true)"
+    if [ -n "$out" ]; then
+      echo "  declared but not installed:"
+      printf '%s\n' "$out" | indent | indent
+      finding "mise: tools declared but not installed (mise install)"
+    fi
+  else
+    item "mise" "not on the PATH"
+    finding "mise: not on the PATH (login shell? zsh -l)"
+  fi
+  # The first-start install log is mostly progress bars: its errors only.
+  if [ -f "$HOME/.cache/dev-box-install.log" ]; then
+    out="$(sed 's/\x1b\[[0-9;?]*[A-Za-z]//g' "$HOME/.cache/dev-box-install.log" \
+      | grep -iE 'error|failed' | tail -n 10 || true)"
+    if [ -n "$out" ]; then
+      echo "  errors in ~/.cache/dev-box-install.log (first-start install):"
+      printf '%s\n' "$out" | indent | indent
+      finding "mise: the first-start install reported errors"
+    fi
+  fi
+
+  if [ -s "$HOME/.cache/dev-box/dev-envs" ]; then
+    title "Dev environments at start"
+    item "flag" "$(head -n 1 "$HOME/.cache/dev-box/dev-envs")"
+    if [ -f "$HOME/.cache/dev-box/dev-envs.log" ]; then
+      echo "  last lines of ~/.cache/dev-box/dev-envs.log:"
+      tail -n 20 "$HOME/.cache/dev-box/dev-envs.log" | indent | indent
+    fi
+    finding "dev-env: DEV_ENVS still installing or failed at start"
+  fi
+
+  if [ -f /tmp/dev-box-pkg.log ] && grep -qi 'error' /tmp/dev-box-pkg.log; then
+    title "Persistent packages"
+    echo "  errors in /tmp/dev-box-pkg.log, last lines:"
+    tail -n 10 /tmp/dev-box-pkg.log | indent | indent
+    finding "pkg: reinstalling the persistent packages failed at start"
+  fi
+
+  title "Podman and databases"
+  local state sock="/run/user/$uid/podman/podman.sock"
+  state="disabled"
+  [ -r /etc/devbox/podman.state ] && state="$(cat /etc/devbox/podman.state)"
+  if [ -S "$sock" ]; then
+    run 20 /usr/bin/podman ps -a --filter name=devbox- \
+      --format '{{.Names}}  {{.Status}}  {{.Ports}}' || true
+    run 20 /usr/bin/podman system df || true
+  elif [ "$state" = "enabled" ]; then
+    item "socket" "missing although PODMAN_ENABLE=true"
+    finding "podman: enabled but the service did not start (~/.cache/dev-box-podman.log)"
+    [ -f "$HOME/.cache/dev-box-podman.log" ] && tail -n 10 "$HOME/.cache/dev-box-podman.log" | indent
+  else
+    item "podman" "off by design; devbox dbs and docker need it (host side: PODMAN_ENABLE=true)"
+  fi
+
+  title "Network"
+  if out="$(timeout 5 getent hosts github.com 2>/dev/null)"; then
+    item "dns" "github.com resolves ($(printf '%s' "$out" | awk 'NR == 1 { print $1 }'))"
+  else
+    item "dns" "github.com does not resolve"
+    finding "network: DNS does not resolve github.com"
+  fi
+  item "nameserver" "$(awk '/^nameserver/ { printf "%s ", $2 }' /etc/resolv.conf 2>/dev/null)"
+  if out="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 8 https://github.com 2>&1)"; then
+    item "https" "github.com answers (HTTP $out)"
+  else
+    item "https" "github.com unreachable: $out"
+    finding "network: no HTTPS to github.com"
+  fi
+  local proxy
+  proxy="${LLM_PROXY_URL:-$(from_devbox_env LLM_PROXY_URL)}"
+  if [ -n "$proxy" ]; then
+    if out="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$proxy" 2>&1)"; then
+      item "llm proxy" "answers (HTTP $out)"
+    else
+      item "llm proxy" "unreachable: $out"
+      finding "network: the LLM proxy does not answer"
+    fi
+  fi
+
+  title "Findings"
+  n="${#FINDINGS[@]}"
+  if [ "$n" -eq 0 ]; then
+    echo "  nothing obviously wrong in these facts"
+  else
+    printf '  - %s\n' "${FINDINGS[@]}"
+  fi
+  echo
+  echo "  Full procedure: $GUIDE"
+}
+
+# --- the agent ----------------------------------------------------------------
+launch() {
+  local agent prompt rc
+  prompt="$(build_prompt)"
+
+  if ! agent="$(dev-box-agent which 2>/dev/null)"; then
+    if [ -t 0 ] && [ -t 2 ] && [ "$MODE" = "agent" ]; then
+      # dev-box-agent asks for one with its menu, then remembers it.
+      echo "No default coding agent yet: pick one." >&2
+      exec dev-box-agent prompt "$prompt"
+    fi
+    echo "No default coding agent configured." >&2
+    echo "  Pick one: devbox agent set <name>" >&2
+    echo "  Without an agent: devbox diagnostic --report" >&2
+    exit 1
+  fi
+
+  if ! command -v "$agent" >/dev/null 2>&1; then
+    echo "The default agent '$agent' is not on the PATH." >&2
+    echo "  Pick another one: devbox agent set" >&2
+    echo "  Without an agent: devbox diagnostic --report" >&2
+    exit 1
+  fi
+
+  rc=0; has_credentials "$agent" || rc=$?
+
+  if [ "$MODE" = "dry-run" ]; then
+    echo "agent: $agent ($(command -v "$agent"))"
+    case "$rc" in
+      0) echo "login: credentials found" ;;
+      1) if $FORCE; then echo "login: no credentials found, started anyway (--force)"
+         else echo "login: no credentials found, would stop and say how to log in"; fi ;;
+      *) echo "login: cannot tell for $agent, would start it" ;;
+    esac
+    echo "command: dev-box-agent prompt <prompt>, which runs $agent with it"
+    printf 'prompt: %s\n' "$prompt"
+    exit 0
+  fi
+
+  if [ "$rc" -eq 1 ] && ! $FORCE; then
+    echo "$agent does not look logged in (no credentials found)." >&2
+    login_hint "$agent" >&2
+    echo "  Already logged in some other way: devbox diagnostic --force ..." >&2
+    echo "  Without an agent: devbox diagnostic --report" >&2
+    exit 1
+  fi
+
+  echo "Starting $agent on the diagnostic guide. It asks before changing anything." >&2
+  exec dev-box-agent prompt "$prompt"
+}
+
+case "$MODE" in
+  report)  report ;;
+  prompt)  build_prompt ;;
+  *)       launch ;;
+esac

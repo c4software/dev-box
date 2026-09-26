@@ -37,10 +37,12 @@ the same binary.
 | `check` | `dev-box-check-updates` | looks for what could be updated, writes the flag and prints it. `--image` only says whether the image is the latest, `--quiet` writes the flag and prints nothing (the entrypoint, `devbox update`). Installs nothing. |
 | `update` | `dev-box-update` | `[dotfiles\|tools\|seed\|all]`, default `all`. The only command that installs. |
 | `seed` | `dev-box-seed` | lays down the config shipped by the image. `--apply` with no menu, `--check` to look, `--force [path]` to take a new version. |
+| `override` | `dev-box-override` | lists where this box departs from what the image ships, and the command that goes back to the default for each. `--diff [path]` prints the changes in the files. Read only. |
 | `sync` | `dotarchy-sync` | clones or updates the dotfiles repo and applies the config. Never runs its install scripts. |
 | `dev-env` | `dev-box-dev-env` | installs or removes a dev environment with mise. `--list`, `--info <env>`, names as arguments (`--remove` to remove, `--if-missing` to skip what is there), or a menu. |
 | `tui` | `dev-box-tui` | installs or removes terminal apps from a catalogue (btop, lazydocker, atac, rainfrog, ...), through `devbox pkg`. `--list`, names as arguments (`--remove` to remove), or a menu. |
 | `dbs` | `dev-box-dbs` | starts a development database in a podman container. `--list`, `--start`, `--stop`, `--remove [--purge]`, or names, or a menu. |
+| `diagnostic` | `dev-box-diagnostic` | starts the default agent on the diagnostic guide (`diagnostic.md`) with the problem given as arguments. `--report` prints the facts with no agent, `--prompt` the instruction, `--dry-run` which agent would run. |
 | `agent` | `dev-box-agent` | the default coding agent. `set`, `which`, `prompt <text>`, `usage [claude\|codex\|proxy]`, or bare for a menu (run, pick, usage). |
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates, `DEV_ENVS` still installing or failed. |
 | `changelog` | `dev-box-changelog` | the release notes of the repo (GitHub releases), newest first. The 3 latest up to this image, `-n N`, `--all`, `--upcoming` for the releases after it; `--new` and `--mark-seen` are for the login and the entrypoint. |
@@ -212,6 +214,79 @@ proxy, from its usage route on `LLM_PROXY_URL`, except that the percentage next
 to the share bar is the cache hit rate of each model, the part of its input
 served from the cache, under a header line naming the columns. Cached tokens are the
 part of the input served from a cache and are never counted twice.
+
+## diagnostic
+
+`devbox diagnostic` hands a broken box to the default coding agent. The agent
+reads `diagnostic.md`, gathers facts with read-only commands, says what is
+wrong, and asks before changing anything.
+
+```bash
+devbox diagnostic "postgres does not start"   # the agent, on that problem
+devbox diagnostic                             # the agent, looking for anything wrong
+devbox diagnostic --report > ~/diagnostic.txt # the facts, no agent, to share
+devbox diagnostic --prompt "..."              # the instruction, to paste elsewhere
+devbox diagnostic --dry-run "..."             # which agent, which command line
+```
+
+The launch goes through `devbox agent prompt`, so the agent is the one of
+`devbox agent set`. With none set, a terminal gets the menu to pick one; a
+script gets the command to run. When the agent is `claude` or `codex` and no
+credentials are found (the file, an API key variable, or a provider in its
+settings), it stops and says how to log in; `--force` starts it anyway. The
+other agents cannot be told from outside and are started as they are.
+
+`--report` needs no agent: `devbox status`, system and disk, ownership of the
+home, the agent and whether it has credentials, `devbox seed --check`,
+`devbox migrate --pending`, `mise doctor` and missing tools, the `DEV_ENVS`
+flag and log, the persistent packages, podman and the `devbox-*` containers,
+DNS, HTTPS and the LLM proxy, then a list of findings. Every command is read
+only and bounded by a timeout, and it prints no secret: the presence of a
+credential file is tested, never its content, and `/etc/devbox/env` is never
+printed.
+
+## override
+
+`devbox override` lists the overrides of this box: everything where it departs
+from what the image ships, where that lives, and an `undo:` line with the
+command that goes back to the default. It is the first thing to read when the
+box behaves differently from another one built from the same image.
+
+```bash
+devbox override                                    # the list, by kind
+devbox override --diff                             # every file override, as a unified diff
+devbox override --diff ~/.config/mise/config.toml  # one file
+```
+
+What it reports, and how it knows:
+
+- the seeded config (the `SEEDS` table of `dev-box-seed`) that differs from the
+  version in `/etc/devbox/`; a file equal to its reference copy in
+  `~/.config/dev-box/seed/` is not the user's doing and is left out. For the
+  mise config, the tools added, removed or pinned to another version;
+- the files of `~/.config/dev-box/overrides/`, whether they replace a dotarchy
+  file, and whether `devbox sync` has applied them yet;
+- the dotfiles changed or deleted since the last `devbox sync` (compared with
+  the dotarchy clone, nvim left out), which the next sync overwrites; the
+  `undo:` line also gives the copy into `overrides/` that keeps the change;
+- `~/.config/dev-box/dev-envs/`, the scripts in `~/.local/bin` that shadow a
+  command of `/usr/local/bin` or `/usr/bin`, the default agent, the packages
+  of `devbox pkg`;
+- the `.env` settings the box can see from any shell: `TS_DISABLE`,
+  `DEV_ENVS` and `LLM_PROXY_URL` (from `/etc/devbox/env`), `PODMAN_ENABLE`
+  (`/etc/devbox/podman.state`), `DOTARCHY_*` (`/etc/devbox/dotarchy.env`),
+  `USER_NAME`, `USER_SHELL`, `TS_HOSTNAME`, and `PROJECTS_DIR` when the home
+  is at `./data/home`;
+- what `compose.override.yaml` adds to the container, read from the kernel:
+  extra volumes (`/proc/self/mountinfo`), `mem_limit` and `cpus` (cgroup v2),
+  devices beyond `/dev/net/tun`, capabilities added or dropped, and the
+  `security_opt` of the podman block (seccomp, `/proc/sys` writable, AppArmor
+  where it is active).
+
+Variables that only PID 1 sees (`UPDATE_CHECK_INTERVAL`,
+`MISE_INSTALL_ON_START`, `TS_EXTRA_ARGS`, ...) are not listed: an SSH session
+cannot read them. Nothing is written and nothing goes over the network; the
+`undo:` lines are printed, never run.
 
 ## motd
 
