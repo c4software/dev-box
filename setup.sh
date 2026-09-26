@@ -238,12 +238,19 @@ fetch() {
 
 # --- Install directory ---
 say ""
-dir="$(expand_home "$(ask "Install directory (compose file, .env, and data/ with your home)" "$HOME/dev-box")")"
+# shellcheck disable=SC2088 # a ~ shown to the user, expanded by expand_home
+dir="$(expand_home "$(ask "Install directory (compose file, .env, and data/ with your home)" "~/dev-box")")"
 mkdir -p "$dir" || die "cannot create $dir"
 DIR="$(cd "$dir" && pwd)"
+# The directory as shown in messages: ~ for the home, shorter to read.
+# shellcheck disable=SC2088 # shown, never expanded
+case "$DIR" in
+  "$HOME"/*) SHOW_DIR="~/${DIR#"$HOME"/}" ;;
+  *) SHOW_DIR="$DIR" ;;
+esac
 
 if [ -f "$DIR/Dockerfile" ]; then
-  die "$DIR is a clone of the dev-box repo, which builds its own image.
+  die "$SHOW_DIR is a clone of the dev-box repo, which builds its own image.
   Run docker compose up -d --build there, or run this again with another directory."
 fi
 
@@ -254,7 +261,7 @@ if [ "$on_windows" = 1 ]; then
 fi
 case "$DIR" in
   /mnt/[a-z]/*)
-    [ "$on_wsl" = 1 ] && warn "$DIR is on the Windows drive: slow through WSL. A directory under ~ is better."
+    [ "$on_wsl" = 1 ] && warn "$SHOW_DIR is on the Windows drive: slow through WSL. A directory under ~ is better."
     ;;
 esac
 
@@ -262,7 +269,7 @@ mode=install
 if [ -f "$DIR/.env" ]; then
   mode=update
 elif [ -n "$(ls -A "$DIR" 2>/dev/null)" ] && [ ! -f "$DIR/compose.yaml" ] && [ ! -d "$DIR/data" ]; then
-  die "$DIR is not empty and holds no dev-box: run this again with an empty or new directory"
+  die "$SHOW_DIR is not empty and holds no dev-box: run this again with an empty or new directory"
 fi
 
 # --- Shipped files: replaced only when the installed copy is still the one
@@ -372,15 +379,15 @@ check_container_clash() {
 # --- Update of an existing install ---
 if [ "$mode" = update ]; then
   say ""
-  say "Existing install found in $DIR: .env, compose.override.yaml and data/ are left as they are."
+  say "Existing install found in $SHOW_DIR: .env, compose.override.yaml and data/ are left as they are."
   image_in_env="$(env_get DEVBOX_IMAGE)"
   if [ -z "$image_in_env" ]; then
-    die "DEVBOX_IMAGE is empty in $DIR/.env, and this directory has no Dockerfile to build from.
+    die "DEVBOX_IMAGE is empty in $SHOW_DIR/.env, and this directory has no Dockerfile to build from.
   Set DEVBOX_IMAGE=$IMAGE in it, then run this again."
   fi
   if ! ask_yn "Pull the latest image ($image_in_env) and restart the box?" y; then
     say "Files refreshed, nothing else done. To update later:"
-    say "  cd $DIR"
+    say "  cd $SHOW_DIR"
     say "  docker compose pull && docker compose up -d"
     exit 0
   fi
@@ -392,7 +399,7 @@ if [ "$mode" = update ]; then
   docker compose up -d --no-build
   say ""
   say "The box runs on the latest image. Your home and projects are untouched."
-  say "  logs:     cd $DIR && docker compose logs -f"
+  say "  logs:     cd $SHOW_DIR && docker compose logs -f"
   say "  in-box:   devbox update (dotfiles, tools, shipped config), devbox changelog"
   exit 0
 fi
@@ -400,7 +407,7 @@ fi
 # --- New install: the questions ---
 if [ -n "$(ls -A "$DIR/data/home" 2>/dev/null)" ]; then
   say ""
-  say "$DIR/data/home already holds a home, from an earlier install whose .env is gone."
+  say "$SHOW_DIR/data/home already holds a home, from an earlier install whose .env is gone."
   say "The new box will start on it, nothing in it is erased."
   if ! ask_yn "Continue with it?" y; then
     say "Stopped, nothing changed apart from the shipped files."
@@ -434,7 +441,8 @@ host_tz() {
 default_ssh_key_file() {
   for k in id_ed25519 id_ecdsa id_rsa; do
     if [ -f "$HOME/.ssh/$k.pub" ]; then
-      printf '%s' "$HOME/.ssh/$k.pub"
+      # shellcheck disable=SC2088 # shown as ~, read_keys expands it
+      printf '%s' "~/.ssh/$k.pub"
       return
     fi
   done
@@ -464,7 +472,7 @@ read_keys() {
 }
 
 say ""
-say "A few questions. Enter keeps the value shown; everything can be changed later in $DIR/.env."
+say "A few questions. Enter keeps the value shown; everything can be changed later in $SHOW_DIR/.env."
 say ""
 
 # User
@@ -570,7 +578,7 @@ if [ "$podman" = yes ]; then env_set PODMAN_ENABLE true; else env_set PODMAN_ENA
 chmod 600 "$DIR/.env.new"
 mv "$DIR/.env.new" "$DIR/.env"
 say ""
-say "Wrote $DIR/.env"
+say "Wrote $SHOW_DIR/.env"
 
 if [ "$podman" = yes ]; then
   if [ -f "$DIR/compose.override.yaml" ]; then
@@ -590,7 +598,7 @@ services:
       - systempaths=unconfined
       - apparmor=unconfined
 YAML
-    say "Wrote $DIR/compose.override.yaml (the podman settings)"
+    say "Wrote $SHOW_DIR/compose.override.yaml (the podman settings)"
   fi
 fi
 
@@ -604,7 +612,7 @@ case "$projects" in
 esac
 
 cd "$DIR"
-docker compose config -q || die "docker compose rejects the configuration in $DIR, see above"
+docker compose config -q || die "docker compose rejects the configuration in $SHOW_DIR, see above"
 
 # --- What to do next ---
 next_steps() {
@@ -618,7 +626,7 @@ next_steps() {
   fi
   say "  docker exec -it -u $user $container zsh -l   always works, on this host"
   say ""
-  say "In $DIR:"
+  say "In $SHOW_DIR:"
   say "  docker compose logs -f                        what the box is doing"
   say "  docker compose pull && docker compose up -d   update to the latest image"
   say "  run the install command again                 same, and refreshes compose.yaml"
@@ -628,14 +636,14 @@ next_steps() {
   say ""
   say "Documentation: https://github.com/$REPO_SLUG/tree/main/docs"
   say ""
-  say "Uninstall: cd $DIR && docker compose down --rmi all, then delete $DIR"
+  say "Uninstall: cd $SHOW_DIR && docker compose down --rmi all, then delete $SHOW_DIR"
   say "  (that deletes your home and projects in data/; some files there belong to root: sudo rm -rf on Linux)"
 }
 
 say ""
 if ! ask_yn "Pull the image and start the box now?" y; then
   say "Nothing started. To start it later:"
-  say "  cd $DIR"
+  say "  cd $SHOW_DIR"
   say "  docker compose pull && docker compose up -d"
   next_steps
   exit 0
@@ -664,7 +672,7 @@ if [ "$access" = tailscale ] && [ -z "$ts_authkey" ] && [ ! -s "$DIR/data/tailsc
     say "  Open this URL to attach the box to your tailnet, once:"
     say "    $url"
   else
-    say "  Not printed yet: follow docker compose logs -f in $DIR, it shows the URL."
+    say "  Not printed yet: follow docker compose logs -f in $SHOW_DIR, it shows the URL."
   fi
 fi
 
