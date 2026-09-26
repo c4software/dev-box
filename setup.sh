@@ -2,12 +2,15 @@
 # Installs a dev-box from the published image, without cloning the repo and
 # without building anything:
 #
+#   curl -fsSL https://cours.brosseau.ovh/devbox.sh | sh
+#
+# Piping a download into sh is a bad habit: it runs code nobody read, and a
+# truncated one if the download is cut. Better, download it first, read it,
+# then run it:
+#
 #   curl -fsSLo devbox.sh https://cours.brosseau.ovh/devbox.sh
 #   less devbox.sh
 #   sh devbox.sh
-#
-# Download it, read it, then run it: piping it straight into sh would run
-# code nobody read, and a truncated one if the download is cut.
 #
 # That address redirects to this file on GitHub:
 # https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh
@@ -45,7 +48,8 @@ die() {
 
 [ $# -eq 0 ] || die "setup.sh takes no option: run it without any, it asks its questions"
 
-# The questions are read from /dev/tty, not from stdin.
+# The questions are read from /dev/tty, not from stdin, so they work when the
+# script is piped into sh.
 (: </dev/tty) 2>/dev/null || die "no terminal to ask the questions on: run it from a terminal"
 interrupted() {
   stty echo </dev/tty 2>/dev/null || true
