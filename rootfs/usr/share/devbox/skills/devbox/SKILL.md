@@ -13,7 +13,7 @@ description: >
   with Taildrop, checking how a web page renders (screenshot of a dev server,
   headless chromium, playwright or puppeteer in the box), and any change to
   the dev-box repository (Dockerfile, rootfs/,
-  compose.yaml, justfile, README, docs/). Triggers: devbox, dev-box, dev-box-update,
+  compose.yaml, setup.sh, scripts/, README, docs/). Triggers: devbox, dev-box, dev-box-update,
   dev-box-seed, dev-box-dev-env, dev-box-pkg, dev-box-agent, mise config, box
   update, rebuild the image, "install go/python/ruby in the box", "install a
   pacman package", "screenshot the page", "check the layout", "headless
@@ -78,8 +78,8 @@ Write here instead:
 | `~/projets/dev-box` (a clone) | everything that must survive a rebuild |
 | `~/` generally | your own files |
 
-A change that must survive a rebuild goes in the repository, followed by
-`just rebuild` on the host. There is no other path. See `extending.md`.
+A change that must survive a rebuild goes in the repository, followed by a
+rebuild of the container on the host. There is no other path. See `extending.md`.
 
 `sudo` works without a password in the box, which makes it easy to write in the
 wrong place. Passwordless is not permission.
@@ -135,8 +135,9 @@ Never guess a command name. Run `devbox commands`.
 
 ## Out of Scope
 
-- The host. `just up`, `just rebuild`, `just backup` and the Compose commands
-  run on the machine hosting the container, not in here. The box can print the
+- The host. The Compose commands (`docker compose up -d`, `docker compose
+  build`, `docker compose pull`) and `scripts/backup.sh` run on the machine
+  hosting the container, not in here. The box can print the
   command to run, it cannot run it.
 - The dotarchy dotfiles content. The box consumes that repository, it does not
   own it.

@@ -1,9 +1,9 @@
 # Changing the box for good
 
 The rule has one sentence. A lasting change is made in the dev-box repository
-and takes effect with `just rebuild` on the host. Everything else is temporary,
-and it is temporary in the worst way: it keeps working until the rebuild, then
-it is gone with no error.
+and takes effect once the container is rebuilt on the host. Everything else is
+temporary, and it is temporary in the worst way: it keeps working until the
+rebuild, then it is gone with no error.
 
 ```
 /usr/local/bin/      an edit here is lost on the next rebuild
@@ -146,7 +146,7 @@ headers `devbox` reads:
 
 There is nothing to register anywhere. `devbox` finds it on the next start.
 Keep the existing file names and their options untouched: the README, the
-pages of `docs/`, the `justfile` and `entrypoint.sh` call them by name. Add
+pages of `docs/`, `setup.sh` and `entrypoint.sh` call them by name. Add
 the command to the table of `docs/commands.md`.
 
 ### A migration for existing boxes
@@ -217,8 +217,8 @@ git push origin v1.7
 The first line is what the login shows, next to the tag: make it a summary
 (a leading `v1.7: ` is dropped). The workflow builds the image, then creates
 the release with that text.
-`devbox check` saves the notes in the box, and the first login after `just
-pull` shows them. A release edited on GitHub afterwards is picked up at the next
+`devbox check` saves the notes in the box, and the first login after the
+image is pulled and the container restarted shows them. A release edited on GitHub afterwards is picked up at the next
 check. Keep Markdown headings out of the notes: they are flattened.
 
 ### A guide in this skill
@@ -267,8 +267,9 @@ iterate faster, but the real check is always a fresh build.
 Commit, push, and on the host:
 
 ```bash
-just rebuild    # fresh base image, packages refreshed, container restarted
+# fresh base image, packages refreshed, container restarted
+docker compose build --pull --no-cache && docker compose up -d
 ```
 
-`just up` is enough when only `rootfs/` changed and the Arch packages can stay
-where they are.
+`docker compose up -d --build` is enough when only `rootfs/` changed and the
+Arch packages can stay where they are.

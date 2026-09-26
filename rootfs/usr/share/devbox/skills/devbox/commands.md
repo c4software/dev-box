@@ -26,8 +26,8 @@ print their usage. Scripts and the entrypoint always give arguments; the
 explicit forms are `update all`, `migrate --run` and `seed --apply`.
 
 Every command is still on `PATH` under its own name, and that is the name to
-use in scripts and in the `justfile`: `devbox update` and `dev-box-update` are
-the same binary.
+use in scripts and in a `docker exec` from the host: `devbox update` and
+`dev-box-update` are the same binary.
 
 ## The commands
 
@@ -466,8 +466,17 @@ The host owns the container. These run on the machine hosting it, never in
 here, and the box can only print them:
 
 ```
-just up        just rebuild     just down      just status
-just backup    just restore     just update
+docker compose up -d                                  start, or restart after an .env change
+docker compose up -d --build                          local build, then start
+docker compose build --pull --no-cache && docker compose up -d
+                                                      rebuild from a fresh base
+docker compose pull && docker compose up -d           published image
+docker compose logs -f                                entrypoint logs
+docker compose down                                   stop and remove (data/ is kept)
+docker exec -it -u <user> dev-box zsh -l              a shell in the box
+scripts/backup.sh    scripts/restore.sh <archive>     backups
 ```
 
-`just update <what>` simply runs `dev-box-update <what>` in the box.
+`devbox update` runs in here; from the host it is
+`docker exec -u <user> dev-box dev-box-update <what>`. The state of the image
+against the repo is `devbox status` or `devbox check --image`, in here.

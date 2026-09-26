@@ -17,7 +17,7 @@ log() { echo "[dev-box-update] $*"; }
 rc=0
 
 # Without arguments: a gum menu on a terminal, everything otherwise (the
-# justfile and scripts pass what they want explicitly).
+# scripts pass what they want explicitly).
 if [ -z "$WHAT" ]; then
   WHAT="all"
   if [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1; then

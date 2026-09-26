@@ -9,9 +9,10 @@ anything beyond a typo.
 
 `rootfs/` mirrors the image: `rootfs/usr/local/bin/devbox` in the repo becomes
 `/usr/local/bin/devbox` in the container. The `Dockerfile` builds the image,
-`compose.yaml` runs it, the `justfile` wraps the host commands. The user's home
-lives in `./data/home` and survives every rebuild. That last point is the whole
-reason for the rule below.
+`compose.yaml` runs it, `setup.sh` installs a box without a clone and
+`scripts/` holds the host backup and restore. The user's home lives in
+`./data/home` and survives every rebuild. That last point is the whole reason
+for the rule below.
 
 ## The rule: a structural change ships with a migration
 
@@ -74,7 +75,7 @@ respect:
 | User documentation | `README.md` for the essentials, `docs/<topic>.md` for the rest, linked from the Documentation list of the README |
 
 Keep existing file names and their options untouched: the README, the pages
-of `docs/`, the `justfile` and `entrypoint.sh` call them by name.
+of `docs/`, `setup.sh` and `entrypoint.sh` call them by name.
 
 ## Conventions
 
@@ -102,5 +103,10 @@ fresh build followed by `devbox migrate --list` and `devbox seed --check`.
 
 ## Then
 
-Commit, push, and on the host `just rebuild` (or `just up` when only `rootfs/`
-changed).
+Commit, push, and on the host rebuild the container from a fresh base:
+
+```bash
+docker compose build --pull --no-cache && docker compose up -d
+```
+
+`docker compose up -d --build` is enough when only `rootfs/` changed.

@@ -2,13 +2,15 @@ services:
   dev-box:
     # Name of the image to run. Left empty, the local build keeps Compose's
     # default name. Set to the published image (ghcr.io/c4software/dev-box,
-    # built by the GitHub workflow) to skip the build: `just pull`.
+    # built by the GitHub workflow) to skip the build:
+    # `docker compose pull && docker compose up -d`.
     image: ${DEVBOX_IMAGE:-dev-box-dev-box}
     build:
       context: .
       # Repo commit baked into the image (/etc/devbox/release): the update
-      # check inside the box compares it with the remote repo. Set by the
-      # justfile; left empty, the Dockerfile reads them from the clone itself.
+      # check inside the box compares it with the remote repo. Taken from the
+      # environment when set; left empty, the Dockerfile reads them from the
+      # clone itself.
       args:
         DEVBOX_COMMIT: ${DEVBOX_COMMIT:-}
         DEVBOX_REPO: ${DEVBOX_REPO:-}

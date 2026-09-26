@@ -17,7 +17,7 @@ is_installed() { command -v php >/dev/null 2>&1; }
 
 install() {
   command -v php >/dev/null 2>&1 || {
-    err "php is missing from the image: add php composer php-sqlite xdebug to the Dockerfile, then just rebuild"
+    err "php is missing from the image: add php composer php-sqlite xdebug to the Dockerfile, then rebuild the container"
     return 1
   }
   log "$(php -v | head -n 1)"

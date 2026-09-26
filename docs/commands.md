@@ -71,7 +71,7 @@ Adding a command therefore means dropping a `dev-box-<name>` script in
 `rootfs/usr/local/bin/` with those three lines. Nothing to register anywhere.
 
 Every one of them keeps its own name on `PATH`, so `dev-box-update dotfiles`
-and `devbox update dotfiles` are the same thing. The `justfile` and the
+and `devbox update dotfiles` are the same thing. The scripts and the
 entrypoint call the binaries directly. `dev-box-podman` carries `hidden=true`:
 it is the wrapper behind the `docker` and `podman` symlinks, not a command you
 call. `dev-box-tailscale` and `dev-box-serve` carry `requires=tailscale`: with

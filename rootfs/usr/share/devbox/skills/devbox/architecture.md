@@ -7,8 +7,8 @@ remember.
 
 Everything below comes from the `rootfs/` directory of the dev-box repository
 and is copied into the image at build time. It is read only in practice: a
-change made here survives until the next `just rebuild` on the host, then
-vanishes without warning.
+change made here survives until the next rebuild of the container on the
+host, then vanishes without warning.
 
 | Path | Holds |
 |---|---|
@@ -117,6 +117,7 @@ gives a plain shell.
 `docker` and `podman` on `PATH` are symlinks to `dev-box-podman`, a wrapper. If
 rootless podman is not enabled, the wrapper says so and lists the three steps to
 enable it, instead of letting podman fail on an obscure error. Those steps are
-host-side: a Compose override block, `PODMAN_ENABLE=true`, then `just up`.
+host-side: a Compose override block, `PODMAN_ENABLE=true`, then a restart of
+the container (`docker compose up -d`).
 Enabling it loosens the box's own isolation, which is why it is off by default.
 `PODMAN_FORCE=1`, or `/usr/bin/podman`, bypasses the wrapper.

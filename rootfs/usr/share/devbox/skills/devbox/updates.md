@@ -18,8 +18,9 @@ It compares five things:
 2. **the image**: `/etc/devbox/release`, burned in at build time, against the
    dev-box repository it came from, with `git ls-remote`. The image published
    by the workflow (`DEVBOX_SOURCE=release`) is compared with the newest `v*`
-   tag: a newer tag means `just pull` on the host. A local build is compared
-   with the head of its branch: a newer commit means `just rebuild`. A build
+   tag: a newer tag means pulling the image and restarting the container on
+   the host. A local build is compared with the head of its branch: a newer
+   commit means rebuilding the container on the host. A build
    with no `.git` in its context records `unknown` and the check is skipped.
    `devbox check --image` answers this one question on the spot, up to date
    or not, and `devbox changelog --upcoming` shows the notes of the releases
@@ -121,12 +122,13 @@ be reported and never forced. That is expected, not a bug.
 
 ## What the box cannot update
 
-The image itself. That line in the flag points at `just pull` (published
-image) or `just rebuild` (local build) on the host.
+The image itself. That line in the flag says to pull the image and restart
+the container (published image) or to rebuild the container (local build) on
+the host.
 From inside the box there is nothing to do about it, and no amount of `sudo
 pacman -Syu` will help: those packages are gone on the next rebuild anyway.
 
-`just status` on the host makes the same image comparison, and `devbox status`
-shows the version and the commit the running image was built from.
+`devbox check --image` makes that image comparison on the spot, and `devbox
+status` shows the version and the commit the running image was built from.
 `devbox update` recomputes the flag at the end (`dev-box-check-updates
 --quiet`) and lists what is still waiting, the image line first among them.

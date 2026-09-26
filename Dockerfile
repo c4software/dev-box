@@ -71,10 +71,12 @@ RUN pacman -Syu --noconfirm --needed --disable-sandbox \
 
 COPY rootfs/ /
 # Commit of the dev-box repo the image was built from: dev-box-check-updates
-# compares it with the remote repo. The justfile passes it as build args; a
-# bare `docker compose build` leaves them empty and the build reads the clone
-# it runs from instead (the context is mounted read-only, nothing is copied
-# into the image). A context with no .git (a tarball) records "unknown".
+# compares it with the remote repo. The build args are empty by default
+# (compose.yaml passes them from the environment, the GitHub workflow sets
+# them) and the build then reads the clone it runs from instead: commit,
+# origin, branch and git describe (the context is mounted read-only, nothing
+# is copied into the image). A context with no .git (a tarball) records
+# "unknown".
 ARG DEVBOX_COMMIT=
 ARG DEVBOX_REPO=
 ARG DEVBOX_BRANCH=

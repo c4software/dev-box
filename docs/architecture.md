@@ -6,9 +6,9 @@ The image is disposable, the home is not.
 
 - **The image** comes from the repository: `rootfs/` mirrors it, so
   `rootfs/usr/local/bin/devbox` in the repo becomes `/usr/local/bin/devbox` in
-  the container. The `Dockerfile` builds it, `compose.yaml` runs it, the
-  `justfile` wraps the host commands. System packages come from pacman, in the
-  image. Anything changed in `/usr/local/bin`, `/etc/devbox` or
+  the container. The `Dockerfile` builds it, `compose.yaml` runs it,
+  `setup.sh` installs a box without a clone and `scripts/` holds the backup and
+  restore. System packages come from pacman, in the image. Anything changed in `/usr/local/bin`, `/etc/devbox` or
   `/usr/share/devbox` inside the box is lost on the next rebuild.
 - **The home** lives in `./data/home` on the host and survives every rebuild
   (see [backup.md](backup.md#what-persists)). Dev tools come from mise, in the

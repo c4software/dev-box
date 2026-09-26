@@ -19,10 +19,7 @@ There are two ways to install a box:
   (the `docker` group on Linux). With `sudo`, the box would land in root's home.
 - `/dev/net/tun` present, which is the case on stock kernels, Raspberry Pi OS
   included.
-- `zstd` for `just backup` and `just restore`.
-- [just](https://just.systems) is optional: `sudo pacman -S just` on Arch,
-  `mise use -g just` anywhere else (it is not in apt). Without it, run the
-  `docker compose` commands by hand.
+- `zstd` for `scripts/backup.sh` and `scripts/restore.sh`.
 - **Windows**: run everything inside WSL 2 (Ubuntu, with the Docker Desktop WSL
   integration on), with the install directory in the Linux home. Git Bash works
   but puts `data/` on the Windows file system, which is slow through Docker
@@ -70,8 +67,8 @@ in the background: a few minutes before everything is there.
 
 In the install directory, the box is driven with `docker compose` directly
 (`docker compose logs -f`, `docker compose pull && docker compose up -d`), and
-`scripts/backup.sh` and `scripts/restore.sh` handle backups. The `justfile`
-belongs to the clone and build path below.
+`scripts/backup.sh` and `scripts/restore.sh` handle backups (see
+[Host commands](#host-commands)).
 
 ### Options
 
@@ -138,7 +135,7 @@ Other cases it handles:
 The same update by hand, in the install directory:
 
 ```bash
-docker compose pull && docker compose up -d    # or: just pull
+docker compose pull && docker compose up -d
 ```
 
 ### Uninstalling
@@ -168,7 +165,7 @@ cd dev-box
 2. Build and start:
 
    ```bash
-   docker compose up -d --build     # or: just up
+   docker compose up -d --build
    docker compose logs -f
    ```
 
@@ -201,8 +198,9 @@ tag is pushed, and only then, and publishes it on `ghcr.io/c4software/dev-box`
 for amd64 and arm64 (native runners, one manifest), always as `latest` and
 under no other tag. A push on `main` publishes nothing: a release is a
 deliberate act, `git tag -a v0.3.0 && git push origin v0.3.0`. Each run starts
-from a fresh base with no layer cache, the same as `just rebuild`, so nothing
-is ever frozen at a previous build.
+from a fresh base with no layer cache, the same as
+`docker compose build --pull --no-cache`, so nothing is ever frozen at a
+previous build.
 
 To run it instead of building locally, set the image in `.env` (the setup
 script does this for you):
@@ -211,14 +209,14 @@ script does this for you):
 DEVBOX_IMAGE=ghcr.io/c4software/dev-box:latest
 ```
 
-`just up` and `just rebuild` then pull instead of building, `just pull` does the
-same on purpose, and the `Dockerfile` is never run on the host. Everything else
+then pull and start it with `docker compose pull && docker compose up -d`: the
+`Dockerfile` is never run on the host. Everything else
 in `.env` applies unchanged: it is read by Compose at run time, not at build
 time, so the user, the volumes, Tailscale, the dotfiles and the dev
 environments are exactly as customisable on the published image as on a local
 build. The image has no idea which `.env` will run it. It is a plain rolling
-Arch: `just pull` fetches whatever the last workflow run produced, no more
-often than you decide.
+Arch: `docker compose pull` fetches whatever the last workflow run produced, no
+more often than you decide.
 
 The published image records its tag, and the box tells you when a newer
 release exists (see [updates.md](updates.md#the-image)).
@@ -246,8 +244,7 @@ confirmed on a real Pi, together with `/dev/fuse` and the AppArmor setup of
 Raspberry Pi OS.
 
 On the host: Docker >= 24 with Compose v2 on Raspberry Pi OS 64-bit, plus the
-requirements listed at the top of this page. `just` is not in apt: use
-`mise use -g just`, or run the `docker compose` commands by hand.
+requirements listed at the top of this page.
 
 Building on the Pi takes a while, because of `base-devel`, neovim and
 tree-sitter. Expect the first build to be measured in tens of minutes, not
@@ -255,31 +252,30 @@ minutes. The published image avoids it.
 
 ## Host commands
 
-A `justfile` at the root wraps the Compose invocations you would otherwise type
-by hand. Run `just` to list everything:
+Everything on the host goes through `docker compose`, run in the install
+directory or the clone. Compose reads `.env` by itself.
 
 | Command | Does |
 | --- | --- |
-| `just up` | Build if needed (or pull with `DEVBOX_IMAGE`) and start the box |
-| `just rebuild` | Update Arch: rebuild from a fresh base image (or pull), then restart |
-| `just pull` | Pull the published image (`DEVBOX_IMAGE` in `.env`) and restart on it |
-| `just down` | Stop and remove the container (`./data/` is kept) |
-| `just restart` | Restart without rebuilding |
-| `just logs` | Follow the entrypoint logs (last 100 lines) |
-| `just status` | Container state, healthcheck, and whether the image lags the repo |
-| `just shell` | `zsh -l` inside the box, as your user |
-| `just ssh` | SSH in, through Tailscale or the published port |
-| `just update [what]` | Run `dev-box-update` in the box, same as `devbox update` (`dotfiles`, `tools`, `seed`, `all`) |
-| `just backup [dest]` | Write a backup archive (see [backup.md](backup.md)) |
-| `just restore <archive>` | Restore one |
+| `docker compose up -d` | Start the box, or restart it after a change to `.env` or `compose.override.yaml` |
+| `docker compose up -d --build` | Build the image from the clone if needed, then start |
+| `docker compose build --pull --no-cache && docker compose up -d` | Update Arch: rebuild from a fresh base image, then restart |
+| `docker compose pull && docker compose up -d` | Pull the published image (`DEVBOX_IMAGE` in `.env`) and restart on it |
+| `docker compose down` | Stop and remove the container (`./data/` is kept) |
+| `docker compose restart` | Restart without rebuilding |
+| `docker compose logs -f --tail=100` | Follow the entrypoint logs |
+| `docker compose ps` | Container state and healthcheck |
+| `docker exec -it -u <user> dev-box zsh -l` | A login shell inside the box, as your user |
+| `scripts/backup.sh [dest]` | Write a backup archive (see [backup.md](backup.md)) |
+| `scripts/restore.sh <archive>` | Restore one |
 
-![Output of just --list on the host, showing the available recipes with their descriptions](screenshots/just-list.png)
+Rebuild with `--pull --no-cache` when Arch moves. `--pull` alone is not
+enough: as long as the base image keeps the same digest, the `pacman -Syu`
+layer stays cached and the packages remain frozen at the date of the first
+build.
 
-Use `just rebuild` when Arch moves. It runs
-`docker compose build --pull --no-cache`. `--pull` alone is not enough: as long
-as the base image keeps the same digest, the `pacman -Syu` layer stays cached
-and the packages remain frozen at the date of the first build.
-
-The recipes read `.env`, so `just shell` and `just ssh` follow `USER_NAME`,
-`TS_HOSTNAME`, `TS_DISABLE`, `SSH_BIND` and `SSH_PORT` without extra
-configuration.
+Updates of the dotfiles, the tools and the shipped config run inside the box
+with `devbox update` (from the host,
+`docker exec -u <user> dev-box dev-box-update all`). Whether the image lags
+its repository is also answered inside: `devbox status` or
+`devbox check --image`.

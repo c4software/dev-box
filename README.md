@@ -116,7 +116,7 @@ belong to root: on Linux, `sudo rm -rf ~/dev-box`.
 ## Documentation
 
 - [Installing](docs/manual-install.md): setup script options, install from a
-  clone, the prebuilt image, Raspberry Pi, the `just` host commands
+  clone, the prebuilt image, Raspberry Pi, the host commands
 - [Customizing](docs/customization.md): `.env` settings,
   `compose.override.yaml`, dotfiles overrides, seeded files, your own dev
   environments and wrappers, `devbox override`

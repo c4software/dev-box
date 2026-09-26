@@ -3,13 +3,15 @@
 # One native build per architecture (amd64 and arm64 runners, no qemu), each
 # pushed by digest, then a single multi-arch manifest, always tagged latest
 # and nothing else. Every build starts from a fresh base image with no layer
-# cache, exactly like `just rebuild`: an Arch image built from a cached pacman
-# layer would carry packages frozen at the first build.
+# cache, exactly like `docker compose build --pull --no-cache`: an Arch image
+# built from a cached pacman layer would carry packages frozen at the first
+# build.
 #
 # Only a v* tag builds. A push on main publishes nothing, so a release is a
 # deliberate act (git tag -a v0.3.0 && git push origin v0.3.0), and a box
-# pulls it only when its owner runs `just pull`. The image records its tag,
-# and dev-box-check-updates compares it with the newest v* tag of the repo.
+# pulls it only when its owner pulls the image and restarts the container.
+# The image records its tag, and dev-box-check-updates compares it with the
+# newest v* tag of the repo.
 #
 # Once the image is out, the tag becomes a GitHub release whose notes are the
 # annotation of the tag: that is the changelog `devbox changelog` shows in the
