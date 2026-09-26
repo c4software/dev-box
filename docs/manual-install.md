@@ -103,6 +103,7 @@ In this order, with their default. Enter keeps the default.
 | Tailscale auth key (Tailscale only, hidden) | none | `TS_AUTHKEY`; without one, a login URL is printed to open once |
 | GitHub user whose public keys are allowed in (SSH only) | none | `SSH_AUTHORIZED_KEYS`: the keys published at `https://github.com/USER.keys`; asked again if the account has none |
 | Public key of this machine allowed in (SSH only) | the first of `~/.ssh/id_{ed25519,ecdsa,rsa}.pub` | `SSH_AUTHORIZED_KEYS`, added to the GitHub keys: a `.pub` file or the key itself; empty (when `~/.ssh` holds none) skips it. With no key at all, sshd does not start |
+| Add another key? (SSH only), asked until no | no | `SSH_AUTHORIZED_KEYS`, added to the others: a `.pub` file, the key itself, or `github:USER`; another machine, another account |
 | SSH port on this host (SSH only) | `2222` | `SSH_PORT` |
 | Address the SSH port listens on (SSH only): `127.0.0.1` or `0.0.0.0` | `127.0.0.1` | `SSH_BIND`: `127.0.0.1` is this machine only, `0.0.0.0` the LAN too |
 | GitHub token (hidden) | none | `GITHUB_TOKEN`: a token with no scope, recommended, avoids the GitHub API rate limit while tools install |

@@ -537,8 +537,26 @@ else
     local_keys="$(read_keys "$ssh_key")" && break
     warn "not a public key, nor a file of public keys: $ssh_key"
   done
-  # Both lists together, each key once.
-  ssh_keys="$(printf '%s\n%s\n' "$gh_keys" "$local_keys" | awk 'NF && !seen[$0]++')"
+  # More keys, as many as wanted: another machine, another GitHub account.
+  more_keys=""
+  while ask_yn "Add another key?" n; do
+    while :; do
+      ssh_key="$(ask "Key to add (a .pub file, the key itself, or github:<user>; empty to stop)" "")"
+      [ -n "$ssh_key" ] || break
+      if keys="$(read_keys "$ssh_key")"; then
+        more_keys="$(printf '%s\n%s' "$more_keys" "$keys")"
+        say "  $(printf '%s\n' "$keys" | grep -c .) public key(s) added"
+        break
+      fi
+      case "$ssh_key" in
+        github:*) warn "no public key found at https://github.com/${ssh_key#github:}.keys" ;;
+        *) warn "not a public key, nor a file of public keys: $ssh_key" ;;
+      esac
+    done
+  done
+  # Every list together, each key once.
+  ssh_keys="$(printf '%s\n%s\n%s\n' "$gh_keys" "$local_keys" "$more_keys" | awk 'NF && !seen[$0]++')"
+  say "  $(printf '%s\n' "$ssh_keys" | grep -c .) public key(s) allowed in"
   if [ -z "$ssh_keys" ]; then
     warn "no public key: sshd will not start. Add one to SSH_AUTHORIZED_KEYS in .env later,
   or get in with docker exec -it -u $user $container zsh -l"
