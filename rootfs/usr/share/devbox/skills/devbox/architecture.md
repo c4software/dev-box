@@ -84,6 +84,14 @@ reference is what lets it tell "never touched" from "you changed it":
 - **different from the reference**: nothing is overwritten. The box says a new
   version exists and prints `dev-box-seed --force <path>` to take it.
 
+`~/.config/mise/config.toml` is the exception: `mise use -g` (agent wrappers,
+`devbox dev-env`, `devbox mise-install` wrappers) adds `[tools]` lines to it.
+A copy that is the reference plus added `[tools]` lines still counts as
+untouched: the new shipped version is laid down with those lines carried over,
+and `--force` keeps them too. Another version for a shipped tool, a removed
+tool, a comment or a setting is a local change. The helpers live in
+`/usr/share/devbox/lib/mise-config.sh`, shared with `dev-box-override`.
+
 The table of what is seeded is the `SEEDS` array at the top of
 `dev-box-seed`. Read it with `cat $(which dev-box-seed)`.
 

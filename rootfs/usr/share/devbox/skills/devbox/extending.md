@@ -47,7 +47,9 @@ Two cases.
   are not declared there, their wrapper installs them on first call (below).
   That file is seeded into
   `~/.config/mise/config.toml`, so existing boxes pick it up through
-  `devbox seed` when they have not edited theirs.
+  `devbox seed` when they have not edited theirs. Tools added with
+  `mise use -g` (agent wrappers, `devbox dev-env`) do not count as an edit:
+  they are carried over into the new version.
 - A tool only you want: `mise use -g <tool>` in the box. Nothing to commit.
 
 Check the name first: `mise registry | grep <tool>`, then

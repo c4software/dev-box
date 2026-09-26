@@ -25,6 +25,9 @@
 #     limits, devices, capabilities, seccomp, /proc/sys, AppArmor.
 set -euo pipefail
 
+# shellcheck source=../../share/devbox/lib/mise-config.sh
+. /usr/share/devbox/lib/mise-config.sh
+
 DIFF=false
 ONLY=""
 while [ $# -gt 0 ]; do
@@ -167,11 +170,25 @@ for s in "${SEEDS[@]}"; do
   if [ -e "$ref" ] && cmp -s "$dst" "$ref"; then
     continue
   fi
-  detail="changed locally"
   if [ "$rel" = ".config/mise/config.toml" ]; then
-    detail="$detail$(mise_summary "$src" "$dst")"
+    # Tools added by `mise use -g` (agent wrappers, devbox dev-env, devbox
+    # mise-install wrappers, by hand) are not a local change for the seed:
+    # it keeps updating the file and carries them over. Still listed, since
+    # this box declares them and the image does not.
+    base=""
+    for b in "$ref" "$src"; do
+      mise_cfg_only_added "$dst" "$b" && { base="$b"; break; }
+    done
+    if [ -n "$base" ]; then
+      entry "~/$rel" "tools added: $(mise_cfg_extra "$dst" "$base" | mise_cfg_names) (the seed still updates the file and keeps them)" \
+        "mise unuse -g <tool>" "$src" "$dst"
+      continue
+    fi
+    entry "~/$rel" "changed locally$(mise_summary "$src" "$dst")" \
+      "devbox seed --force ~/$rel (the tools added here stay declared, mise unuse -g <tool> removes one)" "$src" "$dst"
+    continue
   fi
-  entry "~/$rel" "$detail" "devbox seed --force ~/$rel" "$src" "$dst"
+  entry "~/$rel" "changed locally" "devbox seed --force ~/$rel" "$src" "$dst"
 done
 
 # --- 2. ~/.config/dev-box/overrides, re-applied last by dotarchy-sync ----------

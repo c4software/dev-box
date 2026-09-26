@@ -116,6 +116,10 @@ dev-box-seed --force ~/.claude/settings.json    # one file
 devbox seed --force                             # all of them
 ```
 
+Tools added to `~/.config/mise/config.toml` by `mise use -g` (the agent
+wrappers, `devbox dev-env`, `devbox mise-install`) are not a change: that file
+still gets the new shipped version, with the added tools carried over.
+
 `~/.claude/settings.json` is the usual one: Claude Code rewrites it by itself,
 so it counts as modified almost immediately. A new shipped version will always
 be reported and never forced. That is expected, not a bug.

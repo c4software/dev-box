@@ -126,6 +126,9 @@ which gives three cases per file:
   all); `devbox seed --apply` is the form with no menu, `devbox seed --check`
   looks without writing.
 
+The mise config is the one exception, described with it below: tools added to
+it do not count as a local change.
+
 ![dev-box-seed with two shipped files changed: the untouched one is updated in place, the locally modified one is left alone with the dev-box-seed --force command to take the new version](screenshots/dev-box-seed.png)
 
 A box created before the reference existed simply adopts the shipped version as
@@ -154,14 +157,22 @@ version is only reported.
   `LLM_PROXY_URL` and `LLM_PROXY_API_KEY` from `.env`. If the endpoint is
   unreachable it registers nothing rather than blocking startup.
 - `config.toml` is the mise config, the dev tools of the box (see
-  [tools.md](tools.md#dev-tools-mise)). `mise use -g` and `devbox dev-env`
-  write into it, and so does the first call of a coding agent, whose wrapper
-  declares it there: from then on the file is "modified locally", and a new
-  shipped version is reported rather than applied. Older images shipped a
-  version that declared `claude`, `pi`, `codex` and `omp`; a box whose file was
-  never touched loses those lines at the next start, and each agent it still
-  uses declares itself again on its next call, at the version already
-  installed.
+  [tools.md](tools.md#dev-tools-mise)). `mise use -g` adds a line to its
+  `[tools]` for every new tool, and so do `devbox dev-env`, the wrappers of
+  `devbox mise-install` and the first call of a coding agent, whose wrapper
+  declares it there. Those added lines do not make the file "modified
+  locally": when it only differs from the reference by tools added to
+  `[tools]`, a new shipped version is still applied, and the added lines are
+  carried over into it as they are (`config updated: ... (tools added here
+  kept: claude, bun)`). A tool the new shipped version declares itself takes
+  the shipped line. Anything else is a local change and is only reported: a
+  tool of the shipped file set to another version (`mise use -g node@22`) or
+  removed, a comment, a `[settings]` entry. `devbox seed --force` on this file
+  also keeps the tools added here; `mise unuse -g <tool>` removes one. Older
+  images shipped a version that declared `claude`, `pi`, `codex` and `omp`;
+  a box whose file was never touched loses those lines at the next start, and
+  each agent it still uses declares itself again on its next call, at the
+  version already installed.
 - `keymap.toml` adds the `c t` chord to yazi, which sends the selected files
   over Taildrop (see [terminal.md](terminal.md#the-file-manager)). It only
   prepends bindings, the yazi defaults stay. It is the place for your own
@@ -228,7 +239,8 @@ What it reports:
 - the seeded config that differs from the version in `/etc/devbox/`; a file
   equal to its reference copy in `~/.config/dev-box/seed/` is not your doing
   and is left out. For the mise config, the tools added, removed or pinned to
-  another version;
+  another version; a mise config that only has tools added is listed as such,
+  with `mise unuse -g <tool>` as its undo, since the seed still updates it;
 - the files of `~/.config/dev-box/overrides/`, whether they replace a dotarchy
   file, and whether `devbox sync` has applied them yet;
 - the dotfiles changed or deleted since the last `devbox sync`, which the next

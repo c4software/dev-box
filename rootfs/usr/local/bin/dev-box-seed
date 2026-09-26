@@ -10,6 +10,12 @@
 # touched, which can be updated, from a file the user changed, which is
 # reported and never overwritten.
 #
+# The mise config is the one exception to "any difference is a change":
+# `mise use -g` (the agent wrappers, devbox dev-env, the devbox mise-install
+# wrappers) adds [tools] lines to it. A copy that only differs from the
+# reference by such added lines still counts as untouched: it gets the new
+# shipped version, with the added lines carried over. --force keeps them too.
+#
 # Usable by root (the entrypoint, with DEVBOX_HOME + chown 1000:1000) or by
 # the user (`devbox update seed`, or `devbox seed`).
 #
@@ -18,6 +24,11 @@
 #   dev-box-seed --force [path]   overwrite (everything, or the given path)
 #   dev-box-seed --check          write nothing, list what is newly shipped
 set -euo pipefail
+
+# shellcheck source=../../share/devbox/lib/mise-config.sh
+. /usr/share/devbox/lib/mise-config.sh
+
+MISE_REL=".config/mise/config.toml"
 
 # Table: <source in the image>:<path relative to the home>
 SEEDS=(
@@ -39,7 +50,7 @@ while [ $# -gt 0 ]; do
     --force) FORCE=true; shift ;;
     --check) CHECK=true; shift ;;
     --apply) APPLY=true; shift ;;
-    -h|--help) sed -n '5,19p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) sed -n '5,25p' "$0" | sed 's/^# \?//'; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *)  ONLY="$1"; shift ;;
   esac
@@ -109,6 +120,24 @@ install_as() {
   fi
 }
 
+# The version to lay down, in $NEW: the shipped file, except for the mise
+# config, where the [tools] lines added in the home (tools that neither the
+# reference nor the new shipped version declares) are carried over as they
+# are. A tool the new shipped version declares takes the shipped line. KEPT
+# gets the names of the tools carried over, for the messages.
+NEW="$(mktemp)"
+trap 'rm -f "$NEW"' EXIT
+KEPT=""
+prepare() { # <rel> <src> <dst> <ref>
+  local extra=""
+  if [ "$1" = "$MISE_REL" ] && [ -f "$3" ]; then
+    extra="$(mise_cfg_extra "$3" "$4" "$2")"
+  fi
+  mise_cfg_merge "$2" "$extra" > "$NEW"
+  KEPT="$(printf '%s\n' "$extra" | mise_cfg_names)"
+}
+kept_note() { [ -z "$KEPT" ] || printf ' (tools added here kept: %s)' "$KEPT"; }
+
 MATCHED=false
 for entry in "${SEEDS[@]}"; do
   src="${entry%%:*}"
@@ -121,9 +150,10 @@ for entry in "${SEEDS[@]}"; do
   ref="$REF_DIR/$rel"
 
   if $FORCE; then
-    install_as "$src" "$dst"
+    prepare "$rel" "$src" "$dst" "$ref"
+    install_as "$NEW" "$dst"
     install_as "$src" "$ref"
-    log "config replaced: ~/$rel"
+    log "config replaced: ~/$rel$(kept_note)"
     continue
   fi
 
@@ -150,14 +180,24 @@ for entry in "${SEEDS[@]}"; do
     continue
   fi
 
+  # Never changed locally: identical to the reference, or for the mise
+  # config, the reference plus [tools] lines added by `mise use -g`.
+  untouched=false
   if cmp -s "$dst" "$ref"; then
+    untouched=true
+  elif [ "$rel" = "$MISE_REL" ] && mise_cfg_only_added "$dst" "$ref"; then
+    untouched=true
+  fi
+
+  if $untouched; then
     # 3. Never changed locally: updated in place
+    prepare "$rel" "$src" "$dst" "$ref"
     if $CHECK; then
-      echo "shipped config updated: ~/$rel"
+      echo "shipped config updated: ~/$rel$(kept_note)"
     else
-      install_as "$src" "$dst"
+      install_as "$NEW" "$dst"
       install_as "$src" "$ref"
-      log "config updated: ~/$rel"
+      log "config updated: ~/$rel$(kept_note)"
     fi
   else
     # 4. Changed locally: we report it, we do not overwrite
