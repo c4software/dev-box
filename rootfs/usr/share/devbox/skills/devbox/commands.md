@@ -387,8 +387,9 @@ devbox mise-install --list
 devbox mise-install --remove <command>
 ```
 
-It writes `~/.local/bin/<command>`, a four line wrapper that runs
-`mise use -g --quiet <package>` and then `mise x <package> -- <binary>`, with
+It writes `~/.local/bin/<command>`, a five line wrapper that runs
+`mise use -g --quiet <package>` when mise cannot find the command yet (the
+first call), then `mise x <package> -- <binary>`, with
 `MISE_MINIMUM_RELEASE_AGE=0`. The image already ships that wrapper for
 `claude`, `pi`, `omp`, `opencode` and `codex`; this is for everything else
 (`gemini`, `crush`, `copilot`, and so on). `~/.local/bin` precedes

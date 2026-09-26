@@ -43,7 +43,9 @@ Two cases, as with dev tools.
 Two cases.
 
 - A tool every box should have: add it to
-  `rootfs/etc/devbox/mise-config.toml`. That file is seeded into
+  `rootfs/etc/devbox/mise-config.toml`. Coding agents are the exception: they
+  are not declared there, their wrapper installs them on first call (below).
+  That file is seeded into
   `~/.config/mise/config.toml`, so existing boxes pick it up through
   `devbox seed` when they have not edited theirs.
 - A tool only you want: `mise use -g <tool>` in the box. Nothing to commit.
@@ -51,19 +53,24 @@ Two cases.
 Check the name first: `mise registry | grep <tool>`, then
 `mise ls-remote <tool> | tail -1`.
 
-An interactive agent (`claude`, `pi`, `omp`, `codex`, `opencode`) also gets a
-three-line wrapper in `rootfs/usr/local/bin/<name>`:
+An interactive agent (`claude`, `pi`, `omp`, `codex`, `opencode`) is not in
+the mise config at all. It gets a three-line wrapper in
+`rootfs/usr/local/bin/<name>` instead, which installs it on its first call:
 
 ```bash
 #!/bin/bash
 export MISE_MINIMUM_RELEASE_AGE=0
-mise use -g "<tool>" || exit 1
+mise which "<cmd>" >/dev/null 2>&1 || mise use -g "<tool>" || exit 1
 exec mise x "<tool>" -- "<cmd>" "$@"
 ```
 
-The `mise use -g` makes the command work on the first call, before the
-background install has finished, and after someone removed the tool from their
-config.
+`mise use -g` only runs when mise cannot find the command: on the first call,
+or after someone removed the tool from their config. It then declares the tool
+in `~/.config/mise/config.toml`. Without a version it reuses an installed one
+rather than fetching a newer release, so a wrapper never upgrades anything:
+`devbox update tools` does. Once the tool is installed, the mise shims (login
+shells) and `mise activate` (interactive zsh) come before `/usr/local/bin` and
+run it directly.
 
 ### A new environment in `devbox dev-env`
 

@@ -9,14 +9,6 @@ node = "lts"
 # release binaries for x86_64 and aarch64).
 shellcheck = "latest"
 
-# Coding agents: same names as the wrappers in /usr/local/bin (claude, pi, omp,
-# codex; opencode too, but installed only on the first call), which run a
-# `mise use -g <tool>` on the fly when the tool is missing.
-claude = "latest"
-pi = "latest"
-codex = "latest"
-
-# omp: mise's github backend picks the release asset for the OS and the
-# architecture (omp-linux-x64 on amd64, omp-linux-arm64 on arm64). Nothing to
-# set for the Raspberry Pi.
-"github:can1357/oh-my-pi" = "latest"   # omp
+# No coding agent here: claude, pi, omp, codex and opencode each have a wrapper
+# in /usr/local/bin that installs the tool on its first call (`mise use -g`
+# adds it to [tools] above), so a box only carries the agents it uses.

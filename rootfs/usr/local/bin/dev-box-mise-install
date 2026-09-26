@@ -51,7 +51,7 @@ do_list() {
     is_generated "$f" || continue
     found=true
     name="$(basename "$f")"
-    pkg="$(awk '/^mise use -g --quiet /{ gsub(/"/, "", $5); print $5; exit }' "$f")"
+    pkg="$(awk '/^exec mise x /{ gsub(/"/, "", $4); print $4; exit }' "$f")"
     printf '  %-20s %s\n' "$name" "$pkg"
   done
   $found || echo "  no wrapper written by dev-box-mise-install"
@@ -166,12 +166,14 @@ fi
 mkdir -p "$BIN_DIR"
 rm -f "$target"
 # MISE_MINIMUM_RELEASE_AGE=0: asking for a tool by name means asking for it
-# now, not in 24 h (mise quarantines the new releases).
+# now, not in 24 h (mise quarantines the new releases). `mise use -g` only
+# runs when mise cannot find the command: an installed tool is never touched
+# and the config is not rewritten on every call.
 cat > "$target" <<EOF
 #!/bin/bash
 $MARK
 export MISE_MINIMUM_RELEASE_AGE=0
-mise use -g --quiet $package_arg || exit 1
+mise which $bin_arg >/dev/null 2>&1 || mise use -g --quiet $package_arg || exit 1
 exec mise x $package_arg -- $bin_arg "\$@"
 EOF
 chmod +x "$target"

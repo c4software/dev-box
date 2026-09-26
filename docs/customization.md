@@ -155,7 +155,13 @@ version is only reported.
   unreachable it registers nothing rather than blocking startup.
 - `config.toml` is the mise config, the dev tools of the box (see
   [tools.md](tools.md#dev-tools-mise)). `mise use -g` and `devbox dev-env`
-  write into it.
+  write into it, and so does the first call of a coding agent, whose wrapper
+  declares it there: from then on the file is "modified locally", and a new
+  shipped version is reported rather than applied. Older images shipped a
+  version that declared `claude`, `pi`, `codex` and `omp`; a box whose file was
+  never touched loses those lines at the next start, and each agent it still
+  uses declares itself again on its next call, at the version already
+  installed.
 - `keymap.toml` adds the `c t` chord to yazi, which sends the selected files
   over Taildrop (see [terminal.md](terminal.md#the-file-manager)). It only
   prepends bindings, the yazi defaults stay. It is the place for your own
@@ -185,9 +191,9 @@ devbox mise-install --remove gemini
 ```
 
 It takes `<package> [command [binary]]` and writes `~/.local/bin/<command>`.
-The wrapper runs `mise use -g --quiet <package>`, then
-`mise x <package> -- <binary>`, with `MISE_MINIMUM_RELEASE_AGE=0` so asking for
-a tool by name gets today's release. `~/.local/bin` comes before
+The wrapper runs `mise use -g --quiet <package>` when mise cannot find the
+command yet, then `mise x <package> -- <binary>`, with
+`MISE_MINIMUM_RELEASE_AGE=0` so asking for a tool by name gets today's release. `~/.local/bin` comes before
 `/usr/local/bin` on the `PATH`, so a wrapper written here takes over from the
 one in the image when it carries the same name. The same goes for any script
 you drop there yourself.

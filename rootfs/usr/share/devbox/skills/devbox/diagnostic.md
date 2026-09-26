@@ -79,7 +79,7 @@ Known causes, by symptom:
   image. A database does not restart on its own after the box restarts:
   `devbox dbs --start <db>`. A container that exits at once: its
   `podman logs`. A full disk shows up here too.
-- **A command is not found** (`node`, `go`, `claude`, ...): is it declared in
+- **A command is not found** (`node`, `go`, ...): is it declared in
   `~/.config/mise/config.toml`? Is it installed (`mise ls --current`)? Is the
   first-start install still running or failed
   (`~/.cache/dev-box-install.log`)? A command installed with `sudo pacman -S`
@@ -87,6 +87,11 @@ Known causes, by symptom:
   A shell that is not a login shell may miss mise's activation: `zsh -l`.
   A missing shim (`mise doctor`, and the report) is fixed by `mise reshim`,
   which only rewrites `~/.local/share/mise/shims`.
+- **A coding agent fails to start** (`claude`, `pi`, `omp`, `codex`,
+  `opencode`): none is installed by default, the wrapper in `/usr/local/bin`
+  installs it through mise on the first call, so that call needs the network
+  (and `GITHUB_TOKEN` against rate limits for `omp`). `type -a claude` shows
+  which one runs; `/usr/local/bin/claude --version` retries the install.
 - **`devbox dev-env` failed**: the log names the step. Network, a tool name
   the mise registry no longer knows, an environment that `--unsupported`
   lists on this architecture (x86_64 only ones on arm64), or a disk full of

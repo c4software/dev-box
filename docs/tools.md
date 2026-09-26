@@ -74,21 +74,22 @@ Dev tools live in the persistent home, declared in `~/.config/mise/config.toml`
 
 - `node` (LTS)
 - `shellcheck` (`aqua:koalaman/shellcheck`, the lint of the scripts)
-- `claude` (Claude Code, `aqua:anthropics/claude-code`)
-- `pi` (`aqua:earendil-works/pi`)
-- `codex` (OpenAI Codex CLI, `aqua:openai/codex`)
-- `omp` (`github:can1357/oh-my-pi`, via mise's github backend)
 
-`claude`, `pi`, `omp`, `codex` and `opencode` are wrapped in `/usr/local/bin`.
-Each wrapper runs `mise use -g <tool>`, a no-op once the tool is declared, then
-`mise x <tool> -- <cmd>`. The command therefore works on first call, even
-before the background install finished, or after the tool was removed from
-`~/.config/mise/config.toml`. `opencode` is not pre-installed: its first call
-installs it. `devbox mise-install` writes the same kind of wrapper for any
-other tool, see
+No coding agent is installed by default. `claude` (Claude Code,
+`aqua:anthropics/claude-code`), `pi` (`aqua:earendil-works/pi`), `omp`
+(`github:can1357/oh-my-pi`, via mise's github backend), `codex` (OpenAI Codex
+CLI, `aqua:openai/codex`) and `opencode` each have a wrapper in
+`/usr/local/bin`, which installs the tool on its first call: when mise cannot
+find the command, it runs `mise use -g <tool>`, which adds the tool to
+`~/.config/mise/config.toml`, then `mise x <tool> -- <cmd>`. Once installed,
+the mise shims and activation run the tool directly. An installed tool is
+never upgraded by its wrapper: `mise use -g <tool>` without a version reuses
+the installed one. So a box only carries the agents it uses, and one removed
+from the config comes back on its next call. `devbox mise-install` writes the
+same kind of wrapper for any other tool, see
 [customization.md](customization.md#wrappers-in-localbin-and-devbox-mise-install).
 
-They are installed in the background on first start. Follow progress with
+The declared tools are installed in the background on first start. Follow progress with
 `tail -f ~/.cache/dev-box-install.log`. Later starts only reinstall what is
 missing (`MISE_INSTALL_ON_START`), and never bump a version. Upgrading is
 explicit: `devbox update tools` runs `mise install` then `mise upgrade`. Add
