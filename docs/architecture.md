@@ -99,6 +99,11 @@ for the newest one). The `-arm` tag only triggers the build: the image is built
 from the release tag it names, which must exist, and neither `build.yml` nor
 the box takes a `-arm` tag for a release.
 
+GitHub runs the workflows of the commit a pushed tag points to, so the `-arm`
+tag only works for releases made after v1.12 (their commit has the trigger).
+For v1.12 and older, use `gh workflow run` or the Actions tab: a `v1.12-arm`
+tag would run the old `build.yml` and publish a bogus release.
+
 It publishes `v1.7-arm64`, and moves `latest-arm64` when that is the newest
 release (rebuilding an older one never takes it back). An arm64 box compares
 itself with the newest `-arm64` tag of the registry, not with the tags of the

@@ -16,6 +16,8 @@
 # Either way the image is built from the release tag (v1.12), which must exist;
 # the -arm tag only triggers the build. The box never takes a -arm tag for a
 # release (it only reads v followed by numbers and dots).
+# GitHub runs the workflows of the tagged commit: the -arm tag works for the
+# releases made after v1.12 only, older ones go through gh workflow run.
 #
 # An arm64 box compares itself with the newest -arm64 tag of the registry,
 # not with the newest v* tag of the repo, so it is only told about a release
