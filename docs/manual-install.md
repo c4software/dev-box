@@ -30,13 +30,18 @@ The image is published for amd64 and arm64.
 ## The setup script
 
 ```bash
-curl -fsSL https://cours.brosseau.ovh/devbox.sh | sh
-wget -qO- https://cours.brosseau.ovh/devbox.sh | sh
+curl -fsSLo devbox.sh https://cours.brosseau.ovh/devbox.sh   # or: wget -O devbox.sh https://cours.brosseau.ovh/devbox.sh
+less devbox.sh
+sh devbox.sh
 ```
 
 The short address redirects to
 `https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh`, the
 `setup.sh` at the root of this repository; both work.
+
+Do not pipe it into a shell (`curl ... | sh`): that runs code you have not
+read, and a download cut halfway runs a truncated script. Download it, read
+it, run it.
 
 It takes no option: it asks its questions on the terminal, and refuses to run
 without one. It needs only a POSIX `sh`, `curl` or `wget`, and Docker with the

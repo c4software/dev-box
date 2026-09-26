@@ -2,8 +2,12 @@
 # Installs a dev-box from the published image, without cloning the repo and
 # without building anything:
 #
-#   curl -fsSL https://cours.brosseau.ovh/devbox.sh | sh
-#   wget -qO- https://cours.brosseau.ovh/devbox.sh | sh
+#   curl -fsSLo devbox.sh https://cours.brosseau.ovh/devbox.sh
+#   less devbox.sh
+#   sh devbox.sh
+#
+# Download it, read it, then run it: piping it straight into sh would run
+# code nobody read, and a truncated one if the download is cut.
 #
 # That address redirects to this file on GitHub:
 # https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh
@@ -41,7 +45,7 @@ die() {
 
 [ $# -eq 0 ] || die "setup.sh takes no option: run it without any, it asks its questions"
 
-# The questions are read from /dev/tty, so they work under curl | sh.
+# The questions are read from /dev/tty, not from stdin.
 (: </dev/tty) 2>/dev/null || die "no terminal to ask the questions on: run it from a terminal"
 interrupted() {
   stty echo </dev/tty 2>/dev/null || true
@@ -632,7 +636,7 @@ next_steps() {
   say "In $SHOW_DIR:"
   say "  docker compose logs -f                        what the box is doing"
   say "  docker compose pull && docker compose up -d   update to the latest image"
-  say "  run the install command again                 same, and refreshes compose.yaml"
+  say "  run the setup script again                     same, and refreshes compose.yaml"
   say "  edit .env, then docker compose up -d          change a setting"
   say "  docker compose down                           stop the box, data/ is kept"
   say "  scripts/backup.sh                             back up data/ (scripts/restore.sh to restore)"

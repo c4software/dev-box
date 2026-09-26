@@ -26,18 +26,18 @@ You need Docker with the Compose plugin (Docker Desktop on macOS and Windows).
 Then, on the machine that will host the box:
 
 ```bash
-curl -fsSL https://cours.brosseau.ovh/devbox.sh | sh
-```
-
-or, without curl:
-
-```bash
-wget -qO- https://cours.brosseau.ovh/devbox.sh | sh
+curl -fsSLo devbox.sh https://cours.brosseau.ovh/devbox.sh   # or: wget -O devbox.sh https://cours.brosseau.ovh/devbox.sh
+less devbox.sh                                               # read it before running it
+sh devbox.sh
 ```
 
 That short address redirects to
 [setup.sh](https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh)
 on GitHub, the file at the root of this repository.
+
+Download it, read it, then run it: piping a download straight into a shell
+(`curl ... | sh`) is a bad habit. You run code you have not read, and a
+download cut halfway runs a truncated script.
 
 The script asks a few questions (install directory, user, Tailscale or SSH
 access, dev environments, podman), writes `~/dev-box/.env`, then pulls the
