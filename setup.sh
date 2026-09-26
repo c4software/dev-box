@@ -387,6 +387,18 @@ check_container_clash() {
   Update that one where it lives, or remove it first (docker compose down in its directory)."
 }
 
+# enter_dir: ends the setup in a new shell opened in the install directory. A
+# script cannot change the directory of the shell that ran it, so this is the
+# only way to land there; exit returns to where you were. exec skips the EXIT
+# trap, hence the cleanup first.
+enter_dir() {
+  rm -rf "$tmp"
+  say ""
+  say "Opening a shell in $SHOW_DIR (exit returns to where you were)."
+  cd "$DIR" || exit 0
+  exec "${SHELL:-/bin/sh}" -i </dev/tty
+}
+
 # --- Update of an existing install ---
 if [ "$mode" = update ]; then
   say ""
@@ -400,7 +412,7 @@ if [ "$mode" = update ]; then
     say "Files refreshed, nothing else done. To update later:"
     say "  cd $SHOW_DIR"
     say "  docker compose pull && docker compose up -d"
-    exit 0
+    enter_dir
   fi
   check_container_clash
   cd "$DIR"
@@ -412,7 +424,7 @@ if [ "$mode" = update ]; then
   say "The box runs on the latest image. Your home and projects are untouched."
   say "  logs:     cd $SHOW_DIR && docker compose logs -f"
   say "  in-box:   devbox update (dotfiles, tools, shipped config), devbox changelog"
-  exit 0
+  enter_dir
 fi
 
 # --- New install: the questions ---
@@ -677,7 +689,7 @@ if ! ask_yn "Pull the image and start the box now?" y; then
   say "  cd $SHOW_DIR"
   say "  docker compose pull && docker compose up -d"
   next_steps
-  exit 0
+  enter_dir
 fi
 
 check_container_clash
@@ -711,3 +723,4 @@ say ""
 say "The box is starting. The first start seeds your home, syncs the dotfiles and"
 say "installs the tools in the background: a few minutes before everything is there."
 next_steps
+enter_dir

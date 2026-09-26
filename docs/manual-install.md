@@ -78,7 +78,9 @@ What it does on a new install:
    two commands to run later;
 8. with Tailscale and no auth key, waits up to two minutes for the login URL
    and prints it, to open once;
-9. prints how to connect and the commands to run in that directory.
+9. prints how to connect and the commands to run in that directory;
+10. opens a new shell in the install directory (a script cannot move the shell
+    that ran it); `exit` goes back to where you were.
 
 The first start then seeds the home, syncs the dotfiles and installs the tools
 in the background: a few minutes before everything is there.
