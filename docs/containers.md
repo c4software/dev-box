@@ -17,9 +17,9 @@ On the host:
 2. set `PODMAN_ENABLE=true` in `.env`;
 3. restart the container: `docker compose up -d`.
 
-The setup script does steps 1 and 2 for you with `--podman`, or when you
-answer yes to its podman question, unless a `compose.override.yaml` already
-exists (then add the block by hand). Why each line of the block is needed is
+The setup script does steps 1 and 2 for you when you answer yes to its
+podman question, unless a `compose.override.yaml` already exists (then add
+the block by hand). Why each line of the block is needed is
 written in `compose.override.example.yaml`: `/dev/fuse` for fuse-overlayfs,
 `seccomp` because the default profile refuses `clone(CLONE_NEWUSER)`,
 `systempaths` because a read-only `/proc/sys` stops crun and netavark, and

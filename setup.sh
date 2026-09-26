@@ -5,67 +5,29 @@
 #   curl -fsSL https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh | sh
 #   wget -qO- https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh | sh
 #
-# Options go after `sh -s --`, for instance:
+# It takes no option: it asks its questions on the terminal, with gum
+# (https://github.com/charmbracelet/gum) when it is installed, plain prompts
+# otherwise. It downloads compose.yaml, .env.example,
+# compose.override.example.yaml and the backup scripts from the main branch
+# into an install directory (~/dev-box by default), writes .env from
+# .env.example with the answers, then offers to pull
+# ghcr.io/c4software/dev-box:latest and start the box. Run again on the same
+# directory, it refreshes those files and offers to pull the latest image, and
+# never touches .env, compose.override.yaml or data/.
 #
-#   curl -fsSL .../setup.sh | sh -s -- --yes --access ssh --ssh-key ~/.ssh/id_ed25519.pub
+# Needs only a POSIX sh, curl or wget, Docker with the Compose plugin, and a
+# terminal.
 #
-# It downloads compose.yaml, .env.example, compose.override.example.yaml and
-# the backup scripts into an install directory (~/dev-box by
-# default), writes .env from .env.example with the answers to a few questions,
-# pulls the image and starts the box. Run again on the same directory, it
-# refreshes those files and pulls the latest image, and never touches .env,
-# compose.override.yaml or data/.
-#
-# Needs only a POSIX sh, curl or wget, and Docker with the Compose plugin.
-# `sh setup.sh --help` lists the options and their environment variables.
+# For testing a change before it is pushed, DEVBOX_SETUP_BASE_URL takes the
+# files from somewhere else than GitHub main: another URL, or a local
+# directory such as a clone (DEVBOX_SETUP_BASE_URL=$PWD sh setup.sh).
 set -eu
 
 REPO_SLUG="c4software/dev-box"
-DEFAULT_IMAGE="ghcr.io/c4software/dev-box:latest"
+IMAGE="ghcr.io/c4software/dev-box:latest"
+BASE_URL="${DEVBOX_SETUP_BASE_URL:-https://raw.githubusercontent.com/$REPO_SLUG/main}"
 # Files needed to run the box, relative to the root of the repo.
 SHIPPED="compose.yaml .env.example compose.override.example.yaml scripts/backup.sh scripts/restore.sh"
-
-usage() {
-  cat <<'TXT'
-dev-box setup: install a dev-box from the published image, without a clone.
-
-Usage: sh setup.sh [options]
-       curl -fsSL https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh | sh -s -- [options]
-
-With no option, it asks its questions on the terminal. Each option can also be
-given as an environment variable (in brackets). --yes takes the defaults for
-everything that was not given, and asks nothing.
-
-  --dir DIR             install directory, default ~/dev-box       [DEVBOX_DIR]
-  --user NAME           Unix user inside the box, default dev      [DEVBOX_USER]
-  --access MODE         tailscale (default) or ssh                 [DEVBOX_ACCESS]
-  --hostname NAME       Tailscale hostname, default dev-box        [DEVBOX_HOSTNAME]
-  --login-server URL    Tailscale control server, or your Headscale [DEVBOX_LOGIN_SERVER]
-  --authkey KEY         Tailscale auth key, empty prints a login URL [DEVBOX_AUTHKEY]
-  --ssh-key KEY|FILE|github:USER
-                        public key(s) for --access ssh: a key, a .pub file, or
-                        github:USER for the keys of that GitHub account,
-                        default the first of ~/.ssh/id_{ed25519,ecdsa,rsa}.pub [DEVBOX_SSH_KEY]
-  --ssh-port PORT       host port for --access ssh, default 2222   [DEVBOX_SSH_PORT]
-  --ssh-bind ADDR       host address for it, default 127.0.0.1 (0.0.0.0: the LAN) [DEVBOX_SSH_BIND]
-  --tz ZONE             timezone, default the host's               [DEVBOX_TZ]
-  --projects-dir DIR    host directory mounted at ~/projets, default ./data/projets [DEVBOX_PROJECTS_DIR]
-  --github-token TOKEN  GitHub token with no scope, recommended    [DEVBOX_GITHUB_TOKEN]
-  --dev-envs "A B"      devbox dev-env names installed at first start, e.g. "node python" [DEVBOX_DEV_ENVS]
-  --podman / --no-podman  rootless podman inside the box, off by default:
-                        it loosens the isolation of the container [DEVBOX_PODMAN=yes|no]
-  --image IMAGE         image to run, default ghcr.io/c4software/dev-box:latest [DEVBOX_IMAGE]
-  --ref REF             branch or tag of the repo to take the files from, default main [DEVBOX_REF]
-  --base-url URL|DIR    where to take the files from instead of GitHub (a local
-                        directory works, for testing)          [DEVBOX_BASE_URL]
-  --no-start            write the files, pull and start nothing [DEVBOX_NO_START=1]
-  -y, --yes             ask nothing, take the defaults          [DEVBOX_YES=1]
-  -h, --help            this help
-
-On an existing install (a .env in the directory), it offers to update instead:
-refresh the shipped files, pull the image, restart the box.
-TXT
-}
 
 say() { printf '%s\n' "$*"; }
 warn() { printf 'warning: %s\n' "$*" >&2; }
@@ -74,108 +36,87 @@ die() {
   exit 1
 }
 
-# --- Options: flags first, then the environment, then the defaults ---
-opt_dir="${DEVBOX_DIR:-}"
-opt_user="${DEVBOX_USER:-}"
-opt_access="${DEVBOX_ACCESS:-}"
-opt_hostname="${DEVBOX_HOSTNAME:-}"
-opt_login_server="${DEVBOX_LOGIN_SERVER:-}"
-opt_authkey="${DEVBOX_AUTHKEY:-}"
-opt_ssh_key="${DEVBOX_SSH_KEY:-}"
-opt_ssh_port="${DEVBOX_SSH_PORT:-}"
-opt_ssh_bind="${DEVBOX_SSH_BIND:-}"
-opt_tz="${DEVBOX_TZ:-}"
-opt_projects="${DEVBOX_PROJECTS_DIR:-}"
-opt_token="${DEVBOX_GITHUB_TOKEN:-}"
-opt_dev_envs="${DEVBOX_DEV_ENVS:-}"
-opt_podman="${DEVBOX_PODMAN:-}"
-opt_image="${DEVBOX_IMAGE:-}"
-opt_ref="${DEVBOX_REF:-main}"
-opt_base_url="${DEVBOX_BASE_URL:-}"
-opt_no_start="${DEVBOX_NO_START:-0}"
-opt_yes="${DEVBOX_YES:-0}"
-# Which of the token-like values were given at all (an empty one is a choice)
-given_authkey=0
-[ -n "${DEVBOX_AUTHKEY+x}" ] && given_authkey=1
-given_token=0
-[ -n "${DEVBOX_GITHUB_TOKEN+x}" ] && given_token=1
-given_dev_envs=0
-[ -n "${DEVBOX_DEV_ENVS+x}" ] && given_dev_envs=1
+[ $# -eq 0 ] || die "setup.sh takes no option: run it without any, it asks its questions"
 
-while [ $# -gt 0 ]; do
-  arg="$1"
-  shift
-  val=""
-  case "$arg" in
-    --*=*)
-      val="${arg#*=}"
-      arg="${arg%%=*}"
-      ;;
-    --dir | --user | --access | --hostname | --login-server | --authkey | --ssh-key | \
-      --ssh-port | --ssh-bind | --tz | --projects-dir | --github-token | --dev-envs | \
-      --image | --ref | --base-url)
-      [ $# -gt 0 ] || die "$arg needs a value (sh setup.sh --help)"
-      val="$1"
-      shift
-      ;;
-  esac
-  case "$arg" in
-    --dir) opt_dir="$val" ;;
-    --user) opt_user="$val" ;;
-    --access) opt_access="$val" ;;
-    --hostname) opt_hostname="$val" ;;
-    --login-server) opt_login_server="$val" ;;
-    --authkey) opt_authkey="$val" given_authkey=1 ;;
-    --ssh-key) opt_ssh_key="$val" ;;
-    --ssh-port) opt_ssh_port="$val" ;;
-    --ssh-bind) opt_ssh_bind="$val" ;;
-    --tz) opt_tz="$val" ;;
-    --projects-dir) opt_projects="$val" ;;
-    --github-token) opt_token="$val" given_token=1 ;;
-    --dev-envs) opt_dev_envs="$val" given_dev_envs=1 ;;
-    --podman) opt_podman=yes ;;
-    --no-podman) opt_podman=no ;;
-    --image) opt_image="$val" ;;
-    --ref) opt_ref="$val" ;;
-    --base-url) opt_base_url="$val" ;;
-    --no-start) opt_no_start=1 ;;
-    -y | --yes) opt_yes=1 ;;
-    -h | --help)
-      usage
-      exit 0
-      ;;
-    *) die "unknown option: $arg (sh setup.sh --help)" ;;
-  esac
-done
+# The questions are read from /dev/tty, so they work under curl | sh.
+(: </dev/tty) 2>/dev/null || die "no terminal to ask the questions on: run it from a terminal"
+interrupted() {
+  stty echo </dev/tty 2>/dev/null || true
+  printf '\nerror: setup interrupted, nothing more done\n' >&2
+  exit 130
+}
+trap interrupted INT TERM
 
-[ -n "$opt_base_url" ] || opt_base_url="https://raw.githubusercontent.com/$REPO_SLUG/$opt_ref"
+# --- The questions: the only place that knows about gum. They use it when it
+# is installed, plain prompts otherwise, read /dev/tty either way and print
+# the answer on stdout. gum clears its prompt once answered, so the answer is
+# echoed on the terminal to keep a trace of it ---
+use_gum=0
+command -v gum >/dev/null 2>&1 && use_gum=1
 
-# --- Terminal: questions are read from /dev/tty, so they work under curl | sh ---
-interactive=0
-if [ "$opt_yes" != "1" ] && (: </dev/tty) 2>/dev/null; then
-  interactive=1
-fi
+# gum_ask <gum args>: runs gum on the terminal; Ctrl-C or Esc stops the
+# setup. The questions run in a command substitution, so the main shell is
+# signalled rather than left to go on.
+gum_ask() {
+  st=0
+  gum "$@" </dev/tty 2>/dev/tty || st=$?
+  if [ "$st" -gt 1 ]; then
+    kill -TERM "$$"
+    exit 130
+  fi
+  return "$st"
+}
+
+# gum_failed, after reply="$(gum_ask ...)" failed: stops this subshell too when
+# the setup was interrupted, takes an empty answer otherwise.
+gum_failed() {
+  st=$?
+  [ "$st" -le 1 ] || exit "$st"
+  reply=""
+}
 
 # ask "Question" "default": prints the answer, the default on an empty line.
+# With gum the default is a placeholder, not a prefilled value, so typing
+# replaces it rather than appending to it.
 ask() {
-  printf '%s [%s]: ' "$1" "$2" >/dev/tty
-  IFS= read -r reply </dev/tty || reply=""
-  [ -n "$reply" ] || reply="$2"
+  if [ "$use_gum" = 1 ]; then
+    reply="$(gum_ask input --header "$1" --placeholder "$2" --width 0)" || gum_failed
+    [ -n "$reply" ] || reply="$2"
+    printf '%s: %s\n' "$1" "$reply" >/dev/tty
+  else
+    if [ -n "$2" ]; then printf '%s [%s]: ' "$1" "$2"; else printf '%s: ' "$1"; fi >/dev/tty
+    IFS= read -r reply </dev/tty || reply=""
+    [ -n "$reply" ] || reply="$2"
+  fi
   printf '%s' "$reply"
 }
 
 # ask_secret "Question": same, nothing echoed, empty by default.
 ask_secret() {
-  printf '%s (hidden, empty for none): ' "$1" >/dev/tty
-  stty -echo </dev/tty 2>/dev/null || true
-  IFS= read -r reply </dev/tty || reply=""
-  stty echo </dev/tty 2>/dev/null || true
-  printf '\n' >/dev/tty
+  if [ "$use_gum" = 1 ]; then
+    reply="$(gum_ask input --password --header "$1 (hidden, empty for none)" --width 0)" || gum_failed
+    if [ -n "$reply" ]; then shown="given"; else shown="none"; fi
+    printf '%s: %s\n' "$1" "$shown" >/dev/tty
+  else
+    printf '%s (hidden, empty for none): ' "$1" >/dev/tty
+    stty -echo </dev/tty 2>/dev/null || true
+    IFS= read -r reply </dev/tty || reply=""
+    stty echo </dev/tty 2>/dev/null || true
+    printf '\n' >/dev/tty
+  fi
   printf '%s' "$reply"
 }
 
 # ask_yn "Question" y|n: status 0 for yes.
 ask_yn() {
+  if [ "$use_gum" = 1 ]; then
+    if [ "$2" = y ]; then gum_default=true; else gum_default=false; fi
+    st=0
+    gum_ask confirm "$1" --default="$gum_default" || st=$?
+    if [ "$st" = 0 ]; then shown=yes; else shown=no; fi
+    printf '%s %s\n' "$1" "$shown" >/dev/tty
+    return "$st"
+  fi
   if [ "$2" = y ]; then hint="Y/n"; else hint="y/N"; fi
   printf '%s [%s]: ' "$1" "$hint" >/dev/tty
   IFS= read -r reply </dev/tty || reply=""
@@ -184,6 +125,32 @@ ask_yn() {
     y | Y | yes | YES | Yes) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+# ask_choice "Question" default choice...: prints one of the choices, asks
+# again until the answer is one of them.
+ask_choice() {
+  question="$1" default="$2"
+  shift 2
+  if [ "$use_gum" = 1 ]; then
+    reply="$(gum_ask choose --header "$question" --selected "$default" "$@")" || gum_failed
+    [ -n "$reply" ] || reply="$default"
+    printf '%s: %s\n' "$question" "$reply" >/dev/tty
+    printf '%s' "$reply"
+    return
+  fi
+  choices="$(printf '%s or ' "$@")"
+  choices="${choices% or }"
+  while :; do
+    reply="$(ask "$question ($choices)" "$default")"
+    for c in "$@"; do
+      if [ "$reply" = "$c" ]; then
+        printf '%s' "$reply"
+        return
+      fi
+    done
+    printf '  answer %s\n' "$choices" >/dev/tty
+  done
 }
 
 expand_home() {
@@ -248,24 +215,6 @@ esac
 
 say "  $downloader, docker $(docker version --format '{{.Server.Version}}' 2>/dev/null || echo '?'), compose $(docker compose version --short 2>/dev/null || echo '?'), $arch: fine"
 
-# fetch <path in the repo> <destination>
-fetch() {
-  case "$opt_base_url" in
-    /* | ./* | ../* | file://*)
-      src="${opt_base_url#file://}/$1"
-      [ -f "$src" ] || return 1
-      cp "$src" "$2"
-      ;;
-    *)
-      if [ "$downloader" = curl ]; then
-        curl -fsSL --retry 3 -o "$2" "$opt_base_url/$1"
-      else
-        wget -q -O "$2" "$opt_base_url/$1"
-      fi
-      ;;
-  esac
-}
-
 # fetch_url URL: the body on stdout, or an error.
 fetch_url() {
   if [ "$downloader" = curl ]; then
@@ -275,20 +224,27 @@ fetch_url() {
   fi
 }
 
+# fetch <path in the repo> <destination>
+fetch() {
+  case "$BASE_URL" in
+    /* | ./* | ../* | file://*)
+      src="${BASE_URL#file://}/$1"
+      [ -f "$src" ] || return 1
+      cp "$src" "$2"
+      ;;
+    *) fetch_url "$BASE_URL/$1" >"$2" ;;
+  esac
+}
+
 # --- Install directory ---
 say ""
-dir_default="$HOME/dev-box"
-if [ -z "$opt_dir" ] && [ "$interactive" = 1 ]; then
-  opt_dir="$(ask "Install directory (compose file, .env, and data/ with your home)" "$dir_default")"
-fi
-[ -n "$opt_dir" ] || opt_dir="$dir_default"
-opt_dir="$(expand_home "$opt_dir")"
-mkdir -p "$opt_dir" || die "cannot create $opt_dir"
-DIR="$(cd "$opt_dir" && pwd)"
+dir="$(expand_home "$(ask "Install directory (compose file, .env, and data/ with your home)" "$HOME/dev-box")")"
+mkdir -p "$dir" || die "cannot create $dir"
+DIR="$(cd "$dir" && pwd)"
 
 if [ -f "$DIR/Dockerfile" ]; then
   die "$DIR is a clone of the dev-box repo, which builds its own image.
-  Run docker compose up -d --build there, or pick another directory with --dir."
+  Run docker compose up -d --build there, or run this again with another directory."
 fi
 
 if [ "$on_windows" = 1 ]; then
@@ -306,7 +262,7 @@ mode=install
 if [ -f "$DIR/.env" ]; then
   mode=update
 elif [ -n "$(ls -A "$DIR" 2>/dev/null)" ] && [ ! -f "$DIR/compose.yaml" ] && [ ! -d "$DIR/data" ]; then
-  die "$DIR is not empty and holds no dev-box: pick an empty or new directory with --dir"
+  die "$DIR is not empty and holds no dev-box: run this again with an empty or new directory"
 fi
 
 # --- Shipped files: replaced only when the installed copy is still the one
@@ -316,12 +272,10 @@ tmp="$DIR/.setup-tmp"
 rm -rf "$tmp"
 mkdir -p "$tmp/scripts"
 trap 'rm -rf "$tmp"' EXIT
-trap 'stty echo </dev/tty 2>/dev/null; exit 130' INT TERM
 
-say "Downloading the files from $opt_base_url"
+say "Downloading the files from $BASE_URL"
 for f in $SHIPPED; do
-  fetch "$f" "$tmp/$f" || die "cannot download $opt_base_url/$f
-  Check the network, or the --ref/--base-url given."
+  fetch "$f" "$tmp/$f" || die "cannot download $BASE_URL/$f, check the network"
 done
 
 record="$DIR/.setup-shipped"
@@ -422,14 +376,12 @@ if [ "$mode" = update ]; then
   image_in_env="$(env_get DEVBOX_IMAGE)"
   if [ -z "$image_in_env" ]; then
     die "DEVBOX_IMAGE is empty in $DIR/.env, and this directory has no Dockerfile to build from.
-  Set DEVBOX_IMAGE=$DEFAULT_IMAGE in it, then run this again."
+  Set DEVBOX_IMAGE=$IMAGE in it, then run this again."
   fi
-  if [ "$opt_no_start" = 1 ]; then
-    say "Files refreshed, nothing started (--no-start)."
-    exit 0
-  fi
-  if [ "$interactive" = 1 ] && ! ask_yn "Pull the latest image ($image_in_env) and restart the box?" y; then
-    say "Nothing else done. To update later: cd $DIR && docker compose pull && docker compose up -d"
+  if ! ask_yn "Pull the latest image ($image_in_env) and restart the box?" y; then
+    say "Files refreshed, nothing else done. To update later:"
+    say "  cd $DIR"
+    say "  docker compose pull && docker compose up -d"
     exit 0
   fi
   check_container_clash
@@ -450,7 +402,7 @@ if [ -n "$(ls -A "$DIR/data/home" 2>/dev/null)" ]; then
   say ""
   say "$DIR/data/home already holds a home, from an earlier install whose .env is gone."
   say "The new box will start on it, nothing in it is erased."
-  if [ "$interactive" = 1 ] && ! ask_yn "Continue with it?" y; then
+  if ! ask_yn "Continue with it?" y; then
     say "Stopped, nothing changed apart from the shipped files."
     exit 0
   fi
@@ -512,142 +464,115 @@ read_keys() {
 }
 
 say ""
-if [ "$interactive" = 1 ]; then
-  say "A few questions. Enter keeps the value in brackets; everything can be changed later in $DIR/.env."
-  say ""
-else
-  say "No terminal to ask on (or --yes): the defaults and the given options are used."
-fi
+say "A few questions. Enter keeps the value shown; everything can be changed later in $DIR/.env."
+say ""
 
 # User
-[ -n "$opt_user" ] || { [ "$interactive" = 1 ] && opt_user="$(ask "Unix user inside the box" "$(example_get USER_NAME)")"; } || true
-[ -n "$opt_user" ] || opt_user="$(example_get USER_NAME)"
-printf '%s' "$opt_user" | grep -q '^[a-z_][a-z0-9_-]*$' || die "invalid user name: $opt_user (lowercase letters, digits, _ and -)"
+while :; do
+  user="$(ask "Unix user inside the box" "$(example_get USER_NAME)")"
+  printf '%s' "$user" | grep -q '^[a-z_][a-z0-9_-]*$' && break
+  warn "invalid user name: $user (lowercase letters, digits, _ and -)"
+done
 
 # Timezone
-if [ -z "$opt_tz" ]; then
-  opt_tz="$(host_tz)"
-  [ "$interactive" = 1 ] && opt_tz="$(ask "Timezone" "$opt_tz")"
-fi
+tz="$(ask "Timezone" "$(host_tz)")"
 
 # Access
-if [ -z "$opt_access" ] && [ "$interactive" = 1 ]; then
-  say ""
-  say "How will you connect to the box?"
-  say "  tailscale: from any of your machines on your tailnet (Tailscale or Headscale account)"
-  say "  ssh:       an SSH port published on this host, public key only, no account needed"
-  opt_access="$(ask "Access (tailscale or ssh)" tailscale)"
-fi
-[ -n "$opt_access" ] || opt_access=tailscale
-case "$opt_access" in
-  tailscale | ssh) ;;
-  *) die "--access is tailscale or ssh, not $opt_access" ;;
-esac
+say ""
+say "How will you connect to the box?"
+say "  tailscale: from any of your machines on your tailnet (Tailscale or Headscale account)"
+say "  ssh:       an SSH port published on this host, public key only, no account needed"
+access="$(ask_choice "Access" tailscale tailscale ssh)"
 
-ssh_keys=""
-if [ "$opt_access" = tailscale ]; then
-  [ -n "$opt_hostname" ] || { [ "$interactive" = 1 ] && opt_hostname="$(ask "Tailscale hostname of the box" "$(example_get TS_HOSTNAME)")"; } || true
-  [ -n "$opt_login_server" ] || { [ "$interactive" = 1 ] && opt_login_server="$(ask "Control server (your Headscale URL, or Tailscale)" "$(example_get TS_LOGIN_SERVER)")"; } || true
-  if [ "$given_authkey" = 0 ] && [ "$interactive" = 1 ]; then
-    say "An auth key attaches the box on its own; without one, a login URL is printed to open once."
-    opt_authkey="$(ask_secret "Tailscale auth key")"
-  fi
+if [ "$access" = tailscale ]; then
+  ts_hostname="$(ask "Tailscale hostname of the box" "$(example_get TS_HOSTNAME)")"
+  ts_login_server="$(ask "Control server (your Headscale URL, or Tailscale)" "$(example_get TS_LOGIN_SERVER)")"
+  say "An auth key attaches the box on its own; without one, a login URL is printed to open once."
+  ts_authkey="$(ask_secret "Tailscale auth key")"
 else
-  if [ -z "$opt_ssh_key" ]; then
-    found="$(default_ssh_key_file)"
-    if [ "$interactive" = 1 ]; then
-      if [ -n "$found" ]; then
-        opt_ssh_key="$(ask "Public key allowed in (a .pub file, the key itself, or github:<your GitHub user>)" "$found")"
-      else
-        say "No public key in ~/.ssh. The keys of your GitHub account can be used"
-        say "(the ones listed on https://github.com/<user>.keys), or create one with: ssh-keygen -t ed25519"
-        gh_user="$(ask "GitHub user to take the public keys from (empty to skip)" "")"
-        if [ -n "$gh_user" ]; then
-          opt_ssh_key="github:${gh_user#github:}"
-        else
-          opt_ssh_key="$(ask "Public key allowed in (a .pub file or the key itself, empty for none)" "")"
-        fi
-      fi
+  found="$(default_ssh_key_file)"
+  if [ -z "$found" ]; then
+    say "No public key in ~/.ssh. The keys of your GitHub account can be used"
+    say "(the ones listed on https://github.com/<user>.keys), or create one with: ssh-keygen -t ed25519"
+  fi
+  ssh_keys=""
+  while :; do
+    if [ -n "$found" ]; then
+      ssh_key="$(ask "Public key allowed in (a .pub file, the key itself, or github:<your GitHub user>)" "$found")"
     else
-      opt_ssh_key="$found"
+      gh_user="$(ask "GitHub user to take the public keys from (empty to skip)" "")"
+      if [ -n "$gh_user" ]; then
+        ssh_key="github:${gh_user#github:}"
+      else
+        ssh_key="$(ask "Public key allowed in (a .pub file or the key itself, empty for none)" "")"
+      fi
     fi
-  fi
-  if [ -n "$opt_ssh_key" ]; then
-    if ! ssh_keys="$(read_keys "$opt_ssh_key")"; then
-      case "$opt_ssh_key" in
-        github:*) die "no public key found at https://github.com/${opt_ssh_key#github:}.keys
+    [ -n "$ssh_key" ] || break
+    ssh_keys="$(read_keys "$ssh_key")" && break
+    case "$ssh_key" in
+      github:*) warn "no public key found at https://github.com/${ssh_key#github:}.keys
   Check the user name, and that the account has an SSH key (GitHub, Settings, SSH and GPG keys)." ;;
-        *) die "not a public key, nor a file of public keys: $opt_ssh_key" ;;
-      esac
-    fi
-    case "$opt_ssh_key" in
-      github:*) say "  $(printf '%s\n' "$ssh_keys" | grep -c .) public key(s) taken from https://github.com/${opt_ssh_key#github:}.keys" ;;
+      *) warn "not a public key, nor a file of public keys: $ssh_key" ;;
     esac
-  else
+  done
+  case "$ssh_key" in
+    github:*) say "  $(printf '%s\n' "$ssh_keys" | grep -c .) public key(s) taken from https://github.com/${ssh_key#github:}.keys" ;;
+  esac
+  if [ -z "$ssh_keys" ]; then
     warn "no public key: sshd will not start. Add one to SSH_AUTHORIZED_KEYS in .env later,
-  or get in with docker exec -it -u $opt_user $container zsh -l"
+  or get in with docker exec -it -u $user $container zsh -l"
   fi
-  [ -n "$opt_ssh_port" ] || { [ "$interactive" = 1 ] && opt_ssh_port="$(ask "SSH port on this host" "$(example_get SSH_PORT)")"; } || true
-  [ -n "$opt_ssh_bind" ] || { [ "$interactive" = 1 ] && opt_ssh_bind="$(ask "Address it listens on (127.0.0.1: this machine only, 0.0.0.0: the LAN)" "$(example_get SSH_BIND)")"; } || true
+  while :; do
+    ssh_port="$(ask "SSH port on this host" "$(example_get SSH_PORT)")"
+    case "$ssh_port" in
+      "" | *[!0-9]*) ;;
+      *) [ "$ssh_port" -ge 1 ] && [ "$ssh_port" -le 65535 ] && break ;;
+    esac
+    warn "invalid SSH port: $ssh_port (a number from 1 to 65535)"
+  done
+  say "127.0.0.1: reachable from this machine only; 0.0.0.0: from the LAN too."
+  ssh_bind="$(ask_choice "Address the SSH port listens on" "$(example_get SSH_BIND)" 127.0.0.1 0.0.0.0)"
 fi
-[ -n "$opt_ssh_port" ] || opt_ssh_port="$(example_get SSH_PORT)"
-[ -n "$opt_ssh_bind" ] || opt_ssh_bind="$(example_get SSH_BIND)"
-case "$opt_ssh_port" in
-  "" | *[!0-9]*) die "invalid SSH port: $opt_ssh_port" ;;
-esac
-[ "$opt_ssh_port" -ge 1 ] && [ "$opt_ssh_port" -le 65535 ] || die "invalid SSH port: $opt_ssh_port"
 
 # Optional extras
-if [ "$given_token" = 0 ] && [ "$interactive" = 1 ]; then
-  say ""
-  say "A GitHub token with no scope avoids the GitHub API rate limit while tools install (recommended)."
-  opt_token="$(ask_secret "GitHub token")"
-fi
-if [ "$given_dev_envs" = 0 ] && [ "$interactive" = 1 ]; then
-  say ""
-  say "Dev environments to install at the first start, space separated, empty for none."
-  say "For instance: node python php go rust java laravel (devbox dev-env --list in the box shows them all)."
-  opt_dev_envs="$(ask "Dev environments" "")"
-fi
-if [ -z "$opt_podman" ] && [ "$interactive" = 1 ]; then
-  say ""
-  say "Rootless podman runs docker commands inside the box, but it loosens the isolation"
-  say "of the container (seccomp, /proc/sys and AppArmor opened)."
-  if ask_yn "Turn podman on?" n; then opt_podman=yes; else opt_podman=no; fi
-fi
-case "$opt_podman" in
-  yes | true | 1) opt_podman=yes ;;
-  "" | no | false | 0) opt_podman=no ;;
-  *) die "--podman takes yes or no, not $opt_podman" ;;
-esac
-[ -n "$opt_image" ] || opt_image="$DEFAULT_IMAGE"
+say ""
+say "A GitHub token with no scope avoids the GitHub API rate limit while tools install (recommended)."
+github_token="$(ask_secret "GitHub token")"
+say ""
+say "Dev environments to install at the first start, space separated, empty for none."
+say "For instance: node python php go rust java laravel (devbox dev-env --list in the box shows them all)."
+dev_envs="$(ask "Dev environments" "")"
+say ""
+say "Rootless podman runs docker commands inside the box, but it loosens the isolation"
+say "of the container (seccomp, /proc/sys and AppArmor opened)."
+podman=no
+ask_yn "Turn podman on?" n && podman=yes
 
 # --- .env, written from .env.example ---
 cp "$DIR/.env.example" "$DIR/.env.new"
-env_set USER_NAME "$opt_user"
-env_set TZ "$opt_tz"
-[ -n "$opt_projects" ] && env_set PROJECTS_DIR "$opt_projects"
-env_set DEVBOX_IMAGE "$opt_image"
-if [ "$opt_access" = tailscale ]; then
+env_set USER_NAME "$user"
+env_set TZ "$tz"
+env_set DEVBOX_IMAGE "$IMAGE"
+if [ "$access" = tailscale ]; then
   env_set TS_DISABLE false
-  [ -n "$opt_hostname" ] && env_set TS_HOSTNAME "$opt_hostname"
-  [ -n "$opt_login_server" ] && env_set TS_LOGIN_SERVER "$opt_login_server"
-  env_set TS_AUTHKEY "$opt_authkey"
+  env_set TS_HOSTNAME "$ts_hostname"
+  env_set TS_LOGIN_SERVER "$ts_login_server"
+  env_set TS_AUTHKEY "$ts_authkey"
 else
   env_set TS_DISABLE true
   env_set SSH_AUTHORIZED_KEYS "$ssh_keys"
+  env_set SSH_PORT "$ssh_port"
+  env_set SSH_BIND "$ssh_bind"
 fi
-env_set SSH_PORT "$opt_ssh_port"
-env_set SSH_BIND "$opt_ssh_bind"
-env_set GITHUB_TOKEN "$opt_token"
-env_set DEV_ENVS "$opt_dev_envs"
-if [ "$opt_podman" = yes ]; then env_set PODMAN_ENABLE true; else env_set PODMAN_ENABLE false; fi
+env_set GITHUB_TOKEN "$github_token"
+env_set DEV_ENVS "$dev_envs"
+if [ "$podman" = yes ]; then env_set PODMAN_ENABLE true; else env_set PODMAN_ENABLE false; fi
 chmod 600 "$DIR/.env.new"
 mv "$DIR/.env.new" "$DIR/.env"
 say ""
 say "Wrote $DIR/.env"
 
-if [ "$opt_podman" = yes ]; then
+if [ "$podman" = yes ]; then
   if [ -f "$DIR/compose.override.yaml" ]; then
     warn "compose.override.yaml already exists and is left alone: add the podman block
   of compose.override.example.yaml to it by hand, or podman will not start"
@@ -685,13 +610,13 @@ docker compose config -q || die "docker compose rejects the configuration in $DI
 next_steps() {
   say ""
   say "Connect:"
-  if [ "$opt_access" = tailscale ]; then
-    say "  ssh $opt_user@$(env_get TS_HOSTNAME)          from any machine of your tailnet"
+  if [ "$access" = tailscale ]; then
+    say "  ssh $user@$ts_hostname          from any machine of your tailnet"
   else
-    say "  ssh -p $opt_ssh_port $opt_user@127.0.0.1"
-    [ "$opt_ssh_bind" = 0.0.0.0 ] && say "  ssh -p $opt_ssh_port $opt_user@<this host's address>   from the LAN"
+    say "  ssh -p $ssh_port $user@127.0.0.1"
+    [ "$ssh_bind" = 0.0.0.0 ] && say "  ssh -p $ssh_port $user@<this host's address>   from the LAN"
   fi
-  say "  docker exec -it -u $opt_user $container zsh -l   always works, on this host"
+  say "  docker exec -it -u $user $container zsh -l   always works, on this host"
   say ""
   say "In $DIR:"
   say "  docker compose logs -f                        what the box is doing"
@@ -707,22 +632,23 @@ next_steps() {
   say "  (that deletes your home and projects in data/; some files there belong to root: sudo rm -rf on Linux)"
 }
 
-if [ "$opt_no_start" = 1 ]; then
-  say ""
-  say "Nothing started (--no-start). To start: cd $DIR && docker compose pull && docker compose up -d"
+say ""
+if ! ask_yn "Pull the image and start the box now?" y; then
+  say "Nothing started. To start it later:"
+  say "  cd $DIR"
+  say "  docker compose pull && docker compose up -d"
   next_steps
   exit 0
 fi
 
 check_container_clash
-say ""
-say "Pulling $opt_image (a few minutes the first time)"
+say "Pulling $IMAGE (a few minutes the first time)"
 docker compose pull
-docker image inspect "$opt_image" >/dev/null 2>&1 || die "the image $opt_image is not there after the pull"
+docker image inspect "$IMAGE" >/dev/null 2>&1 || die "the image $IMAGE is not there after the pull"
 say "Starting the box"
 docker compose up -d --no-build
 
-if [ "$opt_access" = tailscale ] && [ -z "$opt_authkey" ] && [ ! -s "$DIR/data/tailscale/tailscaled.state" ]; then
+if [ "$access" = tailscale ] && [ -z "$ts_authkey" ] && [ ! -s "$DIR/data/tailscale/tailscaled.state" ]; then
   say ""
   say "Waiting for the Tailscale login URL (up to 2 minutes)"
   url=""

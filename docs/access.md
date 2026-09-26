@@ -94,8 +94,8 @@ never on the Internet. To reach the port from outside the tailnet, map it in
 ## SSH without Tailscale
 
 Set `TS_DISABLE=true` in `.env` and the box starts its own OpenSSH server
-instead of `tailscaled` (the setup script does this with `--access ssh`).
-Public key only. Password and root login are refused:
+instead of `tailscaled` (the setup script does this when you pick `ssh`
+access). Public key only. Password and root login are refused:
 
 ```bash
 TS_DISABLE=true

@@ -27,7 +27,7 @@ changes nothing.
 The same environments can be asked for from `.env`: `DEV_ENVS="node go python"`
 and every start makes sure they are there, through
 `devbox dev-env --if-missing`, in the background after the mise tools. The
-setup script asks for this list (`--dev-envs`). What is installed already is
+setup script asks for this list. What is installed already is
 skipped, so a start only spends time on a fresh home or a name added since. An
 unknown name refuses the whole list, nothing is installed. The output goes to
 `~/.cache/dev-box/dev-envs.log`; while it runs, and when it failed, the login

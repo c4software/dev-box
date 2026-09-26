@@ -4,8 +4,7 @@ There are two ways to install a box:
 
 - **The setup script**, `setup.sh`: no clone, no build. It downloads the few
   files needed to run the published image and starts it. This is the Quick
-  start of the [README](../README.md), and the reference for its options is
-  below.
+  start of the [README](../README.md), and its questions are listed below.
 - **A clone of the repository**, built locally or running the published image.
   This is the way to change the box itself, or to run a change that is not
   released yet.
@@ -35,10 +34,14 @@ curl -fsSL https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh | 
 wget -qO- https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh | sh
 ```
 
-It needs only a POSIX `sh`, `curl` or `wget`, and Docker with the Compose
-plugin. It checks those first, and says what to install or start when one is
-missing (Docker not installed, Compose plugin missing, daemon not answering,
-permission denied on the socket).
+It takes no option: it asks its questions on the terminal, and refuses to run
+without one. It needs only a POSIX `sh`, `curl` or `wget`, and Docker with the
+Compose plugin. It checks those first, and says what to install or start when
+one is missing (Docker not installed, Compose plugin missing, daemon not
+answering, permission denied on the socket). When
+[gum](https://github.com/charmbracelet/gum) is installed, the questions use it
+(a list to pick the access from, a yes or no toggle); otherwise they are plain
+prompts. Ctrl-C at any question stops the setup.
 
 What it does on a new install:
 
@@ -47,9 +50,7 @@ What it does on a new install:
    builds its own image: use `docker compose up -d --build` there);
 2. downloads `compose.yaml`, `.env.example`, `compose.override.example.yaml`,
    `scripts/backup.sh` and `scripts/restore.sh` into it;
-3. asks a few questions (user, timezone, Tailscale or SSH access, hostname,
-   control server, auth key or public key, GitHub token, dev environments,
-   podman), each one with a default in brackets;
+3. asks the [questions](#the-questions), each one with a default;
 4. writes `.env` from `.env.example` with those answers, mode 600, with
    `DEVBOX_IMAGE` set to `ghcr.io/c4software/dev-box:latest`, so the stock
    `compose.yaml` pulls instead of building;
@@ -57,7 +58,9 @@ What it does on a new install:
    block, unless one already exists (then it says to add the block by hand);
 6. creates `data/home`, `data/tailscale` and the projects directory as you,
    rather than letting Docker create them as root;
-7. pulls the image and starts the box with `docker compose up -d`;
+7. asks whether to pull the image and start the box now (yes by default):
+   yes runs `docker compose pull` and `docker compose up -d`, no prints those
+   two commands to run later;
 8. with Tailscale and no auth key, waits up to two minutes for the login URL
    and prints it, to open once;
 9. prints how to connect and the commands to run in that directory.
@@ -70,42 +73,32 @@ In the install directory, the box is driven with `docker compose` directly
 `scripts/backup.sh` and `scripts/restore.sh` handle backups (see
 [Host commands](#host-commands)).
 
-### Options
+### The questions
 
-Every question can be answered in advance, as a flag or as an environment
-variable. `--yes` takes the defaults for everything not given and asks
-nothing; without a terminal (a pipe with no `/dev/tty`) it asks nothing either.
-Under `curl | sh`, the options go after `sh -s --`:
+In this order, with their default. Enter keeps the default.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh \
-  | sh -s -- --yes --access ssh --ssh-key ~/.ssh/id_ed25519.pub
-```
-
-`sh setup.sh --help` prints the current list:
-
-| Option | Variable | Meaning |
+| Question | Default | Written to `.env` |
 | --- | --- | --- |
-| `--dir DIR` | `DEVBOX_DIR` | install directory, default `~/dev-box` |
-| `--user NAME` | `DEVBOX_USER` | Unix user inside the box, default `dev` |
-| `--access MODE` | `DEVBOX_ACCESS` | `tailscale` (default) or `ssh` |
-| `--hostname NAME` | `DEVBOX_HOSTNAME` | Tailscale hostname, default `dev-box` |
-| `--login-server URL` | `DEVBOX_LOGIN_SERVER` | Tailscale control server, or your Headscale |
-| `--authkey KEY` | `DEVBOX_AUTHKEY` | Tailscale auth key; empty prints a login URL |
-| `--ssh-key KEY\|FILE\|github:USER` | `DEVBOX_SSH_KEY` | public key(s) for `--access ssh`: a key, a `.pub` file, or `github:USER` for the keys published at `https://github.com/USER.keys`; default the first of `~/.ssh/id_{ed25519,ecdsa,rsa}.pub`. Asked interactively, with no key in `~/.ssh` the script offers the GitHub user straight away |
-| `--ssh-port PORT` | `DEVBOX_SSH_PORT` | host port for `--access ssh`, default `2222` |
-| `--ssh-bind ADDR` | `DEVBOX_SSH_BIND` | host address for it, default `127.0.0.1` (`0.0.0.0`: the LAN) |
-| `--tz ZONE` | `DEVBOX_TZ` | timezone, default the host's |
-| `--projects-dir DIR` | `DEVBOX_PROJECTS_DIR` | host directory mounted at `~/projets`, default `./data/projets` |
-| `--github-token TOKEN` | `DEVBOX_GITHUB_TOKEN` | GitHub token with no scope, recommended |
-| `--dev-envs "A B"` | `DEVBOX_DEV_ENVS` | `devbox dev-env` names installed at first start, e.g. `"node python"` |
-| `--podman`, `--no-podman` | `DEVBOX_PODMAN=yes\|no` | rootless podman inside the box, off by default: it loosens the isolation of the container |
-| `--image IMAGE` | `DEVBOX_IMAGE` | image to run, default `ghcr.io/c4software/dev-box:latest` |
-| `--ref REF` | `DEVBOX_REF` | branch or tag of the repo to take the files from, default `main` |
-| `--base-url URL\|DIR` | `DEVBOX_BASE_URL` | where to take the files from instead of GitHub (a local directory works, for testing) |
-| `--no-start` | `DEVBOX_NO_START=1` | write the files, pull and start nothing |
-| `-y`, `--yes` | `DEVBOX_YES=1` | ask nothing, take the defaults |
-| `-h`, `--help` | | the help |
+| Install directory | `~/dev-box` | nothing, it is where everything goes |
+| Unix user inside the box | `dev` | `USER_NAME` (lowercase letters, digits, `_` and `-`; asked again otherwise) |
+| Timezone | the host's | `TZ` |
+| Access: `tailscale` or `ssh` | `tailscale` | `TS_DISABLE` (`false` for Tailscale, `true` for SSH) |
+| Tailscale hostname of the box (Tailscale only) | `dev-box` | `TS_HOSTNAME` |
+| Control server (Tailscale only) | `https://controlplane.tailscale.com` | `TS_LOGIN_SERVER`: your Headscale URL, or Tailscale |
+| Tailscale auth key (Tailscale only, hidden) | none | `TS_AUTHKEY`; without one, a login URL is printed to open once |
+| Public key allowed in (SSH only) | the first of `~/.ssh/id_{ed25519,ecdsa,rsa}.pub` | `SSH_AUTHORIZED_KEYS`: a `.pub` file, the key itself, or `github:USER` for the keys published at `https://github.com/USER.keys` |
+| GitHub user to take the public keys from (SSH only, when `~/.ssh` holds no key) | none | `SSH_AUTHORIZED_KEYS`; left empty, the script asks for a `.pub` file or a key instead, and with no key at all sshd does not start |
+| SSH port on this host (SSH only) | `2222` | `SSH_PORT` |
+| Address the SSH port listens on (SSH only): `127.0.0.1` or `0.0.0.0` | `127.0.0.1` | `SSH_BIND`: `127.0.0.1` is this machine only, `0.0.0.0` the LAN too |
+| GitHub token (hidden) | none | `GITHUB_TOKEN`: a token with no scope, recommended, avoids the GitHub API rate limit while tools install |
+| Dev environments | none | `DEV_ENVS`: `devbox dev-env` names installed at the first start, space separated, e.g. `node python` |
+| Turn podman on? | no | `PODMAN_ENABLE`, plus a `compose.override.yaml` with the podman block (see [containers.md](containers.md)): it loosens the isolation of the container |
+| Pull the image and start the box now? | yes | nothing |
+
+A key, a GitHub user or a port that is not valid is refused with the reason,
+and the question is asked again. `.env` also gets
+`DEVBOX_IMAGE=ghcr.io/c4software/dev-box:latest`; everything else keeps the
+value of `.env.example`, `PROJECTS_DIR` included.
 
 Everything it writes can be changed later in `.env`, followed by
 `docker compose up -d` (see [customization.md](customization.md)).
@@ -113,8 +106,10 @@ Everything it writes can be changed later in `.env`, followed by
 ### Running it again: updating
 
 On a directory that already has a `.env`, the script updates instead of
-installing: it refreshes the shipped files, pulls the image named by
-`DEVBOX_IMAGE` in `.env` and restarts the box. It never touches `.env`,
+installing: it refreshes the shipped files, then asks "Pull the latest image
+and restart the box?" (yes by default), which pulls the image named by
+`DEVBOX_IMAGE` in `.env` and restarts the box; no leaves it at the refreshed
+files. It asks nothing else, and never touches `.env`,
 `compose.override.yaml` or `data/`.
 
 A shipped file is only replaced when the installed copy is still the one the
@@ -127,7 +122,7 @@ Other cases it handles:
 - an empty `DEVBOX_IMAGE` in `.env` is refused, since that directory has no
   `Dockerfile` to build from;
 - a `data/home` left over from an earlier install whose `.env` is gone is
-  reused, nothing in it is erased (it asks first on a terminal);
+  reused, nothing in it is erased (it asks first);
 - `compose.yaml` names the container `dev-box`, so only one such box runs per
   host: a container of that name started from another directory (a clone) is
   refused, with the directory it comes from.

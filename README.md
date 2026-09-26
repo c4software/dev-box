@@ -35,22 +35,16 @@ or, without curl:
 wget -qO- https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh | sh
 ```
 
-The script asks a few questions (user, Tailscale or SSH access, dev
-environments, podman), writes `~/dev-box/.env`, pulls the published image and
-starts the box. With Tailscale and no auth key, it prints the login URL to open
-once to attach the box to your tailnet. The first start then installs the
-tools in the background, a few minutes.
+The script asks a few questions (install directory, user, Tailscale or SSH
+access, dev environments, podman), writes `~/dev-box/.env`, then pulls the
+published image and starts the box once you say yes. With Tailscale and no auth
+key, it prints the login URL to open once to attach the box to your tailnet.
+The first start then installs the tools in the background, a few minutes. If
+[gum](https://github.com/charmbracelet/gum) is installed, the questions look
+nicer; it is optional.
 
-To ask nothing, give the answers as options after `sh -s --`:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh \
-  | sh -s -- --yes --access ssh --ssh-key ~/.ssh/id_ed25519.pub --dev-envs "node python"
-```
-
-`sh setup.sh --help` lists every option; they are described in
-[docs/manual-install.md](docs/manual-install.md#options), together with the
-install from a clone of this repository.
+The questions, and the install from a clone of this repository, are described
+in [docs/manual-install.md](docs/manual-install.md).
 
 **Windows**: run the command inside WSL 2 (Ubuntu, with the Docker Desktop WSL
 integration on), and keep the install directory in the Linux home, not under
@@ -60,7 +54,7 @@ integration on), and keep the install directory in the Linux home, not under
 
 ```bash
 ssh dev@dev-box                          # Tailscale, from any machine of your tailnet
-ssh -p 2222 dev@127.0.0.1                # SSH access (--access ssh), from the host
+ssh -p 2222 dev@127.0.0.1                # SSH access, from the host
 docker exec -it -u dev dev-box zsh -l    # always works, on the host
 ```
 

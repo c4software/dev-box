@@ -90,7 +90,7 @@ of `docs/`, `setup.sh` and `entrypoint.sh` call them by name.
   the README only keeps the essentials (install, connecting, the main
   commands, updating), the rest lives in `docs/`, one page per topic. A
   command goes in `docs/commands.md` (and the page of its topic), a `.env`
-  variable or a seeded file in `docs/customization.md`, a `setup.sh` option in
+  variable or a seeded file in `docs/customization.md`, a `setup.sh` question in
   `docs/manual-install.md`, a dev environment in `docs/dev-envs.md`.
 
 ## Testing
