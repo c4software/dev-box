@@ -30,9 +30,13 @@ The image is published for amd64 and arm64.
 ## The setup script
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh | sh
-wget -qO- https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh | sh
+curl -fsSL https://cours.brosseau.ovh/devbox.sh | sh
+wget -qO- https://cours.brosseau.ovh/devbox.sh | sh
 ```
+
+The short address redirects to
+`https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh`, the
+`setup.sh` at the root of this repository; both work.
 
 It takes no option: it asks its questions on the terminal, and refuses to run
 without one. It needs only a POSIX `sh`, `curl` or `wget`, and Docker with the

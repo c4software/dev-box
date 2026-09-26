@@ -26,14 +26,18 @@ You need Docker with the Compose plugin (Docker Desktop on macOS and Windows).
 Then, on the machine that will host the box:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh | sh
+curl -fsSL https://cours.brosseau.ovh/devbox.sh | sh
 ```
 
 or, without curl:
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh | sh
+wget -qO- https://cours.brosseau.ovh/devbox.sh | sh
 ```
+
+That short address redirects to
+[setup.sh](https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh)
+on GitHub, the file at the root of this repository.
 
 The script asks a few questions (install directory, user, Tailscale or SSH
 access, dev environments, podman), writes `~/dev-box/.env`, then pulls the

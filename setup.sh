@@ -2,8 +2,11 @@
 # Installs a dev-box from the published image, without cloning the repo and
 # without building anything:
 #
-#   curl -fsSL https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh | sh
-#   wget -qO- https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh | sh
+#   curl -fsSL https://cours.brosseau.ovh/devbox.sh | sh
+#   wget -qO- https://cours.brosseau.ovh/devbox.sh | sh
+#
+# That address redirects to this file on GitHub:
+# https://raw.githubusercontent.com/c4software/dev-box/main/setup.sh
 #
 # It takes no option: it asks its questions on the terminal, with gum
 # (https://github.com/charmbracelet/gum) when it is installed, plain prompts
