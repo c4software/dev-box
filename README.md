@@ -93,8 +93,8 @@ The full list is in [docs/commands.md](docs/commands.md).
   `compose.yaml` and the other shipped files, pulls the latest image and
   restarts the box. It never touches `.env`, `compose.override.yaml` or
   `data/`; a shipped file you edited by hand is kept, and the new version lands
-  next to it as `<file>.new`. `docker compose pull && docker compose up -d`, or
-  `just pull`, does the same without refreshing the files.
+  next to it as `<file>.new`. `docker compose pull && docker compose up -d`
+  does the same without refreshing the files.
 - **Inside the box**: `devbox update` for the dotfiles, the mise tools and the
   shipped config.
 
@@ -133,8 +133,8 @@ belong to root: on Linux, `sudo rm -rf ~/dev-box`.
 - [Coding agents](docs/agents.md): `devbox agent`, usage, the agent skill
 - [Updates](docs/updates.md): the check, `devbox update`, the image, the
   changelog, migrations
-- [Backup and restore](docs/backup.md): what persists, `just backup`,
-  `just restore`
+- [Backup and restore](docs/backup.md): what persists, `scripts/backup.sh`,
+  `scripts/restore.sh`
 - [Troubleshooting](docs/troubleshooting.md): `devbox diagnostic`, logs, common
   problems
 - [Architecture and contributing](docs/architecture.md): design choices,

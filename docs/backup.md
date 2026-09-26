@@ -18,7 +18,7 @@ fresh home (`rm -rf data/home`) without affecting your projects.
 
 ## Backup
 
-`scripts/backup.sh [--with-tailscale] [dest_dir]`, also `just backup`, writes
+`scripts/backup.sh [--with-tailscale] [dest_dir]` writes
 `dev-box-<TS_HOSTNAME>-<YYYYmmdd-HHMMSS>.tar.zst` into `dest_dir`, `./backups`
 by default (git-ignored). It needs `zstd` on the host. The setup script
 installs both scripts in the install directory too.
@@ -48,7 +48,6 @@ printed.
 
 ```bash
 ./scripts/restore.sh backups/dev-box-dev-box-20260920-101500.tar.zst
-# or: just restore backups/dev-box-dev-box-20260920-101500.tar.zst
 ```
 
 It stops the container, lists what already exists and would be overwritten,
@@ -56,9 +55,9 @@ asks for confirmation, then unpacks at the root of the repo. Files are
 overwritten one by one. Nothing outside the archive is ever deleted, so a home
 restored over a newer one keeps whatever the archive does not mention. Add
 `--yes` to skip the prompt. Outside a terminal the script refuses to run
-without it. Then bring the box back with `just up`. The mise toolchains were
+without it. Then bring the box back with `docker compose up -d`. The mise toolchains were
 not in the archive, so the start reinstalls them, or you run
-`just update tools` (`devbox update tools` from inside).
+`devbox update tools` from inside.
 
 If `PROJECTS_DIR` points outside the repo, on another disk, the projects are
 stored under `projets-external/` in the archive and restored there. Move them

@@ -47,9 +47,9 @@ What it does on a new install:
 
 1. asks for the install directory, `~/dev-box` by default, and refuses a
    non-empty directory that holds no box, or a clone of the repository (which
-   builds its own image: use `just up` or `just pull` there);
+   builds its own image: use `docker compose up -d --build` there);
 2. downloads `compose.yaml`, `.env.example`, `compose.override.example.yaml`,
-   the `justfile` and `scripts/backup.sh` and `scripts/restore.sh` into it;
+   `scripts/backup.sh` and `scripts/restore.sh` into it;
 3. asks a few questions (user, timezone, Tailscale or SSH access, hostname,
    control server, auth key or public key, GitHub token, dev environments,
    podman), each one with a default in brackets;
@@ -68,10 +68,10 @@ What it does on a new install:
 The first start then seeds the home, syncs the dotfiles and installs the tools
 in the background: a few minutes before everything is there.
 
-The `justfile` is downloaded too, so `just pull`, `just logs`, `just shell`,
-`just backup` and the other recipes work in the install directory. Recipes
-that compare against the git repository (`just status` for the image, the
-commit baked in at build time) have no clone to read there and say so.
+In the install directory, the box is driven with `docker compose` directly
+(`docker compose logs -f`, `docker compose pull && docker compose up -d`), and
+`scripts/backup.sh` and `scripts/restore.sh` handle backups. The `justfile`
+belongs to the clone and build path below.
 
 ### Options
 

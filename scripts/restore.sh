@@ -109,4 +109,4 @@ fi
 "${sudo_cmd[@]}" tar --zstd --numeric-owner -xpf "$archive" -C "$PWD"
 
 echo "Restore done."
-echo "Start the box again: just up"
+echo "Start the box again: docker compose up -d"

@@ -9,8 +9,8 @@
 #
 #   curl -fsSL .../setup.sh | sh -s -- --yes --access ssh --ssh-key ~/.ssh/id_ed25519.pub
 #
-# It downloads compose.yaml, .env.example, compose.override.example.yaml, the
-# justfile and the backup scripts into an install directory (~/dev-box by
+# It downloads compose.yaml, .env.example, compose.override.example.yaml and
+# the backup scripts into an install directory (~/dev-box by
 # default), writes .env from .env.example with the answers to a few questions,
 # pulls the image and starts the box. Run again on the same directory, it
 # refreshes those files and pulls the latest image, and never touches .env,
@@ -23,7 +23,7 @@ set -eu
 REPO_SLUG="c4software/dev-box"
 DEFAULT_IMAGE="ghcr.io/c4software/dev-box:latest"
 # Files needed to run the box, relative to the root of the repo.
-SHIPPED="compose.yaml .env.example compose.override.example.yaml justfile scripts/backup.sh scripts/restore.sh"
+SHIPPED="compose.yaml .env.example compose.override.example.yaml scripts/backup.sh scripts/restore.sh"
 
 usage() {
   cat <<'TXT'
@@ -277,7 +277,7 @@ DIR="$(cd "$opt_dir" && pwd)"
 
 if [ -f "$DIR/Dockerfile" ]; then
   die "$DIR is a clone of the dev-box repo, which builds its own image.
-  Run just up or just pull there, or pick another directory with --dir."
+  Run docker compose up -d --build there, or pick another directory with --dir."
 fi
 
 if [ "$on_windows" = 1 ]; then
@@ -664,7 +664,7 @@ next_steps() {
   say "  run the install command again                 same, and refreshes compose.yaml"
   say "  edit .env, then docker compose up -d          change a setting"
   say "  docker compose down                           stop the box, data/ is kept"
-  say "  just (https://just.systems) wraps all of this: just pull, just logs, just shell, just backup"
+  say "  scripts/backup.sh                             back up data/ (scripts/restore.sh to restore)"
   say ""
   say "Documentation: https://github.com/$REPO_SLUG/tree/main/docs"
   say ""
