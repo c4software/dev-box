@@ -67,7 +67,8 @@ respect:
 |---|---|
 | A package every box needs | `Dockerfile`, in the `pacman -Syu` list, with a comment saying why; check it exists on Arch Linux ARM too |
 | A dev tool every box needs | `rootfs/etc/devbox/mise-config.toml` |
-| A new `devbox` command | `rootfs/usr/local/bin/dev-box-<name>` with the `# devbox:` headers; nothing to register |
+| A new `devbox` command | `rootfs/usr/local/bin/dev-box-<name>` with the `# devbox:` headers, `summary.fr` (French summary) included; nothing to register |
+| A French text | only the `devbox` menu and the motd tips are translated: a `# devbox:summary.fr=` line under `# devbox:summary=`, and a `command|text` line in `rootfs/usr/share/devbox/motd/tips.fr` for each tip added to `TIPS` in `dev-box-motd`; English stays the source and the fallback, nothing else is translated |
 | A config file shipped to the home | `rootfs/etc/devbox/` plus a line in the `SEEDS` array of `dev-box-seed` and a row in the seed table of `docs/customization.md` |
 | A new `devbox dev-env` environment | a `rootfs/usr/share/devbox/dev-envs/<name>.sh` with `details`, `install` and `uninstall` (`is_installed` when the mise config cannot tell, `is_supported` when it does not run everywhere), found on its own; `mise use -g` only (`php` from the image, `browser` and `media` through `devbox pkg` are the exceptions) |
 | A change a user of the box notices | a line in the annotation of the next release tag (`git tag -a v1.7`): the workflow turns it into the GitHub release that `devbox changelog` and the next login show |

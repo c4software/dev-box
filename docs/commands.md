@@ -62,6 +62,7 @@ and reads a comment header at the top of each one:
 ```bash
 # devbox:name=update
 # devbox:summary=Update dotfiles, mise tools and the shipped config
+# devbox:summary.fr=Mettre à jour les dotfiles, les outils mise et la config livrée
 # devbox:args=[dotfiles|tools|seed|all]
 # devbox:hidden=true    # optional: out of the menu and the list, still routable
 # devbox:requires=tailscale   # optional: hidden too while that feature is off
@@ -77,6 +78,11 @@ it is the wrapper behind the `docker` and `podman` symlinks, not a command you
 call. `dev-box-tailscale` and `dev-box-serve` carry `requires=tailscale`: with
 `TS_DISABLE=true` they leave the menu and the list, but `devbox tailscale` and
 `devbox serve` still answer, with the reason.
+
+The `summary.fr` line is the French summary, shown instead of the English one
+when `LANG` is French (`LANG=fr_FR.UTF-8` in `.env`); a command without one
+keeps its English summary. The summaries and the login tips are the only
+translated texts, see [Language](customization.md#language).
 
 ## Menus
 
@@ -123,7 +129,10 @@ Tips: devbox dbs postgres redis  start these databases, data kept in a volume
 ```
 
 The commands come from the `TIPS` list at the top of the script, drawn with
-`shuf`; the ones that need Tailscale stay out when `TS_DISABLE=true`. The
+`shuf`; the ones that need Tailscale stay out when `TS_DISABLE=true`. With
+`LANG=fr_FR.UTF-8` the text of the tip comes from
+`/usr/share/devbox/motd/tips.fr`, keyed by the command, English when a tip has
+no translation there. The
 updates line folds `~/.cache/dev-box/updates` into a count; the detail of what
 is waiting stays in `devbox check` and `devbox status`. The `DEV_ENVS` line is
 `~/.cache/dev-box/dev-envs`, written by the entrypoint and removed once every

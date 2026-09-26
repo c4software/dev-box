@@ -161,6 +161,9 @@ Never guess a command name. Run `devbox commands`.
 - "How does this box work?" -> `devbox tour`, or `devbox tour --text` to read it all
 - "Have Go and Node in every box" -> `DEV_ENVS="node go"` in `.env` on the host,
   installed at start when missing (`devbox status` shows where it stands)
+- "Put the box in French" -> `LANG=fr_FR.UTF-8` in `.env` on the host, then
+  restart the container: only the `devbox` menu and the login tips are
+  translated, everything else stays in English
 - "Update the box" -> `devbox update`, after saying what it will do
 - "Is there anything to update?" -> `devbox check`, then `devbox status`
 - "Add ripgrep" -> already in the image

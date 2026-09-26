@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=tui
 # devbox:summary=Install or remove terminal apps (btop, lazydocker, atac, ...)
+# devbox:summary.fr=Installer ou retirer des applis terminal (btop, lazydocker, atac, ...)
 # devbox:args=[name...|--remove name...|--list]
 #
 # A catalogue of terminal apps (TUIs) worth having in the box, installed on
@@ -87,7 +88,7 @@ while [ $# -gt 0 ]; do
     exit 0
     ;;
   -h | --help)
-    sed -n '6,18p' "$0" | sed 's/^# \?//'
+    sed -n '7,19p' "$0" | sed 's/^# \?//'
     exit 0
     ;;
   --remove)

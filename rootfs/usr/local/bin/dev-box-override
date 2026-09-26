@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=override
 # devbox:summary=What this box changes from the image defaults, and how to undo it
+# devbox:summary.fr=Ce que cette box change par rapport à l'image, et comment revenir en arrière
 # devbox:args=[--diff [path]]
 #
 # Lists the overrides of this box: every place where it departs from what the
@@ -19,7 +20,7 @@
 #     the image's;
 #   - the default agent and the packages kept by `devbox pkg`;
 #   - the .env settings the box can see (TS_DISABLE, PODMAN_ENABLE, DEV_ENVS,
-#     USER_NAME, USER_SHELL, TS_HOSTNAME, DOTARCHY_*, LLM_PROXY_URL,
+#     LANG, USER_NAME, USER_SHELL, TS_HOSTNAME, DOTARCHY_*, LLM_PROXY_URL,
 #     PROJECTS_DIR);
 #   - what compose.override.yaml adds to the container: volumes, resource
 #     limits, devices, capabilities, seccomp, /proc/sys, AppArmor.
@@ -33,7 +34,7 @@ ONLY=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --diff) DIFF=true; shift ;;
-    -h|--help) sed -n '6,25p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) sed -n '7,26p' "$0" | sed 's/^# \?//'; exit 0 ;;
     -*) echo "dev-box-override: unknown option: $1" >&2; exit 2 ;;
     *)
       if [ -n "$ONLY" ]; then echo "dev-box-override: one path at a time" >&2; exit 2; fi
@@ -316,6 +317,8 @@ setting() { # <NAME> <value> <default> [shown default]
 if [ -r /etc/devbox/env ]; then
   setting TS_DISABLE "$(read_var TS_DISABLE /etc/devbox/env)" false
   setting DEV_ENVS "$(read_var DEV_ENVS /etc/devbox/env)" ""
+  box_lang="$(read_var LANG /etc/devbox/env)"
+  [ -z "$box_lang" ] || setting LANG "$box_lang" C.UTF-8
   proxy="$(read_var LLM_PROXY_URL /etc/devbox/env)"
   [ -z "$proxy" ] || setting LLM_PROXY_URL "$proxy" "http://llmproxy"
 fi

@@ -288,7 +288,7 @@ What it reports, and how it knows:
   command of `/usr/local/bin` or `/usr/bin`, the default agent, the packages
   of `devbox pkg`;
 - the `.env` settings the box can see from any shell: `TS_DISABLE`,
-  `DEV_ENVS` and `LLM_PROXY_URL` (from `/etc/devbox/env`), `PODMAN_ENABLE`
+  `DEV_ENVS`, `LANG` and `LLM_PROXY_URL` (from `/etc/devbox/env`), `PODMAN_ENABLE`
   (`/etc/devbox/podman.state`), `DOTARCHY_*` (`/etc/devbox/dotarchy.env`),
   `USER_NAME`, `USER_SHELL`, `TS_HOSTNAME`, and `PROJECTS_DIR` when the home
   is at `./data/home`;

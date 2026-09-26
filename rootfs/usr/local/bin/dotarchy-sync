@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=sync
 # devbox:summary=Pull the dotarchy dotfiles and apply them
+# devbox:summary.fr=Récupérer les dotfiles dotarchy et les appliquer
 # devbox:args=
 # Pulls the config of dotarchy/common-no-omarchy (config/ and default/) and the
 # base scripts its aliases need (try, proj, git aliases), without running the

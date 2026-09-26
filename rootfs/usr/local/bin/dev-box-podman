@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=podman
 # devbox:summary=docker/podman wrapper, says what to do when podman is off
+# devbox:summary.fr=Wrapper docker/podman, dit quoi faire quand podman est désactivé
 # devbox:args=
 # devbox:hidden=true
 # Wrapper in front of `docker` and `podman` (links in /usr/local/bin, ahead of

@@ -99,6 +99,7 @@ In this order, with their default. Enter keeps the default.
 | Install directory | `~/dev-box` | nothing, it is where everything goes |
 | Unix user inside the box | `dev` | `USER_NAME` (lowercase letters, digits, `_` and `-`; asked again otherwise) |
 | Timezone | the host's | `TZ` |
+| Language of the box | the host's locale (`LC_ALL`, `LC_MESSAGES`, `LANG`, on macOS the system language), else `C.UTF-8` | `LANG`: `xx_YY.UTF-8` or `C.UTF-8`, asked again otherwise. `fr_FR.UTF-8` puts the `devbox` menu and the login tips in French, see [Language](customization.md#language) |
 | Access: `tailscale` or `ssh` | `tailscale` | `TS_DISABLE` (`false` for Tailscale, `true` for SSH) |
 | Tailscale hostname of the box (Tailscale only) | `dev-box` | `TS_HOSTNAME` |
 | Control server (Tailscale only) | `https://controlplane.tailscale.com` | `TS_LOGIN_SERVER`: your Headscale URL, or Tailscale |
@@ -116,7 +117,9 @@ In this order, with their default. Enter keeps the default.
 A key, a GitHub user or a port that is not valid is refused with the reason,
 and the question is asked again. `.env` also gets
 `DEVBOX_IMAGE=ghcr.io/c4software/dev-box:latest`; everything else keeps the
-value of `.env.example`, `PROJECTS_DIR` included.
+value of `.env.example`, `PROJECTS_DIR` included. An existing install is not
+asked anything: its `.env` is left alone, so the box stays in English until
+`LANG` is added to it.
 
 Everything it writes can be changed later in `.env`, followed by
 `docker compose up -d` (see [customization.md](customization.md)).

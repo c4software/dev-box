@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=diagnostic
 # devbox:summary=Diagnose the box with the coding agent, or print a report to share
+# devbox:summary.fr=Diagnostiquer la box avec l'agent de code, ou produire un rapport à partager
 # devbox:args=[--report|--prompt|--dry-run] [problem...]
 # Starts the default coding agent (devbox agent) on the diagnostic guide of the
 # devbox skill, with the problem as the user describes it. The agent gathers
@@ -19,7 +20,7 @@ set -euo pipefail
 
 GUIDE="/usr/share/devbox/skills/devbox/diagnostic.md"
 
-usage() { sed -n '5,17p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '6,18p' "$0" | sed 's/^# \?//'; }
 
 MODE="agent"
 FORCE=false

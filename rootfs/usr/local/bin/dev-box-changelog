@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=changelog
 # devbox:summary=What changed in the box, newest first
+# devbox:summary.fr=Ce qui a changé dans la box, du plus récent au plus ancien
 # devbox:args=[-n N|--all|--upcoming]
 #
 # The release notes of the dev-box repository, read from its GitHub releases:
@@ -28,7 +29,7 @@ SEEN="$HOME/.config/dev-box/changelog-seen"
 DEFAULT_LIMIT=3
 OWN="$(devbox_version)"
 
-usage() { sed -n '6,20p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '7,21p' "$0" | sed 's/^# \?//'; }
 err() { echo "dev-box-changelog: $*" >&2; }
 
 C_OFF=""; C_HEAD=""; C_DIM=""; C_BOLD=""

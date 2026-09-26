@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=dbs
 # devbox:summary=Start a development database (podman)
+# devbox:summary.fr=Démarrer une base de données de développement (podman)
 # devbox:args=[db...|--list|--remove]
 #
 # Development databases, in the box's rootless podman containers, on the model
@@ -133,7 +134,7 @@ show_list() {
   printf 'data in the podman volume "devbox-<name>".\n'
 }
 
-show_help() { sed -n '6,24p' "$0" | sed 's/^# \?//'; }
+show_help() { sed -n '7,25p' "$0" | sed 's/^# \?//'; }
 
 # Only one database can hold a port, and mysql and mariadb are both on 3306.
 # Better to say so than to let podman fail on "address already in use".

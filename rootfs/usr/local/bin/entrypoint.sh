@@ -41,6 +41,38 @@ done
   printf 'DOTARCHY_SUBDIR=%q\n' "${DOTARCHY_SUBDIR:-common-no-omarchy}"
 } > /etc/devbox/dotarchy.env
 
+# Language of the box: LANG in .env, C.UTF-8 (the image default) when empty.
+# A LANG naming a locale that is not generated makes bash, perl and every
+# program print setlocale warnings, so it has to exist. The image generates
+# en_US.UTF-8 and fr_FR.UTF-8 and keeps the glibc sources of the others: any
+# other UTF-8 locale is generated here, once per container (about a second).
+# One that cannot be (a typo, another charset) falls back to C.UTF-8, said in
+# the logs. Only the menu of devbox and the motd tips are translated (fr).
+locale_generated() {
+  local want="$1"
+  want="${want/.UTF-8/.utf8}"
+  want="${want/.utf-8/.utf8}"
+  [[ $'\n'"$(locale -a 2>/dev/null)"$'\n' == *$'\n'"$want"$'\n'* ]]
+}
+BOX_LANG="${LANG:-}"
+[ -n "$BOX_LANG" ] || BOX_LANG=C.UTF-8
+if ! locale_generated "$BOX_LANG"; then
+  lang_src="${BOX_LANG%%.*}"
+  case "$BOX_LANG" in *@*) lang_src="$lang_src@${BOX_LANG#*@}" ;; esac
+  case "$BOX_LANG" in
+    *.UTF-8 | *.utf8 | *.UTF-8@* | *.utf8@*) ;;
+    *) lang_src="" ;;
+  esac
+  if [ -n "$lang_src" ] && [ -f "/usr/share/i18n/locales/$lang_src" ] &&
+     localedef -i "$lang_src" -f UTF-8 "$BOX_LANG" >/dev/null 2>&1; then
+    log "locale $BOX_LANG generated"
+  else
+    log "⚠ LANG=$BOX_LANG is not a locale this box can generate (for instance fr_FR.UTF-8), C.UTF-8 used instead"
+    BOX_LANG=C.UTF-8
+  fi
+fi
+export LANG="$BOX_LANG"
+
 # Variables to find again in login shells (see /etc/devbox/zshenv)
 {
   for v in TZ GITHUB_TOKEN LLM_PROXY_URL LLM_PROXY_API_KEY; do
@@ -50,6 +82,9 @@ done
   printf 'export TS_DISABLE=%q\n' "${TS_DISABLE:-false}"
   # Environments asked for at start, shown by dev-box-status
   printf 'export DEV_ENVS=%q\n' "${DEV_ENVS:-}"
+  # Always written, so the language of the box wins over the LANG an SSH
+  # client forwards (sshd_config accepts it), which may not exist here
+  printf 'export LANG=%q\n' "$BOX_LANG"
 } > /etc/devbox/env
 chown "$PUID:$PGID" /etc/devbox/env
 chmod 600 /etc/devbox/env

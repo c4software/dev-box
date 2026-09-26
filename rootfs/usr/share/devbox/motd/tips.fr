@@ -1,0 +1,35 @@
+# French text of the motd tips (dev-box-motd), used when the language of the
+# locale is fr (LANG=fr_FR.UTF-8 in .env). One "command|what it does" line per
+# tip, keyed by the command: it must be written exactly as in the TIPS array of
+# dev-box-motd, which stays the source. A tip missing here is shown in English,
+# a line here whose command is not in TIPS is ignored. The tailscale marker of
+# TIPS is not repeated here.
+devbox|le menu de tout ce que la box sait faire
+devbox status|l'état de la box sur une seule page
+devbox tour|une visite guidée de la box, deux minutes
+devbox update|mettre à jour les dotfiles, les outils et la config livrée
+devbox update tools|mettre à jour les outils mise seulement
+devbox update dotfiles|récupérer à nouveau les dotfiles
+devbox agent|lancer l'agent de code par défaut
+devbox agent set|choisir l'agent de code par défaut
+devbox agent usage|les limites du compte et les tokens par modèle
+devbox agent prompt "review this"|l'agent par défaut, avec la consigne donnée
+devbox dev-env|choisir des langages et leurs outils, via mise
+devbox dev-env node go|installer ces langages tout de suite
+devbox dbs postgres redis|démarrer ces bases de données, données gardées dans un volume
+devbox dbs --list|les bases de données, leur port et leur état
+devbox pkg add htop|un paquet pacman qui survit à un rebuild
+devbox pkg install|recherche floue dans les dépôts Arch
+devbox mise-install crush|un wrapper mise dans ~/.local/bin
+devbox seed --check|la nouvelle config livrée, sans rien écrire
+devbox override|ce que cette box change par rapport à l'image
+devbox diagnostic|votre agent de code cherche ce qui ne va pas, demande avant de réparer
+devbox diagnostic --report|un rapport sur la box, à envoyer à quelqu'un
+devbox migrate --list|les migrations de cette image, jouées ou en attente
+devbox check|chercher les mises à jour, sans rien installer
+devbox changelog|ce qui a changé dans la box, du plus récent au plus ancien
+devbox serve 3000|publier le port 3000 de la box sur le tailnet
+devbox serve 8080:3000|port 8080 sur le tailnet, application sur le 3000
+devbox tailscale send laptop file.tar|envoyer un fichier à une autre machine avec Taildrop
+devbox tailscale receive|attendre des fichiers Taildrop dans ~/inbox
+NO_TMUX=1 ssh dev@box|un shell sans la session tmux

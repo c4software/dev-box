@@ -13,12 +13,25 @@
 #
 #   # devbox:name=update
 #   # devbox:summary=Update dotfiles, mise tools and the shipped config
+#   # devbox:summary.fr=Mettre à jour les dotfiles, les outils mise et la config livrée
+#                            (optional: replaces the summary when LANG is French)
 #   # devbox:args=[dotfiles|tools|seed|all]
 #   # devbox:hidden=true     (optional: out of the menu and the list, still routable)
 #   # devbox:requires=tailscale   (optional: hidden too when that feature is off)
 #
 # Adding a command therefore means dropping an executable with those three lines.
+#
+# The summaries are the one part of this list that is translated: a
+# summary.<lang> line (summary.fr) replaces the summary when the language of
+# the locale is <lang> (see /usr/share/devbox/lib/lang.sh), and a command
+# without one keeps its English summary. Nothing else is translated.
 set -euo pipefail
+
+DEVBOX_LANG=""
+if [ -r /usr/share/devbox/lib/lang.sh ]; then
+  . /usr/share/devbox/lib/lang.sh
+  devbox_lang
+fi
 
 BIN_DIR="/usr/local/bin"
 SCAN_LINES=30
@@ -48,7 +61,7 @@ feature_available() {
 # are skipped: docker and podman both point at dev-box-podman and would give
 # the same command three times.
 discover() {
-  local f header name summary args hidden requires line key value
+  local f header name summary summary_l10n args hidden requires line key value
   for f in "$BIN_DIR"/*; do
     [ -f "$f" ] || continue
     [ -L "$f" ] && continue
@@ -56,7 +69,7 @@ discover() {
     header="$(head -n "$SCAN_LINES" "$f" 2>/dev/null | grep -a '^# devbox:' || true)"
     [ -n "$header" ] || continue
 
-    name=""; summary=""; args=""; hidden="false"; requires=""
+    name=""; summary=""; summary_l10n=""; args=""; hidden="false"; requires=""
     while IFS= read -r line; do
       line="${line#\# devbox:}"
       key="${line%%=*}"
@@ -64,6 +77,10 @@ discover() {
       case "$key" in
         name)    name="$value" ;;
         summary) summary="$value" ;;
+        summary.*)
+          if [ -n "$DEVBOX_LANG" ] && [ "$key" = "summary.$DEVBOX_LANG" ]; then
+            summary_l10n="$value"
+          fi ;;
         args)    args="$value" ;;
         hidden)  hidden="$value" ;;
         requires) requires="$value" ;;
@@ -74,7 +91,7 @@ discover() {
     [ -n "${CMD_BIN[$name]:-}" ] && continue
     NAMES+=("$name")
     CMD_BIN["$name"]="$f"
-    CMD_SUMMARY["$name"]="$summary"
+    CMD_SUMMARY["$name"]="${summary_l10n:-$summary}"
     CMD_ARGS["$name"]="$args"
     CMD_HIDDEN["$name"]="$hidden"
     if [ -n "$requires" ] && ! feature_available "$requires"; then

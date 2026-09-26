@@ -148,12 +148,22 @@ headers `devbox` reads:
 #!/usr/bin/env bash
 # devbox:name=<name>
 # devbox:summary=<one line, English, no final period>
+# devbox:summary.fr=<the same in French, no final period>
 # devbox:args=[a|b|c]
 # devbox:hidden=true     # only if it is not a user-facing command
 # devbox:requires=tailscale   # hidden while the feature is off (tailscale, podman)
 ```
 
 There is nothing to register anywhere. `devbox` finds it on the next start.
+The `summary.fr` line is the French summary, shown instead of the English one
+when the box runs with `LANG=fr_FR.UTF-8`: give every new command one. The
+menu and the login tips are the only translated texts; the output of the
+command and its `--help` stay in English. A usage that prints a range of lines
+of its own header (`sed -n '6,20p' "$0"`) counts that line too.
+
+A tip for the login line is a `command|what it does` line in the `TIPS` list of
+`rootfs/usr/local/bin/dev-box-motd`, and its French text a line with the same
+command in `rootfs/usr/share/devbox/motd/tips.fr`.
 Keep the existing file names and their options untouched: the README, the
 pages of `docs/`, `setup.sh` and `entrypoint.sh` call them by name. Add
 the command to the table of `docs/commands.md`.

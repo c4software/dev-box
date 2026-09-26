@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=agent
 # devbox:summary=Default coding agent: run it, pick it, account usage
+# devbox:summary.fr=Agent de code par défaut : le lancer, le choisir, voir sa consommation
 # devbox:args=[set|prompt|which|usage]
 # One default agent for the box, remembered in ~/.config/dev-box/agent, on the
 # model of omarchy-default-agent and omarchy-agent.
@@ -29,7 +30,7 @@ CONF_DIR="$HOME/.config/dev-box"
 CONF="$CONF_DIR/agent"
 BUILTIN=(claude pi omp opencode codex)
 
-usage() { sed -n '5,22p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '6,23p' "$0" | sed 's/^# \?//'; }
 
 # Early, so that `devbox agent --help` really finds a help to print.
 case "${1:-}" in -h|--help) usage; exit 0 ;; esac

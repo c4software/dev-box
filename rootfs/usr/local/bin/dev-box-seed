@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=seed
 # devbox:summary=Lay down the shipped config, overwriting nothing
+# devbox:summary.fr=Déposer la config livrée, sans rien écraser
 # devbox:args=[--apply|--force|--check] [path]
 # Lays down the config shipped by the image (agents, extensions, mise and yazi config)
 # in the home, without ever overwriting a local change.
@@ -50,7 +51,7 @@ while [ $# -gt 0 ]; do
     --force) FORCE=true; shift ;;
     --check) CHECK=true; shift ;;
     --apply) APPLY=true; shift ;;
-    -h|--help) sed -n '5,25p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) sed -n '6,26p' "$0" | sed 's/^# \?//'; exit 0 ;;
     -*) echo "unknown option: $1" >&2; exit 2 ;;
     *)  ONLY="$1"; shift ;;
   esac

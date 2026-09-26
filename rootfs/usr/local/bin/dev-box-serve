@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=serve
 # devbox:summary=Publish a local port to the tailnet with tailscale serve
+# devbox:summary.fr=Publier un port local sur le tailnet avec tailscale serve
 # devbox:args=[<port>|<listen>:<port>|--on <port>|--tcp|status|off]
 # devbox:requires=tailscale
 # Publishing a dev server running inside the box to the other machines of the
@@ -23,7 +24,7 @@
 # with Headscale either.
 set -euo pipefail
 
-usage() { sed -n '6,23p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '7,24p' "$0" | sed 's/^# \?//'; }
 
 # The help stays readable even when Tailscale is off.
 case "${1:-}" in -h|--help) usage; exit 0 ;; esac

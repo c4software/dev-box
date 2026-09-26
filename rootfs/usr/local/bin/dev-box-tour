@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=tour
 # devbox:summary=A guided tour of the box, two minutes, commands run under your eyes
+# devbox:summary.fr=Visite guidée de la box en deux minutes, commandes lancées sous vos yeux
 # devbox:args=[--offer|--text]
 # A tour of the box in a dozen steps, for a first login or a refresher. Each
 # step explains one thing and offers to run the real command right there, so
@@ -25,7 +26,7 @@ STEP=0
 TOTAL=0
 MODE="tour"
 
-usage() { sed -n '5,17p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '6,18p' "$0" | sed 's/^# \?//'; }
 
 interactive() {
   [ "$MODE" = "tour" ] && [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1

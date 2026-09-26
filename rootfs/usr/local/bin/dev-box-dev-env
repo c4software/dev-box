@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=dev-env
 # devbox:summary=Install or remove a dev environment (node, go, python, ...)
+# devbox:summary.fr=Installer ou retirer un environnement de dev (node, go, python, ...)
 # devbox:args=[env...|--remove env...|--list|--info env]
 #
 # Installs or removes development environments in the home, through mise
@@ -188,7 +189,7 @@ while [ $# -gt 0 ]; do
     shift
     ;;
   -h | --help)
-    sed -n '6,33p' "$0" | sed 's/^# \?//'
+    sed -n '7,34p' "$0" | sed 's/^# \?//'
     exit 0
     ;;
   --remove)

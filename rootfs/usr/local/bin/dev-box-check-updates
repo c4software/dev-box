@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=check
 # devbox:summary=Look for updates, install nothing
+# devbox:summary.fr=Chercher les mises à jour, sans rien installer
 # devbox:args=[--image]
 # Checks, without installing anything, what could be updated: dotfiles (HEAD of
 # the clone against the remote branch), the dev-box image, mise tools, config
@@ -60,7 +61,7 @@ image_check() {
 
 QUIET=0
 case "${1:-}" in
-  -h|--help) sed -n '5,18p' "$0" | sed 's/^# \?//'; exit 0 ;;
+  -h|--help) sed -n '6,19p' "$0" | sed 's/^# \?//'; exit 0 ;;
   --image)
     image_check
     printf 'dev-box image: %s\n' "$IMAGE_STATE"

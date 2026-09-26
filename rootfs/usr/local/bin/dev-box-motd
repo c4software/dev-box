@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=motd
 # devbox:summary=The login line: one command to try, pending updates, DEV_ENVS
+# devbox:summary.fr=La ligne d'accueil : une commande à essayer, les mises à jour, DEV_ENVS
 # devbox:args=
 # What you see when you land in the box: one line with a command of the box
 # drawn at random and what it does, one more when an update is waiting, and
@@ -22,7 +23,7 @@ DEV_ENVS_FLAG="$HOME/.cache/dev-box/dev-envs"
 RELEASES="$HOME/.cache/dev-box/releases.md"
 CHANGELOG_SEEN="$HOME/.config/dev-box/changelog-seen"
 
-usage() { sed -n '5,13p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '6,14p' "$0" | sed 's/^# \?//'; }
 case "${1:-}" in
   -h|--help) usage; exit 0 ;;
   "") ;;
@@ -48,7 +49,8 @@ tailscale_off() {
 
 # The commands on offer, "command|what it does", one per line. The ones that
 # need Tailscale carry a third field and are left out when it is off. Adding
-# one is adding a line here.
+# one is adding a line here, and its translation to
+# /usr/share/devbox/motd/tips.fr (a tip missing there is shown in English).
 TIPS=(
   'devbox|the menu of everything the box can do'
   'devbox status|the state of the box on one page'
@@ -81,6 +83,30 @@ TIPS=(
   'NO_TMUX=1 ssh dev@box|a shell without the tmux session'
 )
 
+# The tips are the one thing of the motd that is translated: the language of
+# the locale (LANG in .env, see /usr/share/devbox/lib/lang.sh) picks
+# /usr/share/devbox/motd/tips.<lang>, "command|what it does" lines keyed by
+# the command of TIPS.
+DEVBOX_LANG=""
+if [ -r /usr/share/devbox/lib/lang.sh ]; then
+  . /usr/share/devbox/lib/lang.sh
+  devbox_lang
+fi
+
+# tip_text <command> <English text>: sets TIP_TEXT to the text in the
+# language of the box when tips.<lang> has it, the English one otherwise.
+# Read in bash, no fork.
+tip_text() {
+  local file="/usr/share/devbox/motd/tips.$DEVBOX_LANG" line
+  TIP_TEXT="$2"
+  [ -n "$DEVBOX_LANG" ] && [ -r "$file" ] || return 0
+  while IFS= read -r line; do
+    case "$line" in
+      "$1|"*) TIP_TEXT="${line#"$1|"}"; return 0 ;;
+    esac
+  done < "$file"
+}
+
 # One line: the command, then what it does. shuf draws it, as every motd of
 # this kind does.
 tip_line() {
@@ -93,8 +119,9 @@ tip_line() {
          printf '%s\n' "$t"
        done | shuf -n 1)"
   [ -n "$t" ] || return 0
+  tip_text "${t%%|*}" "${t#*|}"
   printf '%sTips:%s %s%s%s  %s%s%s\n' "$C_DIM" "$C_OFF" "$C_CMD" "${t%%|*}" "$C_OFF" \
-    "$C_DIM" "${t#*|}" "$C_OFF"
+    "$C_DIM" "$TIP_TEXT" "$C_OFF"
 }
 
 # The detail of what is waiting stays in `devbox check` and `devbox status`:

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=pkg
 # devbox:summary=Persistent pacman packages (reinstalled at start)
+# devbox:summary.fr=Paquets pacman persistants (réinstallés au démarrage)
 # devbox:args=[add|drop|list|install|restore]
 # pacman packages that survive an image rebuild. pacman installs into the
 # image, and the image is disposable, so the list of packages added by hand is
@@ -22,7 +23,7 @@ LIST_DIR="$HOME/.config/dev-box"
 LIST="$LIST_DIR/packages"
 
 log() { echo "[dev-box-pkg] $*"; }
-usage() { sed -n '5,18p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '6,19p' "$0" | sed 's/^# \?//'; }
 
 installed() { pacman -Q "$1" >/dev/null 2>&1; }
 

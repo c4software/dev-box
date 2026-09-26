@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=mise-install
 # devbox:summary=Write a mise-backed wrapper for a tool into ~/.local/bin
+# devbox:summary.fr=Écrire dans ~/.local/bin un wrapper mise pour un outil
 # devbox:args=[<package> [cmd [binary]]|--list|--remove cmd]
 # Wrapper generator, on the model of omarchy-mise-install: it writes a small
 # script into ~/.local/bin that installs the tool on the first call, then runs
@@ -24,7 +25,7 @@ BIN_DIR="$HOME/.local/bin"
 # Marker: this is what tells our wrappers from the user's own scripts.
 MARK="# dev-box-mise-install"
 
-usage() { sed -n '5,20p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '6,21p' "$0" | sed 's/^# \?//'; }
 
 is_generated() {
   [ -f "$1" ] || return 1

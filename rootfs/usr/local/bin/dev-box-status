@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=status
 # devbox:summary=State of the box: access, podman, tools, dev environments, updates
+# devbox:summary.fr=État de la box : accès, podman, outils, environnements de dev, mises à jour
 # devbox:args=
 #
 # A one-page summary of what the box is doing right now. Read only: nothing is

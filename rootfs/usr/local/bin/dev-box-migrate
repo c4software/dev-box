@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=migrate
 # devbox:summary=Run the migrations shipped by the image, once each
+# devbox:summary.fr=Jouer les migrations livrées avec l'image, une fois chacune
 # devbox:args=[--run|--pending|--list]
 # Box migrations: small scripts shipped by the image that repair an existing
 # home when a new image version changes something the seed cannot pick up on
@@ -60,7 +61,7 @@ pending_names() {
   done < <(all_names)
 }
 
-usage() { sed -n '5,19p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '6,20p' "$0" | sed 's/^# \?//'; }
 
 MODE="run"
 EXPLICIT=false

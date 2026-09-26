@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=tailscale
 # devbox:summary=Taildrop: send, receive, tailnet status
+# devbox:summary.fr=Taildrop : envoyer, recevoir, état du tailnet
 # devbox:args=[send|receive|status]
 # devbox:requires=tailscale
 # Moving files to and from the other machines of the tailnet, over Taildrop,
@@ -19,7 +20,7 @@ set -euo pipefail
 INBOX_DEFAULT="$HOME/inbox"
 
 log() { echo "[dev-box-tailscale] $*"; }
-usage() { sed -n '6,15p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '7,16p' "$0" | sed 's/^# \?//'; }
 
 # The help stays readable even when Tailscale is off.
 case "${1:-}" in -h|--help) usage; exit 0 ;; esac

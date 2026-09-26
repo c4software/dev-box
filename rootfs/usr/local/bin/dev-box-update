@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=update
 # devbox:summary=Update dotfiles, mise tools and the shipped config
+# devbox:summary.fr=Mettre à jour les dotfiles, les outils mise et la config livrée
 # devbox:args=[dotfiles|tools|seed|all]
 # Updating the box by hand (nothing is automatic):
 #   devbox update [dotfiles|tools|seed|all]   (default: all; on a terminal, a menu)
@@ -56,7 +57,7 @@ case "$WHAT" in
   tools)    do_tools ;;
   seed)     do_seed ;;
   all)      do_dotfiles; do_tools; do_seed ;;
-  -h|--help) sed -n '5,12p' "$0" | sed 's/^# \?//'; exit 0 ;;
+  -h|--help) sed -n '6,13p' "$0" | sed 's/^# \?//'; exit 0 ;;
   *) echo "usage: dev-box-update [dotfiles|tools|seed|all]" >&2; exit 2 ;;
 esac
 

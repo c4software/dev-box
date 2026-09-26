@@ -461,6 +461,51 @@ host_tz() {
   example_get TZ
 }
 
+# lang_norm LOCALE: the locale written as .env wants it (fr_FR.utf8 gives
+# fr_FR.UTF-8, C and POSIX give C.UTF-8), or nothing when it does not look
+# like xx_YY.UTF-8 or C.UTF-8.
+lang_norm() {
+  l="$1"
+  case "$l" in
+    C | POSIX | C.* | POSIX.*) printf 'C.UTF-8'; return ;;
+  esac
+  mod=""
+  case "$l" in *@*)
+    mod="@${l#*@}"
+    l="${l%%@*}"
+    ;;
+  esac
+  case "$l" in
+    *.[Uu][Tt][Ff]8 | *.[Uu][Tt][Ff]-8) l="${l%.*}.UTF-8" ;;
+    *.*) return 0 ;;
+    *) l="$l.UTF-8" ;;
+  esac
+  printf '%s' "$l$mod" | grep -Eq '^[a-z]{2,3}_[A-Z]{2}\.UTF-8(@[a-z]+)?$' || return 0
+  printf '%s' "$l$mod"
+}
+
+# host_lang: the locale of this machine (LC_ALL, then LC_MESSAGES, then LANG;
+# on macOS, where a terminal may set none of them, the system language), the
+# default of .env.example otherwise.
+host_lang() {
+  for l in "${LC_ALL:-}" "${LC_MESSAGES:-}" "${LANG:-}"; do
+    [ -n "$l" ] || continue
+    l="$(lang_norm "$l")"
+    if [ -n "$l" ]; then
+      printf '%s' "$l"
+      return
+    fi
+  done
+  if [ "$os" = Darwin ]; then
+    l="$(lang_norm "$(defaults read -g AppleLocale 2>/dev/null || true)")"
+    if [ -n "$l" ]; then
+      printf '%s' "$l"
+      return
+    fi
+  fi
+  example_get LANG
+}
+
 default_ssh_key_file() {
   for k in id_ed25519 id_ecdsa id_rsa; do
     if [ -f "$HOME/.ssh/$k.pub" ]; then
@@ -507,6 +552,17 @@ done
 
 # Timezone
 tz="$(ask "Timezone" "$(host_tz)")"
+
+# Language
+while :; do
+  box_lang="$(ask "Language of the box (fr_FR.UTF-8 puts the devbox menu and the tips in French, C.UTF-8 is English)" "$(host_lang)")"
+  box_lang_norm="$(lang_norm "$box_lang")"
+  if [ -n "$box_lang_norm" ]; then
+    box_lang="$box_lang_norm"
+    break
+  fi
+  warn "not a locale: $box_lang (for instance fr_FR.UTF-8, en_US.UTF-8 or C.UTF-8)"
+done
 
 # Access
 say ""
@@ -603,6 +659,7 @@ ask_yn "Turn podman on?" n && podman=yes
 cp "$DIR/.env.example" "$DIR/.env.new"
 env_set USER_NAME "$user"
 env_set TZ "$tz"
+env_set LANG "$box_lang"
 env_set DEVBOX_IMAGE "$IMAGE"
 if [ "$access" = tailscale ]; then
   env_set TS_DISABLE false
