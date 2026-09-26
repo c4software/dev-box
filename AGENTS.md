@@ -72,6 +72,7 @@ respect:
 | A new `devbox dev-env` environment | a `rootfs/usr/share/devbox/dev-envs/<name>.sh` with `details`, `install` and `uninstall` (`is_installed` when the mise config cannot tell, `is_supported` when it does not run everywhere), found on its own; `mise use -g` only (`php` from the image, `browser` and `media` through `devbox pkg` are the exceptions) |
 | A change a user of the box notices | a line in the annotation of the next release tag (`git tag -a v1.7`): the workflow turns it into the GitHub release that `devbox changelog` and the next login show |
 | A guide for the in-box skill | `rootfs/usr/share/devbox/skills/devbox/*.md`, listed in `SKILL.md` and in the skill table of `docs/agents.md` |
+| A video for the course page | `docs/videos/`, read by the course through `https://cdn.jsdelivr.net/gh/c4software/dev-box@main/docs/videos/<file>`; `.dockerignore` keeps it out of the image. Replacing one keeps its name, then purge the CDN copy: `curl https://purge.jsdelivr.net/gh/c4software/dev-box@main/docs/videos/<file>` |
 | User documentation | `README.md` for the essentials, `docs/<topic>.md` for the rest, linked from the Documentation list of the README |
 
 Keep existing file names and their options untouched: the README, the pages
