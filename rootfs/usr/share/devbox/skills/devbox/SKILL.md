@@ -148,6 +148,11 @@ Never guess a command name. Run `devbox commands`.
 - "Remove Go" -> `devbox dev-env --remove go`
 - "Start a postgres" -> `devbox dbs postgres`; `devbox dbs --list` for what is
   running and what is on offer
+- "Connect to the postgres" -> `psql -h 127.0.0.1 -U postgres` (psql and mariadb
+  are in the image); mongosh, usql, mycli: `devbox dev-env db-clients`
+- "Install nmap" or "capture traffic" -> `devbox dev-env network`, then
+  `sudo nmap -sS` or `sudo tcpdump -i any`; dig, nc, whois are already there
+- "Install ansible" -> `devbox dev-env ansible`
 - "What is available to install?" -> `devbox dev-env --list`
 - "What does the ruby environment install?" -> `devbox dev-env --info ruby`
 - "Add an environment for a tool of mine" -> a script in

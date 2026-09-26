@@ -548,7 +548,7 @@ say "A GitHub token with no scope avoids the GitHub API rate limit while tools i
 github_token="$(ask_secret "GitHub token")"
 say ""
 say "Dev environments to install at the first start, space separated, empty for none."
-say "For instance: node python php go rust java laravel (devbox dev-env --list in the box shows them all)."
+say "For instance: node python php go rust java laravel network ansible (devbox dev-env --list in the box shows them all)."
 dev_envs="$(ask "Dev environments" "")"
 say ""
 say "Rootless podman runs docker commands inside the box, but it loosens the isolation"

@@ -35,6 +35,14 @@ ENV LANG=C.UTF-8
 #   media` for the boxes that want it.
 # + sqlite: the sqlite3 shell. Already pulled by python and php-sqlite, listed
 #   so that it stays whatever those dependencies do.
+# + postgresql-libs (psql, pg_dump) and mariadb-clients (mariadb, mysql,
+#   mariadb-dump): the clients of the servers `devbox dbs` starts, so that
+#   `psql -h 127.0.0.1 -U postgres` (docs/databases.md) and
+#   `mysql -h 127.0.0.1 -u root` work from the box without a dev-env.
+# + bind (dig, nslookup, host), openbsd-netcat (nc), whois, traceroute: the
+#   network basics a SISR student reaches for first; about 9 MB together, the
+#   rest of their dependencies is already there. The heavier tools (nmap,
+#   tcpdump, iperf3, ...) are `devbox dev-env network`.
 # podman already pulls passt, shadow, conmon and containers-common, and netavark
 # pulls aardvark-dns: only the packages no other one brings are listed here.
 RUN pacman -Syu --noconfirm --needed --disable-sandbox \
@@ -43,7 +51,8 @@ RUN pacman -Syu --noconfirm --needed --disable-sandbox \
       rsync gum curl wget unzip github-cli yazi chafa 7zip resvg imagemagick poppler \
       neovim luarocks tree-sitter-cli \
       starship zoxide fzf eza bat ripgrep fd lazygit jq \
-      libyaml sqlite \
+      libyaml sqlite postgresql-libs mariadb-clients \
+      bind openbsd-netcat whois traceroute \
       php composer php-sqlite php-gd php-sodium xdebug \
       podman podman-docker docker-compose fuse-overlayfs crun netavark slirp4netns \
     # mise is not in the Arch Linux ARM repositories: we fall back on the

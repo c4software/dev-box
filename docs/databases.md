@@ -37,8 +37,8 @@ with the name of the one already running. `mssql` has no arm64 image, so it is
 refused on a Raspberry Pi 5 rather than failing on a pull.
 
 Ports are published on `127.0.0.1`, as they are on the host, so a database is
-reachable from inside the box only: `psql -h 127.0.0.1 -U postgres`. From your
-laptop, go through an SSH tunnel to the box:
+reachable from inside the box only. From your laptop, go through an SSH tunnel
+to the box:
 
 ```bash
 ssh -L 5432:127.0.0.1:5432 dev@dev-box
@@ -46,6 +46,29 @@ ssh -L 5432:127.0.0.1:5432 dev@dev-box
 
 `devbox serve --tcp 5433:5432` is the other way, on the tailnet (see
 [access.md](access.md#reaching-a-dev-server)).
+
+## Clients
+
+The image has the PostgreSQL and MariaDB clients, which also talk to MySQL:
+
+```bash
+psql -h 127.0.0.1 -U postgres
+mariadb -h 127.0.0.1 -u root        # mysql works too, for mysql and mariadb
+```
+
+`devbox dev-env db-clients` adds the others through mise: `mongosh` for
+MongoDB, `usql` for everything else including SQL Server, and `mycli` and
+`litecli`, shells with completion and highlighting for MySQL and SQLite
+(they come from PyPI, so the environment installs `python` first).
+`devbox tui pgcli` is the same for PostgreSQL, and `devbox tui rainfrog` a
+full screen client.
+
+```bash
+mongosh mongodb://admin:admin123@127.0.0.1:27017
+mycli -h 127.0.0.1 -u root
+usql "mssql://sa:%40dmin123@127.0.0.1/"
+podman exec -it devbox-redis redis-cli    # redis: the client of its image
+```
 
 Nothing restarts on its own, here as everywhere else in the box. After a
 restart of the container, bring a database back with `devbox dbs postgres`,

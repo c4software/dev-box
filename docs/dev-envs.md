@@ -1,8 +1,8 @@
 # Dev environments
 
 `devbox dev-env` installs or removes a whole language environment in one call,
-through mise. No `curl | sh`, and no pacman except for PHP, the browser and
-media (see below). Whatever mise installs is declared in
+through mise. No `curl | sh`, and no pacman except for PHP, the browser,
+media and network (see below). Whatever mise installs is declared in
 `~/.config/mise/config.toml`, survives a rebuild, and is upgraded by
 `devbox update tools` like the rest.
 
@@ -46,7 +46,8 @@ A removal takes the tools out of `~/.config/mise/config.toml` with
 `mise unuse -g`, which also prunes the versions no other config needs. It only
 removes what the environment itself brought: `laravel` drops the installer but
 keeps PHP and Node, `phoenix` drops the `phx_new` archive but keeps Elixir,
-`scala` keeps Java, and the message says how to remove the base. Project data
+`scala` keeps Java, `db-clients` and `ansible` keep Python, and the message
+says how to remove the base. Project data
 is never touched: `~/go`, `~/.cargo`, `~/.mix`, `~/.m2`, `~/.config/composer`
 and the like stay where they are, so a later `devbox dev-env <name>` finds
 everything back.
@@ -59,6 +60,20 @@ instead of spending minutes on a compiler, and installs Rails. `elixir` runs
 `mix local.hex`, and `phoenix` adds rebar and the `phx_new` generator. `rust`
 is the mise toolchain, not rustup, so there is a single place where versions
 are declared.
+
+`db-clients` adds the database shells that go with `devbox dbs` (see
+[databases.md](databases.md)), through mise: `mongosh`, `usql` (one shell for
+PostgreSQL, MySQL, SQLite, SQL Server and more), and `mycli` and `litecli`
+from PyPI, which is why it installs `python` first. `psql` and `mariadb` (or
+`mysql`) are not in it: they are in the image. `pgcli` is not in it either: it
+is in `devbox tui`.
+
+`ansible` installs `python` first, then `ansible-core` and `ansible-lint` from
+PyPI through mise. `ansible-core` only has the builtin modules:
+`ansible-galaxy collection install community.general` adds the usual ones, in
+`~/.ansible`, which a removal leaves in place. The box is the control node,
+the targets are other machines over SSH (VMs, the lab, the tailnet), or the
+box's own containers once podman is on.
 
 `android` is the platform-tools only, `adb` and `fastboot`, taken from the zip
 Google publishes, through mise's http backend: no SDK manager, no platform, no
@@ -81,7 +96,7 @@ at install and Linux desktop turned off; the web target runs with
 Google publishes no arm64 build-tools. Swift is not offered: swift.org
 publishes no build for Arch, and the Ubuntu one needs library aliases to start.
 
-## The exceptions: PHP, browser, media
+## The exceptions: PHP, browser, media, network
 
 PHP is the one exception. mise can only build PHP from source, which takes
 minutes and needs a pile of development headers, so `php`, `composer`,
@@ -115,6 +130,20 @@ it from source), `pngquant`, `jpegoptim`, `cwebp` (`libwebp-utils`),
 size; once there, yazi shows video thumbnails. YouTube wants a JavaScript
 runtime for `yt-dlp`: `devbox dev-env deno`. A removal takes everything out,
 `ffmpeg` included.
+
+`network` gathers the tools of a SISR network course: `nmap`, `tcpdump`,
+`iperf3`, `mtr`, `socat`, `ethtool` and `ipcalc` through `devbox pkg` (the
+mise registry has none of them), and `doggo`, a DNS client with a readable
+output, through mise. The small basics are in the image already, with no
+environment: `dig`, `nslookup` and `host`, `nc`, `whois`, `traceroute`,
+`ping`, `ip` and `ss`. `devbox tui` has `trippy`, `gping` and `termshark` on
+top. The box runs with `NET_RAW` and `NET_ADMIN` (Tailscale needs them) and
+`sudo` asks no password, so `sudo nmap -sS` and `sudo tcpdump -i any` work;
+without `sudo`, nmap falls back to a connect scan. The box is still a
+container: `tcpdump` only sees its own interfaces, not the traffic of the host
+or the LAN, and the LAN is reached through the NAT of Docker, so an ARP scan
+never shows the real MAC addresses. A removal takes out what the environment
+brought and leaves the image's tools.
 
 OCaml is not offered: upstream it goes through the opam installer, which would
 be wiped by the next image rebuild.

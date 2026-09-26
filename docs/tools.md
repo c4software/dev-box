@@ -8,7 +8,10 @@ the home. Each has a way to add more that survives a rebuild.
 Everything the common-no-omarchy config and `try`/`proj` call (zsh, tmux, mise,
 gum, starship, zoxide, fzf, eza, bat, ripgrep, fd, lazygit, jq, neovim,
 luarocks, tree-sitter-cli), the base (tailscale, rsync, base-devel, gh, yazi,
-...) and rootless podman (see [containers.md](containers.md)).
+...), the database clients `psql` and `mariadb` (see
+[databases.md](databases.md)), the network basics `dig`, `nslookup`, `nc`,
+`whois` and `traceroute` (`devbox dev-env network` for nmap, tcpdump and the
+rest) and rootless podman (see [containers.md](containers.md)).
 
 - Update Arch: rebuild the container,
   `docker compose build --pull --no-cache && docker compose up -d`, or

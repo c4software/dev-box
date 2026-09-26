@@ -72,7 +72,8 @@ ls /usr/share/devbox/dev-envs/   # one script per dev-env environment
 `devbox dev-env` installs or removes development environments with mise and
 nothing else: no pacman, no `curl | sh`. Everything it installs is declared in
 `~/.config/mise/config.toml`, so it survives a rebuild and is upgraded by
-`devbox update tools`. Two exceptions, php and browser, are covered below.
+`devbox update tools`. The exceptions, php, browser, media and network, are
+covered below.
 
 ```bash
 devbox dev-env --list             # what is on offer, installed ones marked
@@ -113,8 +114,17 @@ build-tools through sdkmanager, JDK 21 when no java is declared), and
 `browser` is a headless Chromium plus
 `noto-fonts`, installed through `devbox pkg add` (pacman, reinstalled at start
 after a rebuild) because the mise registry has no browser that runs on Arch
-without those packages; see `browser.md` for how an agent uses it. OCaml is
-absent: upstream it needs opam, which would be lost on the next rebuild.
+without those packages; see `browser.md` for how an agent uses it. `media`
+(ffmpeg and the image tools) and `network` (nmap, tcpdump, iperf3, mtr, socat,
+ethtool, ipcalc) go through `devbox pkg add` too, plus a mise tool each
+(yt-dlp and oxipng, doggo). For `network`: the box has NET_RAW and NET_ADMIN
+and passwordless sudo, so `sudo nmap -sS` and `sudo tcpdump -i any` work, but
+tcpdump only sees the box's own interfaces and the LAN is behind Docker's NAT.
+dig, nslookup, host, nc, whois and traceroute are in the image already.
+`db-clients` (mongosh, usql, mycli, litecli) and `ansible` (ansible-core,
+ansible-lint) go through mise, the PyPI ones on top of `python`, which they
+install first and keep on removal. OCaml is absent: upstream it needs opam,
+which would be lost on the next rebuild.
 
 Each environment is one script: `/usr/share/devbox/dev-envs/<name>.sh` for
 the image's, `~/.config/dev-box/dev-envs/<name>.sh` for the box's own, which
@@ -158,6 +168,11 @@ devbox dbs --start redis            # start an existing container again
 devbox dbs --remove redis           # drop the container, keep the data
 devbox dbs --remove --purge redis   # drop the data too, asks for confirmation
 ```
+
+Clients: `psql` and `mariadb` (also `mysql`, which talks to both mysql and
+mariadb) are in the image; `devbox dev-env db-clients` adds mongosh, usql,
+mycli and litecli; `devbox tui pgcli` for Postgres; redis through
+`podman exec -it devbox-redis redis-cli`.
 
 Names: `mysql` (3306), `postgres` (5432), `mariadb` (3306), `redis` (6379),
 `mongodb` (27017), `mssql` (1433). Credentials are the development ones: empty
