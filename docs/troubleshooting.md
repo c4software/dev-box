@@ -30,7 +30,7 @@ the agent skill.
 ## By hand
 
 - **What is the box doing?** `devbox status` in one call: the commit the image
-  was built from, Tailscale or sshd, podman, the active mise tools, and
+  was built from, Tailscale or sshd, podman, the GPU, the active mise tools, and
   anything pending.
 - **What differs from a stock box?** `devbox override` lists every change made
   to this box, with how to undo each (see

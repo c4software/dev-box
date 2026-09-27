@@ -41,6 +41,12 @@ Then open `/tmp/page.png` the way you open any image file and look at it.
 
 - `--no-sandbox` is required: the Chromium sandbox needs user namespaces the
   container does not hand out, and without the flag Chromium exits at once.
+- `--disable-gpu` costs nothing: headless Chromium renders in software
+  (SwiftShader) in the box, even when the host GPU is passed through
+  `/dev/dri` and `devbox dev-env gpu` is installed. Checked on an Intel iGPU:
+  no flag (`--use-angle=vulkan`, `gl-egl`, `--ignore-gpu-blocklist`, the
+  Vaapi features) makes it pick the GPU up, some even turn WebGL off. Do not
+  spend time on it; ffmpeg and native Vulkan are what the GPU serves here.
 - `--window-size=390,844` gives a phone viewport, `1920,1080` a desktop one.
   Run both when the question is about responsive layout.
 - `--virtual-time-budget=5000` lets a page that renders client side (React,

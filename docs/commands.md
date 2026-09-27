@@ -18,7 +18,7 @@ devbox commands        # bare list, one name per line, for completions
 
 | `devbox` | Binary | Does |
 | --- | --- | --- |
-| `status` | `dev-box-status` | image commit and repo, Tailscale or sshd, podman, mise tools, pending updates |
+| `status` | `dev-box-status` | image commit and repo, Tailscale or sshd, podman, GPU, mise tools, pending updates |
 | `check` | `dev-box-check-updates` | look for what could be updated, install nothing; `--image` says whether the image is the latest |
 | `update` | `dev-box-update` | `dotfiles`, `tools`, `seed`, or all of them |
 | `seed` | `dev-box-seed` | lay down the config shipped by the image |

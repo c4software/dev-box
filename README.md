@@ -45,7 +45,7 @@ on GitHub, the file at the root of this repository.
 > ```
 
 The script asks a few questions (install directory, user, Tailscale or SSH
-access, dev environments, podman), writes `~/dev-box/.env`, then pulls the
+access, dev environments, podman, the GPU when the machine has one), writes `~/dev-box/.env`, then pulls the
 published image and starts the box once you say yes. With Tailscale and no auth
 key, it prints the login URL to open once to attach the box to your tailnet.
 The first start then installs the tools in the background, a few minutes. If
@@ -78,7 +78,7 @@ menu when called without arguments.
 
 | Command | Does |
 | --- | --- |
-| `devbox status` | what the box is doing right now |
+| `devbox status` | what the box is doing right now: access, podman, GPU, tools, updates |
 | `devbox dev-env node python` | install language environments through mise (`--list` for all of them) |
 | `devbox dbs postgres` | start a development database (needs podman) |
 | `devbox pkg add htop` | a pacman package that survives an image rebuild |
@@ -89,6 +89,31 @@ menu when called without arguments.
 | `devbox tour` | a guided tour of the box, two minutes |
 
 The full list is in [docs/commands.md](docs/commands.md).
+
+## GPU acceleration
+
+The box can use the GPU of the host (Intel, AMD, Raspberry Pi) to decode and
+encode video (ffmpeg with VA-API), and for OpenGL and Vulkan. The setup script
+offers it when the machine has a `/dev/dri`; otherwise, on the host, add it to
+`compose.override.yaml` and restart the container:
+
+```yaml
+services:
+  dev-box:
+    devices:
+      - /dev/dri
+```
+
+Then, in the box:
+
+```bash
+devbox dev-env gpu    # the drivers of the GPU found, through devbox pkg
+devbox status         # GPU section: device, access, VA-API codecs, Vulkan
+```
+
+The entrypoint gives your user access to the device whatever the group IDs of
+the host. NVIDIA is not covered (it needs the NVIDIA Container Toolkit). The
+details are in [docs/dev-envs.md](docs/dev-envs.md#gpu-hardware-acceleration).
 
 ## Updating
 
@@ -130,7 +155,7 @@ belong to root: on Linux, `sudo rm -rf ~/dev-box`.
 - [Terminal](docs/terminal.md): clipboard, `xdg-open`, the yazi file manager,
   notifications
 - [Tools and packages](docs/tools.md): pacman, `devbox tui`, `devbox pkg`, mise
-- [Dev environments](docs/dev-envs.md): `devbox dev-env` and `DEV_ENVS`
+- [Dev environments](docs/dev-envs.md): `devbox dev-env`, `DEV_ENVS`, the GPU
 - [Containers](docs/containers.md): rootless podman and `docker` inside the box
 - [Databases](docs/databases.md): `devbox dbs`
 - [Coding agents](docs/agents.md): `devbox agent`, usage, the agent skill

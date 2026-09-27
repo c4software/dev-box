@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=status
-# devbox:summary=State of the box: access, podman, tools, dev environments, updates
-# devbox:summary.fr=État de la box : accès, podman, outils, environnements de dev, mises à jour
+# devbox:summary=State of the box: access, podman, GPU, tools, dev environments, updates
+# devbox:summary.fr=État de la box : accès, podman, GPU, outils, environnements de dev, mises à jour
 # devbox:args=
 #
 # A one-page summary of what the box is doing right now. Read only: nothing is
@@ -64,6 +64,56 @@ if [ -S "$sock" ]; then
   item "socket" "$sock"
 else
   item "socket" "missing ($sock)"
+fi
+
+# --- GPU of the host: /dev/dri, passed by compose.override.yaml ---------------
+# The device, whether this user can open it (the entrypoint adds it to the
+# group owning the node), and what the drivers of devbox dev-env gpu make of
+# it. vainfo and vulkaninfo only query the local driver, under a timeout.
+title "GPU"
+node=""
+for n in /dev/dri/renderD*; do
+  [ -c "$n" ] && { node="$n"; break; }
+done
+if [ -z "$node" ]; then
+  item "device" "none (on the host: /dev/dri in the devices of compose.override.yaml, then restart the container)"
+else
+  sys="/sys/class/drm/${node##*/}/device"
+  kdriver="$(basename "$(readlink -f "$sys/driver" 2>/dev/null)" 2>/dev/null || true)"
+  pci="$(cat "$sys/vendor" 2>/dev/null || true):$(cat "$sys/device" 2>/dev/null || true)"
+  case "$pci" in
+    :) pci="" ;;
+    *) pci=", PCI ${pci//0x/}" ;;
+  esac
+  item "device" "$node (kernel driver ${kdriver:-unknown}$pci)"
+  if [ -r "$node" ] && [ -w "$node" ]; then
+    item "access" "yes, group $(stat -c %G "$node" 2>/dev/null || stat -c %g "$node")"
+  else
+    item "access" "no: $(id -un) is not in group $(stat -c %G "$node" 2>/dev/null || stat -c %g "$node") (restart the container, the entrypoint adds it)"
+  fi
+  if command -v vainfo >/dev/null 2>&1; then
+    if va="$(timeout 5 vainfo --display drm --device "$node" 2>/dev/null)"; then
+      item "VA-API" "$(printf '%s\n' "$va" | sed -n 's/^.*Driver version: //p' | head -n 1)"
+      # "VAProfileH264Main : VAEntrypointEncSlice": the codec names, deduplicated.
+      codecs() {
+        printf '%s\n' "$va" | grep -E "$1" \
+          | sed -E 's/^[[:space:]]*VAProfile([A-Z][A-Za-z]*[0-9]*).*/\1/; s/(Main|High|Baseline|Constrained|Simple|Advanced|Profile|Extended|Multiview|Stereo|Progressive).*$//' \
+          | awk 'NF && !seen[$0]++' | paste -sd' ' -
+      }
+      dec="$(codecs 'VAEntrypointVLD')"
+      enc="$(codecs 'VAEntrypointEnc(Slice|SliceLP)')"
+      item "decode" "${dec:-none}"
+      item "encode" "${enc:-none}"
+    else
+      item "VA-API" "no driver for this GPU (vainfo --display drm --device $node says why)"
+    fi
+  else
+    item "drivers" "not installed: devbox dev-env gpu"
+  fi
+  if command -v vulkaninfo >/dev/null 2>&1; then
+    vk="$(timeout 5 vulkaninfo --summary 2>/dev/null | awk -F'= ' '/deviceName/ { print $2; exit }' || true)"
+    item "Vulkan" "${vk:-no device}"
+  fi
 fi
 
 # --- mise tools: what is actually active in this shell ------------------------

@@ -173,6 +173,10 @@ dependency. It is left out of the
 menu while the box has no `/dev/dri`. NVIDIA is not offered: its GPU goes
 through the NVIDIA Container Toolkit, not `/dev/dri`.
 
+`devbox status` sums it up in its GPU section: the device and its kernel
+driver, whether your user can open it, the VA-API driver with the codecs it
+decodes and encodes, and the Vulkan device.
+
 ```bash
 vainfo --display drm --device /dev/dri/renderD128   # the VA-API profiles
 ffmpeg -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 \
