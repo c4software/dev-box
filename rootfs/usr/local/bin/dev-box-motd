@@ -66,6 +66,7 @@ TIPS=(
   'devbox dev-env node go|install these toolchains right away'
   'devbox dbs postgres redis|start these databases, data kept in a volume'
   'devbox dbs --list|the databases, their port and their state'
+  'devbox gpu|the GPU of the host: drivers, codecs, a hardware encoding test'
   'devbox pkg add htop|a pacman package that survives a rebuild'
   'devbox pkg install|fuzzy picker over the Arch repositories'
   'devbox mise-install crush|a mise-backed wrapper in ~/.local/bin'

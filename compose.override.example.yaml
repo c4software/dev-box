@@ -37,7 +37,7 @@ services:
     # GPU of the host (Intel, AMD, the Raspberry Pi's): hardware video
     # decoding and encoding (ffmpeg -hwaccel vaapi), OpenGL and Vulkan.
     # The entrypoint adds the user to the group that owns /dev/dri, whatever
-    # its GID on the host; the drivers come with `devbox dev-env gpu`. NVIDIA
+    # its GID on the host; the drivers come with `devbox gpu install`. NVIDIA
     # goes through the NVIDIA Container Toolkit instead. The host must have a
     # /dev/dri (not Docker Desktop on macOS), or the container does not start.
     # With the podman block, add /dev/dri to its devices list instead: a

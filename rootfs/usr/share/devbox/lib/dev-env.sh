@@ -24,6 +24,9 @@
 #                  exits 1. Without it: supported everywhere. An unsupported
 #                  environment is left out of the menu and --list, refused by
 #                  an install, skipped by --if-missing.
+#   is_hidden      optional. Exits 0 to leave the environment out of the menu
+#                  and --list, while it still installs by name and through
+#                  DEV_ENVS: an alias kept for an older name (gpu).
 #
 # install and uninstall run in their own bash process, with `set -euo
 # pipefail`: a failing command stops them, and the functions of two files
@@ -107,8 +110,8 @@ dev_env_exec() {
 }
 
 # Every environment for the list and the menu, one line each: the name,
-# installed (1 or 0), supported (1 or 0) and the short description, separated
-# by tabs. One bash process for all of them, each file sourced in a subshell
+# installed (1 or 0), supported (1 or 0), hidden (1 or 0) and the short
+# description, separated by tabs. One bash process for all of them, each file sourced in a subshell
 # of it, and the global mise config read once. A file that fails to load
 # prints no line.
 dev_env_summaries() {
@@ -116,7 +119,7 @@ dev_env_summaries() {
 }
 
 dev_env_summaries_exec() {
-  local name d inst sup
+  local name d inst sup hid
   dev_env_load
   DEV_ENV_DECLARED=$'\n'"$(dev_env_declared_tools)"$'\n'
   for name in "${DEV_ENV_NAMES[@]}"; do
@@ -127,15 +130,18 @@ dev_env_summaries_exec() {
       is_installed() { declared "$DEV_ENV_SELF"; }
       # shellcheck disable=SC2329
       is_supported() { return 0; }
+      # shellcheck disable=SC2329
+      is_hidden() { return 1; }
       # shellcheck source=/dev/null
       . "${DEV_ENV_FILES[$name]}" >/dev/null 2>&1 || exit 1
       declare -F details >/dev/null && declare -F install >/dev/null \
         && declare -F uninstall >/dev/null || exit 1
       d="$(details 2>/dev/null)" || exit 1
-      inst=0; sup=0
+      inst=0; sup=0; hid=0
       is_installed >/dev/null 2>&1 && inst=1
       is_supported >/dev/null 2>&1 && sup=1
-      printf '%s\t%s\t%s\t%s\n' "$name" "$inst" "$sup" "${d%%$'\n'*}"
+      is_hidden >/dev/null 2>&1 && hid=1
+      printf '%s\t%s\t%s\t%s\t%s\n' "$name" "$inst" "$sup" "$hid" "${d%%$'\n'*}"
     ) || true
   done
 }

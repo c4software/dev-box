@@ -113,7 +113,7 @@ In this order, with their default. Enter keeps the default.
 | GitHub token (hidden) | none | `GITHUB_TOKEN`: a token with no scope, recommended, avoids the GitHub API rate limit while tools install |
 | Dev environments | none | `DEV_ENVS`: `devbox dev-env` names installed at the first start, space separated, e.g. `node python` |
 | Turn podman on? | no | `PODMAN_ENABLE`, plus a `compose.override.yaml` with the podman block (see [containers.md](containers.md)): it loosens the isolation of the container |
-| Pass the GPU to the box? (only when the host has a `/dev/dri`) | yes | `/dev/dri` in the devices of `compose.override.yaml`, and `gpu` added to `DEV_ENVS` for the drivers (see [dev-envs.md](dev-envs.md#gpu-hardware-acceleration)) |
+| Pass the GPU to the box? (only when the host has a `/dev/dri`) | yes | `/dev/dri` in the devices of `compose.override.yaml`, and `gpu` added to `DEV_ENVS` for the drivers (see [gpu.md](gpu.md)) |
 | Pull the image and start the box now? | yes | nothing |
 
 A key, a GitHub user or a port that is not valid is refused with the reason,

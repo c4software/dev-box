@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+# devbox:name=gpu
+# devbox:summary=GPU of the host: state, drivers, a hardware encoding test
+# devbox:summary.fr=GPU de l'hôte : état, pilotes, test d'encodage matériel
+# devbox:args=[status|install|remove|test]
+# The GPU of the host, passed to the box as /dev/dri by compose.override.yaml:
+# what the box sees, the VA-API and Vulkan drivers, and a quick check that
+# video really encodes on it.
+#
+#   dev-box-gpu             the state, and the next step when something is missing
+#   dev-box-gpu install     the drivers of the GPU found, through devbox pkg
+#   dev-box-gpu remove      take the drivers out again
+#   dev-box-gpu test        encode 10 s of 1080p on the GPU, then on the CPU
+#   dev-box-gpu --summary   the state on one line (devbox status)
+#
+# The entrypoint adds the user to the group that owns the nodes of /dev/dri,
+# whatever its GID on the host. NVIDIA is not covered: its GPU goes through
+# the NVIDIA Container Toolkit, not /dev/dri. Headless Chromium does not use
+# the GPU either, it renders in software (SwiftShader) whatever the flags.
+set -euo pipefail
+
+log() { echo "[dev-box-gpu] $*"; }
+usage() { sed -n '6,19p' "$0" | sed 's/^# \?//'; }
+
+title() { printf '\n\033[1m%s\033[0m\n' "$*"; }
+item() { printf '  %-10s %s\n' "$1" "$2"; }
+
+# The render node the box sees, empty when compose.override.yaml passes none.
+NODE=""
+for n in /dev/dri/renderD*; do
+  [ -c "$n" ] && { NODE="$n"; break; }
+done
+
+# The kernel driver behind the render node: i915 or xe (Intel), amdgpu or
+# radeon (AMD), v3d (Raspberry Pi), panfrost...
+kernel_driver() {
+  [ -n "$NODE" ] || return 0
+  basename "$(readlink -f "/sys/class/drm/${NODE##*/}/device/driver" 2>/dev/null)" 2>/dev/null || true
+}
+
+pci_id() {
+  local sys="/sys/class/drm/${NODE##*/}/device" v d
+  v="$(cat "$sys/vendor" 2>/dev/null || true)"
+  d="$(cat "$sys/device" 2>/dev/null || true)"
+  [ -n "$v" ] && [ -n "$d" ] && printf '%s:%s' "${v#0x}" "${d#0x}"
+  return 0
+}
+
+node_group() { stat -c %G "$NODE" 2>/dev/null || stat -c %g "$NODE"; }
+can_open() { [ -r "$NODE" ] && [ -w "$NODE" ]; }
+
+# The packages for this GPU: the VA-API and Vulkan drivers of Intel and AMD,
+# plus vainfo and vulkaninfo everywhere. mesa, with the VA-API drivers of AMD
+# and the others, comes as their dependency.
+packages() {
+  case "$(kernel_driver)" in
+    i915|xe) echo libva-utils vulkan-tools intel-media-driver vulkan-intel ;;
+    amdgpu|radeon) echo libva-utils vulkan-tools vulkan-radeon ;;
+    *) echo libva-utils vulkan-tools ;;
+  esac
+}
+all_packages() { echo libva-utils vulkan-tools intel-media-driver vulkan-intel vulkan-radeon; }
+
+drivers_installed() { command -v vainfo >/dev/null 2>&1; }
+
+NO_NODE_HINT="on the host, add /dev/dri to the devices of compose.override.yaml, then restart the container"
+NO_ACCESS_HINT="restart the container: the entrypoint adds you to the group of the device"
+
+# VA="$(vainfo output)", empty when no VA-API driver answers.
+va_info() { timeout 5 vainfo --display drm --device "$NODE" 2>/dev/null || true; }
+
+# The codec names of the VA-API profiles for the entry points matching $2.
+codecs() {
+  printf '%s\n' "$1" | grep -E "$2" \
+    | sed -E 's/^[[:space:]]*VAProfile([A-Z][A-Za-z]*[0-9]*).*/\1/; s/(Main|High|Baseline|Constrained|Simple|Advanced|Profile|Extended|Multiview|Stereo|Progressive).*$//' \
+    | awk 'NF && !seen[$0]++' | paste -sd' ' -
+}
+
+# --- status ----------------------------------------------------------------
+do_status() {
+  local kdriver pci va dec enc vk next=""
+  title "GPU"
+  if [ -z "$NODE" ]; then
+    item "device" "none passed to the box"
+    next="$NO_NODE_HINT (then devbox gpu install)"
+  else
+    kdriver="$(kernel_driver)"
+    pci="$(pci_id)"
+    item "device" "$NODE (kernel driver ${kdriver:-unknown}${pci:+, PCI $pci})"
+    if can_open; then
+      item "access" "yes, group $(node_group)"
+    else
+      item "access" "no, $(id -un) is not in group $(node_group)"
+      next="$NO_ACCESS_HINT"
+    fi
+    if ! drivers_installed; then
+      item "drivers" "not installed"
+      [ -n "$next" ] || next="devbox gpu install"
+    else
+      va="$(va_info)"
+      if [ -n "$va" ]; then
+        item "VA-API" "$(printf '%s\n' "$va" | sed -n 's/^.*Driver version: //p' | head -n 1)"
+        dec="$(codecs "$va" 'VAEntrypointVLD')"
+        enc="$(codecs "$va" 'VAEntrypointEnc(Slice|SliceLP)')"
+        item "decode" "${dec:-none}"
+        item "encode" "${enc:-none}"
+      else
+        item "VA-API" "no driver answers (vainfo --display drm --device $NODE says why)"
+      fi
+      if command -v vulkaninfo >/dev/null 2>&1; then
+        vk="$(timeout 5 vulkaninfo --summary 2>/dev/null | awk -F'= ' '/deviceName/ { print $2; exit }' || true)"
+        item "Vulkan" "${vk:-no device}"
+      fi
+      if [ -z "$next" ] && [ -n "${enc:-}" ]; then
+        if command -v ffmpeg >/dev/null 2>&1; then
+          next="devbox gpu test (a hardware encode against the CPU)"
+        else
+          next="devbox dev-env media for ffmpeg, then devbox gpu test"
+        fi
+      fi
+    fi
+  fi
+  [ -z "$next" ] || printf '\n  next: %s\n' "$next"
+  echo
+}
+
+# One line for devbox status.
+do_summary() {
+  local kdriver pci va
+  if [ -z "$NODE" ]; then
+    echo "none passed to the box (devbox gpu says how)"
+    return 0
+  fi
+  kdriver="$(kernel_driver)"
+  pci="$(pci_id)"
+  printf '%s%s, ' "${kdriver:-unknown driver}" "${pci:+ ($pci)}"
+  if ! can_open; then
+    echo "no access for $(id -un): restart the container"
+  elif ! drivers_installed; then
+    echo "drivers missing: devbox gpu install"
+  else
+    va="$(va_info)"
+    if [ -z "$va" ]; then
+      echo "no VA-API driver answers (devbox gpu)"
+    elif [ -n "$(codecs "$va" 'VAEntrypointEnc(Slice|SliceLP)')" ]; then
+      echo "VA-API decode and encode, details: devbox gpu"
+    else
+      echo "VA-API decode only, details: devbox gpu"
+    fi
+  fi
+}
+
+# --- install / remove ----------------------------------------------------------
+do_install() {
+  local pkgs
+  if [ -z "$NODE" ]; then
+    log "no GPU in the box: $NO_NODE_HINT"
+    exit 1
+  fi
+  read -ra pkgs <<<"$(packages)"
+  log "GPU: $NODE, kernel driver $(kernel_driver || true)"
+  dev-box-pkg add "${pkgs[@]}"
+  if ! can_open; then
+    log "⚠ $NODE is not open to $(id -un): $NO_ACCESS_HINT"
+    exit 0
+  fi
+  do_status
+}
+
+do_remove() {
+  local pkgs
+  read -ra pkgs <<<"$(all_packages)"
+  dev-box-pkg drop "${pkgs[@]}"
+  log "the GPU stays in the box; it goes with the /dev/dri line of compose.override.yaml on the host"
+}
+
+# --- test ----------------------------------------------------------------------
+# 10 s of 1080p30 test pattern, encoded to H.264 on the GPU (h264_vaapi), then
+# on the CPU (libx264, preset medium). Everything happens in a temporary
+# directory, removed at the end.
+do_test() {
+  local dir s m e gpu_ms cpu_ms
+  [ -n "$NODE" ] || { log "no GPU in the box: $NO_NODE_HINT"; exit 1; }
+  can_open || { log "$NODE is not open to $(id -un): $NO_ACCESS_HINT"; exit 1; }
+  drivers_installed || { log "no drivers yet: devbox gpu install"; exit 1; }
+  command -v ffmpeg >/dev/null 2>&1 || { log "the test needs ffmpeg: devbox dev-env media"; exit 1; }
+  dir="$(mktemp -d)"
+  # shellcheck disable=SC2064
+  trap "rm -rf '$dir'" EXIT
+  log "source: 10 s of 1080p30 test pattern"
+  ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=size=1920x1080:rate=30 \
+    -t 10 -pix_fmt yuv420p -c:v libx264 -preset ultrafast "$dir/src.mp4"
+  log "H.264 on the GPU (h264_vaapi)..."
+  s="$(date +%s%N)"
+  if ! ffmpeg -hide_banner -loglevel error -y -hwaccel vaapi -hwaccel_device "$NODE" \
+       -hwaccel_output_format vaapi -i "$dir/src.mp4" -c:v h264_vaapi "$dir/gpu.mp4" 2>"$dir/err"; then
+    log "⚠ the GPU encode failed:"
+    sed 's/^/  /' "$dir/err" | tail -n 5
+    log "devbox gpu shows what the driver offers (encode line)"
+    exit 1
+  fi
+  m="$(date +%s%N)"
+  log "H.264 on the CPU (libx264)..."
+  ffmpeg -hide_banner -loglevel error -y -i "$dir/src.mp4" -c:v libx264 -preset medium "$dir/cpu.mp4"
+  e="$(date +%s%N)"
+  gpu_ms=$(( (m - s) / 1000000 ))
+  cpu_ms=$(( (e - m) / 1000000 ))
+  [ "$gpu_ms" -gt 0 ] || gpu_ms=1
+  echo
+  item "GPU" "${gpu_ms} ms"
+  item "CPU" "${cpu_ms} ms"
+  awk -v g="$gpu_ms" -v c="$cpu_ms" -v n="$NODE" \
+    'BEGIN { printf "  the GPU is %.1f times as fast; ffmpeg -hwaccel vaapi -hwaccel_device %s ... -c:v h264_vaapi\n", c / g, n }'
+}
+
+case "${1:-status}" in
+  status) do_status ;;
+  --summary) do_summary ;;
+  install) do_install ;;
+  remove) do_remove ;;
+  test) do_test ;;
+  -h|--help) usage ;;
+  *) echo "dev-box-gpu: unknown command '$1'" >&2; usage >&2; exit 2 ;;
+esac

@@ -33,7 +33,8 @@ use in scripts and in a `docker exec` from the host: `devbox update` and
 
 | `devbox` | Binary | Does |
 |---|---|---|
-| `status` | `dev-box-status` | image commit and repo, Tailscale or sshd, podman, the GPU (device, access, VA-API codecs, Vulkan), mise tools, the `DEV_ENVS` environments, pending updates. Read only. |
+| `status` | `dev-box-status` | image commit and repo, Tailscale or sshd, podman, the GPU on one line, mise tools, the `DEV_ENVS` environments, pending updates. Read only. |
+| `gpu` | `dev-box-gpu` | the GPU of the host (`/dev/dri`): no argument shows the device, access, VA-API codecs, Vulkan and the next step; `install` / `remove` the drivers through `devbox pkg` (intel-media-driver and vulkan-intel, or vulkan-radeon; mesa follows); `test` encodes 10 s of 1080p on the GPU then the CPU (needs ffmpeg). No `/dev/dri`: the host adds it to compose.override.yaml and restarts the container. `devbox dev-env gpu` is a hidden alias of `install`, for `DEV_ENVS=gpu`. NVIDIA and headless Chromium do not use it. |
 | `check` | `dev-box-check-updates` | looks for what could be updated, writes the flag and prints it. `--image` only says whether the image is the latest, `--quiet` writes the flag and prints nothing (the entrypoint, `devbox update`). Installs nothing. |
 | `update` | `dev-box-update` | `[dotfiles\|tools\|seed\|all]`, default `all`. The only command that installs. |
 | `seed` | `dev-box-seed` | lays down the config shipped by the image. `--apply` with no menu, `--check` to look, `--force [path]` to take a new version. |
@@ -121,11 +122,6 @@ ethtool, ipcalc) go through `devbox pkg add` too, plus a mise tool each
 and passwordless sudo, so `sudo nmap -sS` and `sudo tcpdump -i any` work, but
 tcpdump only sees the box's own interfaces and the LAN is behind Docker's NAT.
 dig, nslookup, host, nc, whois and traceroute are in the image already.
-`gpu` installs the VA-API and Vulkan drivers of the host GPU through `devbox
-pkg` (intel-media-driver and vulkan-intel, or vulkan-radeon; mesa follows),
-with vainfo and vulkaninfo; it only shows up once the host passes `/dev/dri`
-(the GPU block of compose.override.yaml, then a restart), and the entrypoint
-adds the user to the group owning those nodes. NVIDIA is not covered.
 `db-clients` (mongosh, usql, mycli, litecli) and `ansible` (ansible-core,
 ansible-lint) go through mise, the PyPI ones on top of `python`, which they
 install first and keep on removal. OCaml is absent: upstream it needs opam,

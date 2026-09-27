@@ -155,8 +155,8 @@ Never guess a command name. Run `devbox commands`.
 - "Install ansible" -> `devbox dev-env ansible`
 - "Use the GPU" or "hardware video encoding" -> `ls /dev/dri` first: empty,
   the host has to add `/dev/dri` to the devices of compose.override.yaml and
-  restart the container; there, `devbox dev-env gpu`, then `devbox status`
-  (GPU section: access, VA-API codecs, Vulkan)
+  restart the container; there, `devbox gpu install`, then `devbox gpu`
+  (access, VA-API codecs, Vulkan) and `devbox gpu test`
 - "What is available to install?" -> `devbox dev-env --list`
 - "What does the ruby environment install?" -> `devbox dev-env --info ruby`
 - "Add an environment for a tool of mine" -> a script in

@@ -18,6 +18,7 @@ devbox dev-env|choisir des langages et leurs outils, via mise
 devbox dev-env node go|installer ces langages tout de suite
 devbox dbs postgres redis|démarrer ces bases de données, données gardées dans un volume
 devbox dbs --list|les bases de données, leur port et leur état
+devbox gpu|le GPU de l'hôte : pilotes, codecs, test d'encodage matériel
 devbox pkg add htop|un paquet pacman qui survit à un rebuild
 devbox pkg install|recherche floue dans les dépôts Arch
 devbox mise-install crush|un wrapper mise dans ~/.local/bin

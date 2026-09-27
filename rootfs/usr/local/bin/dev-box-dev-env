@@ -62,22 +62,24 @@ available() { printf '%s ' "${DEV_ENV_NAMES[@]}"; }
 
 # --- Installed state and descriptions ----------------------------------------
 
-# SUMMARY_INSTALLED[name], SUMMARY_SUPPORTED[name] (1 or 0) and
-# SUMMARY_DESC[name], read once for the list and the menu through
+# SUMMARY_INSTALLED[name], SUMMARY_SUPPORTED[name], SUMMARY_HIDDEN[name] (1
+# or 0) and SUMMARY_DESC[name], read once for the list and the menu through
 # dev_env_summaries, from a file when the menu started it in the background.
 # A script that fails to load is shown, marked broken.
-declare -A SUMMARY_INSTALLED=() SUMMARY_SUPPORTED=() SUMMARY_DESC=()
+declare -A SUMMARY_INSTALLED=() SUMMARY_SUPPORTED=() SUMMARY_HIDDEN=() SUMMARY_DESC=()
 load_summaries() {
-  local name inst sup desc
+  local name inst sup hid desc
   for name in "${DEV_ENV_NAMES[@]}"; do
     SUMMARY_INSTALLED[$name]=0
     SUMMARY_SUPPORTED[$name]=1
+    SUMMARY_HIDDEN[$name]=0
     SUMMARY_DESC[$name]="(broken script, see devbox dev-env --info $name)"
   done
-  while IFS=$'\t' read -r name inst sup desc; do
+  while IFS=$'\t' read -r name inst sup hid desc; do
     [ -n "${SUMMARY_DESC[$name]:-}" ] || continue
     SUMMARY_INSTALLED[$name]="$inst"
     SUMMARY_SUPPORTED[$name]="$sup"
+    SUMMARY_HIDDEN[$name]="$hid"
     SUMMARY_DESC[$name]="$desc"
   done < <(if [ -n "${1:-}" ]; then cat "$1"; else dev_env_summaries; fi)
 }
@@ -107,6 +109,7 @@ show_list() {
   w="$(name_width)"
   printf '\033[1mDev environments\033[0m (devbox dev-env <name>..., devbox dev-env --remove <name>...)\n\n'
   for name in "${DEV_ENV_NAMES[@]}"; do
+    [ "${SUMMARY_HIDDEN[$name]}" = 1 ] && continue
     if [ "${SUMMARY_SUPPORTED[$name]}" = 0 ]; then
       hidden="$hidden $name"
       continue
@@ -257,6 +260,8 @@ menu() {
   for name in "${DEV_ENV_NAMES[@]}"; do
     # Not for this machine: neither installable nor, therefore, installed.
     [ "${SUMMARY_SUPPORTED[$name]}" = 1 ] || continue
+    # An alias (is_hidden): installed by name or DEV_ENVS, never offered.
+    [ "${SUMMARY_HIDDEN[$name]}" = 1 ] && continue
     if [ "${SUMMARY_INSTALLED[$name]}" = 1 ]; then mark=" (installed)"; else mark=""; fi
     if [ "$ACTION" = "uninstall" ]; then
       [ -n "$mark" ] || continue

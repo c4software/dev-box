@@ -43,7 +43,7 @@ Then open `/tmp/page.png` the way you open any image file and look at it.
   container does not hand out, and without the flag Chromium exits at once.
 - `--disable-gpu` costs nothing: headless Chromium renders in software
   (SwiftShader) in the box, even when the host GPU is passed through
-  `/dev/dri` and `devbox dev-env gpu` is installed. Checked on an Intel iGPU:
+  `/dev/dri` and `devbox gpu install` has run. Checked on an Intel iGPU:
   no flag (`--use-angle=vulkan`, `gl-egl`, `--ignore-gpu-blocklist`, the
   Vaapi features) makes it pick the GPU up, some even turn WebGL off. Do not
   spend time on it; ffmpeg and native Vulkan are what the GPU serves here.

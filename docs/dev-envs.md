@@ -2,7 +2,8 @@
 
 `devbox dev-env` installs or removes a whole language environment in one call,
 through mise. No `curl | sh`, and no pacman except for PHP, the browser,
-media, network and gpu (see below). Whatever mise installs is declared in
+media and network (see below). The GPU drivers have their own command,
+`devbox gpu` (see [gpu.md](gpu.md)). Whatever mise installs is declared in
 `~/.config/mise/config.toml`, survives a rebuild, and is upgraded by
 `devbox update tools` like the rest.
 
@@ -96,7 +97,7 @@ at install and Linux desktop turned off; the web target runs with
 Google publishes no arm64 build-tools. Swift is not offered: swift.org
 publishes no build for Arch, and the Ubuntu one needs library aliases to start.
 
-## The exceptions: PHP, browser, media, network, gpu
+## The exceptions: PHP, browser, media, network
 
 PHP is the one exception. mise can only build PHP from source, which takes
 minutes and needs a pile of development headers, so `php`, `composer`,
@@ -145,44 +146,6 @@ or the LAN, and the LAN is reached through the NAT of Docker, so an ARP scan
 never shows the real MAC addresses. A removal takes out what the environment
 brought and leaves the image's tools.
 
-### `gpu`: hardware acceleration
-
-The box sees no GPU until the host hands it over: `/dev/dri` in the devices
-of `compose.override.yaml` (the GPU block of `compose.override.example.yaml`,
-or the setup script's question), then a restart of the container.
-
-```yaml
-services:
-  dev-box:
-    devices:
-      - /dev/dri
-```
-
-The nodes of `/dev/dri` belong to the `video` and `render` groups of the
-host, whose GIDs mean nothing in the image: at every start the entrypoint adds
-the user to the group that owns each node, created as `dri<gid>` when the
-image has none with that GID. No `group_add` to write, the same override works
-on any host. A host without `/dev/dri` (Docker Desktop on macOS) refuses to
-start the container with that line, so it stays out of `compose.yaml`.
-
-`gpu` then installs the drivers through `devbox pkg`, picked from the kernel
-driver of the GPU: `intel-media-driver` and `vulkan-intel` on Intel,
-`vulkan-radeon` on AMD, and everywhere `vainfo` and `vulkaninfo` to check;
-`mesa`, which holds the VA-API drivers of AMD and the others, comes as their
-dependency. It is left out of the
-menu while the box has no `/dev/dri`. NVIDIA is not offered: its GPU goes
-through the NVIDIA Container Toolkit, not `/dev/dri`.
-
-`devbox status` sums it up in its GPU section: the device and its kernel
-driver, whether your user can open it, the VA-API driver with the codecs it
-decodes and encodes, and the Vulkan device.
-
-```bash
-vainfo --display drm --device /dev/dri/renderD128   # the VA-API profiles
-ffmpeg -hwaccel vaapi -hwaccel_device /dev/dri/renderD128 \
-  -hwaccel_output_format vaapi -i in.mp4 -c:v h264_vaapi out.mp4
-```
-
 OCaml is not offered: upstream it goes through the opam installer, which would
 be wiped by the next image rebuild.
 
@@ -190,7 +153,9 @@ be wiped by the next image rebuild.
 
 Each environment is a short script with three functions, `details`, `install`
 and `uninstall`, plus `is_installed` when the mise config cannot tell and
-`is_supported` when it does not run everywhere. What this machine cannot take
+`is_supported` when it does not run everywhere, and `is_hidden` for an alias
+kept out of the menu and the list but still installed by name and by
+`DEV_ENVS` (`gpu`, now `devbox gpu install`). What this machine cannot take
 (`android`, `android-sdk` and `flutter` on arm64) is left out of the menu and
 the list, and skipped by `DEV_ENVS`, so one `.env` serves both architectures.
 The image ships them in `/usr/share/devbox/dev-envs/`, and `devbox dev-env`

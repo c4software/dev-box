@@ -79,6 +79,7 @@ menu when called without arguments.
 | Command | Does |
 | --- | --- |
 | `devbox status` | what the box is doing right now: access, podman, GPU, tools, updates |
+| `devbox gpu` | the GPU of the host: state, drivers (`install`), a hardware encoding `test` |
 | `devbox dev-env node python` | install language environments through mise (`--list` for all of them) |
 | `devbox dbs postgres` | start a development database (needs podman) |
 | `devbox pkg add htop` | a pacman package that survives an image rebuild |
@@ -104,16 +105,17 @@ services:
       - /dev/dri
 ```
 
-Then, in the box:
+Then, in the box, everything goes through `devbox gpu`:
 
 ```bash
-devbox dev-env gpu    # the drivers of the GPU found, through devbox pkg
-devbox status         # GPU section: device, access, VA-API codecs, Vulkan
+devbox gpu            # the state, and the next step when something is missing
+devbox gpu install    # the drivers of the GPU found, through devbox pkg
+devbox gpu test       # a hardware encode against the CPU (needs ffmpeg)
 ```
 
 The entrypoint gives your user access to the device whatever the group IDs of
 the host. NVIDIA is not covered (it needs the NVIDIA Container Toolkit). The
-details are in [docs/dev-envs.md](docs/dev-envs.md#gpu-hardware-acceleration).
+details are in [docs/gpu.md](docs/gpu.md).
 
 ## Updating
 
@@ -155,7 +157,8 @@ belong to root: on Linux, `sudo rm -rf ~/dev-box`.
 - [Terminal](docs/terminal.md): clipboard, `xdg-open`, the yazi file manager,
   notifications
 - [Tools and packages](docs/tools.md): pacman, `devbox tui`, `devbox pkg`, mise
-- [Dev environments](docs/dev-envs.md): `devbox dev-env`, `DEV_ENVS`, the GPU
+- [Dev environments](docs/dev-envs.md): `devbox dev-env` and `DEV_ENVS`
+- [GPU acceleration](docs/gpu.md): `/dev/dri`, `devbox gpu`, the drivers
 - [Containers](docs/containers.md): rootless podman and `docker` inside the box
 - [Databases](docs/databases.md): `devbox dbs`
 - [Coding agents](docs/agents.md): `devbox agent`, usage, the agent skill
