@@ -34,7 +34,9 @@ for node in /dev/dri/card* /dev/dri/renderD*; do
   [ -c "$node" ] || continue
   gid="$(stat -c %g "$node")"
   [ "$gid" -ne 0 ] || continue
-  group="$(getent group "$gid" | cut -d: -f1)"
+  # getent exits 2 when no group has that GID, which pipefail would turn into
+  # a failed start.
+  group="$(getent group "$gid" | cut -d: -f1 || true)"
   if [ -z "$group" ]; then
     group="dri$gid"
     groupadd -g "$gid" "$group"
