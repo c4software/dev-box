@@ -1,13 +1,21 @@
 # Build the image and publish it on ghcr.io/<owner>/dev-box, one multi-arch
 # image (linux/amd64 and linux/arm64) under the release tag (v1.12) and latest.
 #
-# One native build per architecture (amd64 and arm64 runners, no qemu, both
-# free for a public repository), run side by side, each pushed by digest, then
-# a single manifest that names both: every host pulls the same tag and gets
-# the image of its machine. A release takes about three minutes. Every build
-# starts from a fresh base image with no layer cache, exactly like
-# `docker compose build --pull --no-cache`: an Arch image built from a cached
-# pacman layer would carry packages frozen at the first build.
+# A pushed v* tag builds amd64 only. arm64 is built by hand, once the release
+# is out, from the Actions tab (Run workflow, pick the tag) or with
+# `gh workflow run build.yml --ref v1.13`. Each build runs on a native runner
+# (no qemu, both free for a public repository) and is pushed by digest, then
+# a manifest names the digests: every host pulls the same tag and gets the
+# image of its machine. Every build starts from a fresh base image with no
+# layer cache, exactly like `docker compose build --pull --no-cache`: an Arch
+# image built from a cached pacman layer would carry packages frozen at the
+# first build.
+#
+# Until arm64 is built for a release, the release tag holds amd64 alone and
+# latest holds the new amd64 next to the arm64 of the previous release, so an
+# arm64 box keeps pulling a working image and is told nothing new yet. The
+# manual run adds arm64 to the release tag, and to latest when that release is
+# still the one latest points to.
 #
 # The image is a single layer (FROM scratch at the end of the Dockerfile),
 # pushed compressed with zstd rather than gzip: 523 MB to pull on amd64
@@ -29,6 +37,8 @@ name: Build the image
 on:
   push:
     tags: ["v*"]
+  # arm64 only, run on a v* tag.
+  workflow_dispatch:
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}
@@ -43,17 +53,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - platform: linux/amd64
-            runner: ubuntu-24.04
-          - platform: linux/arm64
-            runner: ubuntu-24.04-arm
+        include: ${{ fromJSON(github.event_name == 'push' && '[{"platform":"linux/amd64","runner":"ubuntu-24.04"}]' || '[{"platform":"linux/arm64","runner":"ubuntu-24.04-arm"}]') }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Check the ref is a release tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          case "$GITHUB_REF" in
+            refs/tags/v*) ;;
+            *) echo "::error::run this workflow on a v* tag, not on $GITHUB_REF"; exit 1 ;;
+          esac
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v7
 
-      - uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -70,7 +84,7 @@ jobs:
       # gzip already.
       - name: Build and push by digest
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: ${{ matrix.platform }}
@@ -90,7 +104,7 @@ jobs:
           digest="${{ steps.build.outputs.digest }}"
           touch "/tmp/digests/${digest#sha256:}"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: digest-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
           path: /tmp/digests/*
@@ -105,38 +119,65 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
           pattern: digest-*
           merge-multiple: true
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # latest and the release tag. latest-arm64 and the release tag plus
-      # -arm64 name the same manifest: for a few releases after v1.12 arm64
-      # had an image of its own under those tags, and a box installed then
-      # still names latest-arm64 in its .env and looks for the newest -arm64
-      # tag to know a release is out. It keeps being told, and its pull keeps working; the
-      # next image tells it to go back to latest. Drop these two lines once
-      # no such box is left.
+      # The digest of one architecture in a published manifest, empty when the
+      # tag or the architecture is missing.
+      #
+      # latest-arm64 and the release tag plus -arm64 name the same manifest as
+      # latest and the release tag once they hold arm64: for a few releases
+      # after v1.12 arm64 had an image of its own under those tags, and a box
+      # installed then still names latest-arm64 in its .env and looks for the
+      # newest -arm64 tag to know a release is out. It keeps being told, and its
+      # pull keeps working; the next image tells it to go back to latest. Drop
+      # the -arm64 tags once no such box is left.
       - name: Create the manifest
         working-directory: /tmp/digests
         run: |
-          refs=()
-          for d in *; do refs+=("${IMAGE}@sha256:${d}"); done
-          docker buildx imagetools create \
-            -t "${IMAGE}:latest" \
-            -t "${IMAGE}:${GITHUB_REF_NAME}" \
-            -t "${IMAGE}:latest-arm64" \
-            -t "${IMAGE}:${GITHUB_REF_NAME}-arm64" \
-            "${refs[@]}"
+          arch_digest() {
+            docker buildx imagetools inspect "$1" --format '{{json .Manifest}}' 2>/dev/null \
+              | jq -r --arg a "$2" '.manifests[]? | select(.platform.os == "linux" and .platform.architecture == $a) | .digest' \
+              | head -n1 || true
+          }
+          built="sha256:$(ls)"
+          release="${IMAGE}:${GITHUB_REF_NAME}"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            # arm64 comes later: the release tag holds amd64 alone, latest
+            # keeps the arm64 of the previous release meanwhile.
+            previous_arm64=$(arch_digest "${IMAGE}:latest" arm64)
+            docker buildx imagetools create -t "$release" "${IMAGE}@${built}"
+            refs=("${IMAGE}@${built}")
+            if [ -n "$previous_arm64" ]; then
+              refs+=("${IMAGE}@${previous_arm64}")
+            fi
+            docker buildx imagetools create -t "${IMAGE}:latest" "${refs[@]}"
+          else
+            amd64=$(arch_digest "$release" amd64)
+            if [ -z "$amd64" ]; then
+              echo "::error::$release has no amd64 image: push the tag first, then build arm64"
+              exit 1
+            fi
+            tags=(-t "$release" -t "${release}-arm64")
+            # latest moves only if it still points to this release.
+            if [ "$(arch_digest "${IMAGE}:latest" amd64)" = "$amd64" ]; then
+              tags+=(-t "${IMAGE}:latest" -t "${IMAGE}:latest-arm64")
+            else
+              echo "latest points to a newer release, left alone"
+            fi
+            docker buildx imagetools create "${tags[@]}" "${IMAGE}@${amd64}" "${IMAGE}@${built}"
+          fi
 
       - name: Inspect the result
         run: docker buildx imagetools inspect "${IMAGE}:${GITHUB_REF_NAME}"
@@ -144,11 +185,12 @@ jobs:
   release:
     name: Publish the release notes
     needs: merge
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # checkout leaves a lightweight copy of the tag: fetch the annotated one.
       # Subject and body, without a signature; a lightweight tag gives the

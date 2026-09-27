@@ -81,7 +81,8 @@ essentials listed there.
 A change a user of the box notices goes in the annotation of the next release
 tag. `git tag -a v1.7` opens the editor for the notes, `git push origin v1.7`
 starts the workflow, which builds the image, publishes it on
-`ghcr.io/c4software/dev-box` (see
+`ghcr.io/c4software/dev-box` for amd64 (see
 [manual-install.md](manual-install.md#prebuilt-image)) and then creates the
-GitHub release from that text. That release is what `devbox changelog` and the
+GitHub release from that text. The arm64 image is added by hand afterwards,
+`gh workflow run build.yml --ref v1.7`. That release is what `devbox changelog` and the
 next login show (see [updates.md](updates.md#the-changelog-at-login)).

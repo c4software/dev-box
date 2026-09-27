@@ -234,8 +234,10 @@ git push origin v1.7
 ```
 
 The first line is what the login shows, next to the tag: make it a summary
-(a leading `v1.7: ` is dropped). The workflow builds the image, then creates
-the release with that text.
+(a leading `v1.7: ` is dropped). The workflow builds the amd64 image, then
+creates the release with that text. arm64 is built by hand once the release is
+out, `gh workflow run build.yml --ref v1.7`, and joins the same `v1.7` and
+`latest`.
 `devbox check` saves the notes in the box, and the first login after the
 image is pulled and the container restarted shows them. A release edited on GitHub afterwards is picked up at the next
 check. Keep Markdown headings out of the notes: they are flattened.
