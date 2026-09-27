@@ -110,17 +110,27 @@ Node and the Laravel installer through `composer global`, kept in
 
 `browser` is the other exception: a headless Chromium, with `noto-fonts` so
 that emojis and non Latin scripts do not render as squares, so that a coding
-agent can screenshot a dev server and look at the result. The mise registry
-only offers `playwright` and `agent-browser`, which download a Chromium built
-for Debian and Ubuntu and still need a pile of pacman libraries, so the
-environment installs the distribution package through
+agent can look at a dev server and check the result. The builds Playwright and
+Puppeteer download target Debian and Ubuntu and still need a pile of pacman
+libraries, so the environment installs the distribution package through
 `devbox pkg add chromium noto-fonts` instead: it works as it is on amd64 and on
 Arch Linux ARM, and `devbox pkg` reinstalls it after a rebuild. Chromium is not
 baked into the image because it weighs about half a gigabyte and most boxes
-never need it. How to use it, screenshots, DOM dumps and Playwright on the
-system Chromium, is in the
+never need it.
+
+It also adds [agent-browser](https://github.com/vercel-labs/agent-browser)
+through mise, a single binary made for coding agents: `agent-browser open`,
+`snapshot` (the accessibility tree, with a ref per element), `click`, `fill`,
+`screenshot`, `eval`, one command per step, with no script to write and no
+`npm install`. `~/.agent-browser/config.json` points it at the system Chromium
+(created when missing, completed when it has no `executablePath`, left alone
+when it names another browser), so it never downloads one. How an agent uses
+all of it, and Playwright or Puppeteer on the system Chromium when a project
+needs them, is in the
 [`browser.md`](../rootfs/usr/share/devbox/skills/devbox/browser.md) guide of
-the agent skill.
+the agent skill. A box that installed `browser` before gets `agent-browser`
+with `devbox dev-env browser` again, or at the next start when `DEV_ENVS` has
+`browser`.
 
 `media` gathers the tools to fetch, convert and inspect audio, video and
 pictures. `yt-dlp` and `oxipng` come through mise, so `devbox update tools`

@@ -115,7 +115,9 @@ build-tools through sdkmanager, JDK 21 when no java is declared), and
 `browser` is a headless Chromium plus
 `noto-fonts`, installed through `devbox pkg add` (pacman, reinstalled at start
 after a rebuild) because the mise registry has no browser that runs on Arch
-without those packages; see `browser.md` for how an agent uses it. `media`
+without those packages, and `agent-browser` through mise, pointed at that
+Chromium by `~/.agent-browser/config.json`; see `browser.md` for how an agent
+uses it. `media`
 (ffmpeg and the image tools) and `network` (nmap, tcpdump, iperf3, mtr, socat,
 ethtool, ipcalc) go through `devbox pkg add` too, plus a mise tool each
 (yt-dlp and oxipng, doggo). For `network`: the box has NET_RAW and NET_ADMIN

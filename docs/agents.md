@@ -111,7 +111,7 @@ the same way Omarchy ships one for the desktop. It lives in
 | `commands.md` | `devbox` and every command it dispatches to |
 | `extending.md` | how to change the box for good, through the repository |
 | `updates.md` | what updates, when, and on whose command |
-| `browser.md` | rendering a page in the box with headless Chromium, installed on demand through `devbox pkg`, screenshots, Playwright and Puppeteer |
+| `browser.md` | rendering and driving a page in the box: `agent-browser` and headless Chromium, installed on demand by `devbox dev-env browser`, screenshots, Playwright and Puppeteer on the system Chromium |
 | `diagnostic.md` | something in the box is broken: facts first, then a diagnosis, then a fix the user agreed to |
 
 The sources are in

@@ -1,27 +1,14 @@
 ---
 name: devbox
 description: >
-  REQUIRED whenever work touches the dev-box container itself rather than a
-  project inside it. Use for the `devbox` command and any `dev-box-*` binary
-  (seed, update, check, status, override, dev-env, dbs, podman), for `/etc/devbox/`,
-  `/usr/share/devbox/`, `~/.config/dev-box/`, the global mise config
-  `~/.config/mise/config.toml`, installing a language or dev environment in the
-  box, rootless podman inside the box, dotfiles sync (dotarchy-sync), updating
-  the box, the login message about pending updates, Tailscale or sshd access to
-  the box, installing an Arch package that must survive a rebuild, adding a
-  wrapper for a coding agent or CLI tool, sending a file to another machine
-  with Taildrop, checking how a web page renders (screenshot of a dev server,
-  headless chromium, playwright or puppeteer in the box), and any change to
-  the dev-box repository (Dockerfile, rootfs/,
-  compose.yaml, setup.sh, scripts/, README, docs/). Triggers: devbox, dev-box, dev-box-update,
-  dev-box-seed, dev-box-dev-env, dev-box-pkg, dev-box-agent, mise config, box
-  update, rebuild the image, "install go/python/ruby in the box", "install a
-  pacman package", "screenshot the page", "check the layout", "headless
-  chrome", "add a gemini wrapper", "fix my old mise config",
-  "why is my change gone after a rebuild". Also for diagnosing a broken or
-  misbehaving box (devbox diagnostic): "the box is broken", "command not
-  found", "postgres does not start", "docker does not work", "disk full",
-  "no network", "cannot ssh into the box", "the dev-env install failed".
+  REQUIRED for the dev-box container itself, not a project inside it: the
+  devbox command and dev-box-* binaries, /etc/devbox and ~/.config/dev-box,
+  installing a language (dev-env), a pacman package that survives a rebuild,
+  the global mise config, podman, databases, the GPU, dotfiles (dotarchy),
+  updates, access (Tailscale, sshd, Taildrop), agent wrappers, a browser to
+  screenshot or drive a page, the dev-box repo. Also when something in the box
+  breaks: command not found, no network, disk full, cannot ssh, a change lost
+  after a rebuild.
 ---
 
 # dev-box Skill
@@ -52,7 +39,7 @@ Read the matching guide before starting:
 - [`commands.md`](commands.md) - `devbox` and every command it dispatches to
 - [`extending.md`](extending.md) - how to change the box for good, through the repository
 - [`updates.md`](updates.md) - what updates, when, and on whose command
-- [`browser.md`](browser.md) - rendering a page in the box: headless Chromium, screenshots, Playwright and Puppeteer
+- [`browser.md`](browser.md) - rendering and driving a page in the box: agent-browser, headless Chromium, screenshots, Playwright and Puppeteer on the system Chromium
 - [`diagnostic.md`](diagnostic.md) - something in the box is broken: facts first, then a diagnosis, then a fix the user agreed to
 
 ## Critical Safety Rules
@@ -119,8 +106,9 @@ Never guess a command name. Run `devbox commands`.
    --pending`, then `devbox migrate`.
 8. **Is it a file to move in or out of the box?** `devbox tailscale send` and
    `devbox tailscale receive`, over Taildrop.
-9. **Is it a page to look at?** Headless Chromium, installed on demand with
-   `devbox dev-env browser`. See `browser.md`.
+9. **Is it a page to look at or click through?** `agent-browser` on the
+   system Chromium, installed on demand with `devbox dev-env browser`; never
+   `npx playwright install`. See `browser.md`.
 10. **Is it a config file shipped by the image?** It is in the `SEEDS` table of
    `dev-box-seed`. Change it in the repository, not in `/etc/devbox/`.
 11. **Is it a personal tweak to the dotfiles config?** Put it in
@@ -180,7 +168,8 @@ Never guess a command name. Run `devbox commands`.
 - "How much of my Claude quota is left?" -> `devbox agent usage claude`
 - "Send this file to my laptop" -> `devbox tailscale send laptop <file>`
 - "Check the page renders" -> `devbox dev-env browser` once, then
-  `chromium --headless --no-sandbox --screenshot=...`; see `browser.md`
+  `agent-browser open <url>`, `agent-browser snapshot`,
+  `agent-browser screenshot /tmp/page.png`; see `browser.md`
 - "My tmux config change disappeared" -> it was overwritten by `devbox sync`;
   move it to `~/.config/dev-box/overrides/.config/tmux/tmux.conf`
 - "docker says it cannot reach the API" -> rootless podman is off, see

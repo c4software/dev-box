@@ -21,14 +21,40 @@ Behind it, `devbox pkg add chromium noto-fonts`: pacman packages that
 `noto-fonts` matters: without it the only font in the box is Liberation, and
 pages with emojis, symbols or non Latin scripts render squares. Both packages
 exist on amd64 and on Arch Linux ARM, so the same command works on a Raspberry
-Pi. The mise registry only has `playwright` and `agent-browser`, which download
-a Chromium built for Debian and Ubuntu that still needs those pacman
-libraries: the distribution package is the one that works as it is.
+Pi. The same environment adds `agent-browser` through mise, a single binary,
+and points it at that Chromium in `~/.agent-browser/config.json`.
 
 `devbox dev-env --list` marks it when this box already has it, and
-`command -v chromium` says the same. Never `sudo pacman -S chromium`: pacman
-alone is forgotten at the next rebuild. `devbox dev-env --remove browser`
+`command -v chromium agent-browser` says the same. Never `sudo pacman -S
+chromium`: pacman alone is forgotten at the next rebuild. Never
+`npx playwright install` nor a Puppeteer download either: those browsers are
+built for Debian and Ubuntu, weigh hundreds of megabytes in `~/.cache`, and
+the system Chromium does the same job. `devbox dev-env --remove browser`
 takes it out.
+
+## Drive a page: agent-browser first
+
+`agent-browser` is the tool to reach for as soon as the check goes beyond one
+screenshot: clicks, form input, several steps, reading what changed. No script
+to write, no `npm install`, every step is one command and the browser stays
+open between them:
+
+```bash
+agent-browser open http://localhost:3000
+agent-browser snapshot                  # accessibility tree, each element with a ref (@e2)
+agent-browser click @e2                 # or a CSS selector: agent-browser click "button.save"
+agent-browser fill "#email" "a@b.c"
+agent-browser get text "#result"
+agent-browser eval "document.title"
+agent-browser screenshot /tmp/page.png  # --full for the whole page
+agent-browser close
+```
+
+`snapshot` is usually worth more than a screenshot: it lists what is on the
+page with a ref per element, to click or fill next. `agent-browser --help`
+has the rest: `wait`, `press`, `mouse`, `scroll`, `set viewport`, `record`,
+`batch` for several commands in one call, `--session` to keep two pages apart.
+It runs the system Chromium headless, sandbox included, with nothing to add.
 
 ## Screenshot a page
 
@@ -79,22 +105,22 @@ present, without a screenshot.
 
 ## Playwright or Puppeteer
 
-When a project already uses Playwright or Puppeteer, or when the check needs
-clicks, form input or a full page capture, drive the system Chromium rather
-than the browser those libraries download. The bundled builds target Debian
-and Ubuntu, complain about the distribution on Arch, and miss libraries on
-arm64. The system one works on both architectures.
+When a project already uses Playwright or Puppeteer, or when a long scenario
+really needs a script (a game loop, timings, many screenshots in a row), drive
+the system Chromium rather than the browser those libraries download. The
+bundled builds target Debian and Ubuntu, complain about the distribution on
+Arch, and miss libraries on arm64. The system one works on both
+architectures.
 
-Playwright, without `npx playwright install`:
-
-```bash
-PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium node shot.mjs
-```
+Playwright: install it with `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm i playwright`
+and give `executablePath` to `launch`. There is no environment variable for
+it: without `executablePath`, Playwright looks for its own browser and tells
+you to run `npx playwright install`, which is the wrong fix here.
 
 ```js
 // shot.mjs
 import { chromium } from "playwright";
-const browser = await chromium.launch({ args: ["--no-sandbox"] });
+const browser = await chromium.launch({ executablePath: "/usr/bin/chromium", args: ["--no-sandbox"] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 await page.goto("http://localhost:3000", { waitUntil: "networkidle" });
 await page.screenshot({ path: "/tmp/page.png", fullPage: true });
@@ -106,7 +132,8 @@ The same with Puppeteer, `executablePath: "/usr/bin/chromium"` in the
 
 Install the library in the project, not globally, and only if the project
 does not have it already. Do not add it to a project only to take one
-screenshot: the bare `chromium --screenshot` above does that.
+screenshot or click through a page: `chromium --screenshot` and
+`agent-browser` above do that with nothing to install.
 
 ## Where the page comes from
 
@@ -118,7 +145,11 @@ is on.
 
 ## When it does not work
 
-- `chromium: command not found`: run `devbox dev-env browser`.
+- `chromium: command not found` or `agent-browser: command not found`: run
+  `devbox dev-env browser`.
+- Playwright says `Executable doesn't exist at ~/.cache/ms-playwright/...`:
+  `executablePath: "/usr/bin/chromium"` is missing from `launch`; do not run
+  `npx playwright install`.
 - exits at once with a message about the sandbox or namespaces: `--no-sandbox`
   is missing.
 - a blank or half drawn screenshot: add `--virtual-time-budget=5000`, or wait
