@@ -107,12 +107,6 @@ ARG DEVBOX_BRANCH=
 # the head of the branch. A local build records git describe and "local".
 ARG DEVBOX_VERSION=
 ARG DEVBOX_SOURCE=local
-# The published images the workflow pushes: the name (ghcr.io/c4software/dev-box)
-# and the suffix of their tags, -arm64 for the arm64 one (latest-arm64,
-# v1.12-arm64), empty for amd64 (latest, v1.12). The box names the right image
-# when it says what to pull, and notices when it runs on arm64 from another one.
-ARG DEVBOX_IMAGE_NAME=
-ARG DEVBOX_TAG_SUFFIX=
 RUN --mount=type=bind,target=/ctx,ro \
     commit="$DEVBOX_COMMIT"; repo="$DEVBOX_REPO"; branch="$DEVBOX_BRANCH"; version="$DEVBOX_VERSION"; \
     if [ -e /ctx/.git ]; then \
@@ -125,8 +119,8 @@ RUN --mount=type=bind,target=/ctx,ro \
     fi; \
     [ -n "$commit" ] || commit=unknown; \
     [ -n "$branch" ] && [ "$branch" != HEAD ] || branch=main; \
-    printf 'DEVBOX_COMMIT=%s\nDEVBOX_REPO=%s\nDEVBOX_BRANCH=%s\nDEVBOX_VERSION=%s\nDEVBOX_SOURCE=%s\nDEVBOX_IMAGE_NAME=%s\nDEVBOX_TAG_SUFFIX=%s\n' \
-      "$commit" "$repo" "$branch" "$version" "${DEVBOX_SOURCE:-local}" "$DEVBOX_IMAGE_NAME" "$DEVBOX_TAG_SUFFIX" > /etc/devbox/release \
+    printf 'DEVBOX_COMMIT=%s\nDEVBOX_REPO=%s\nDEVBOX_BRANCH=%s\nDEVBOX_VERSION=%s\nDEVBOX_SOURCE=%s\n' \
+      "$commit" "$repo" "$branch" "$version" "${DEVBOX_SOURCE:-local}" > /etc/devbox/release \
     && echo "release: $version $commit $repo ($branch, ${DEVBOX_SOURCE:-local})" \
     && chmod +x /usr/local/bin/* \
     # podman-docker exports DOCKER_HOST in every login shell, socket or not:

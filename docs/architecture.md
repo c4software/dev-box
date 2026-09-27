@@ -32,18 +32,18 @@ in the agent skill.
 - **Tailscale inside the container.** The box is only reachable from the
   tailnet, nothing is published on the host, and Tailscale SSH handles
   authentication.
-- **amd64 and arm64, two images.** The official `archlinux` image exists only
-  for x86_64, so arm64 builds (Raspberry Pi 5) use Arch Linux ARM through the
-  community image `menci/archlinuxarm:base`, rebuilt daily. BuildKit picks the
-  base from `TARGETARCH`, and the rest of the image assumes nothing about the
-  architecture. They are published as two images rather than one multi-arch
-  tag (`latest` and `latest-arm64`): the arm64 one, on its community base, is
-  built by hand when it is wanted, and never holds back the amd64 one.
+- **amd64 and arm64.** The official `archlinux` image exists only for x86_64,
+  so arm64 builds (Raspberry Pi 5) use Arch Linux ARM through the community
+  image `menci/archlinuxarm:base`, rebuilt daily. BuildKit picks the base from
+  `TARGETARCH`, and the rest of the image assumes nothing about the
+  architecture. Both are published under the same tags, one multi-arch
+  manifest.
 - **One layer.** The last stage of the `Dockerfile` is `FROM scratch` with the
   whole file system of the build copied in: the files that the build replaced
   or deleted are not carried in lower layers, and the metadata the box needs
-  (`ENV`, `HEALTHCHECK`, `ENTRYPOINT`) is declared again there. Layers are
-  pushed compressed with zstd.
+  (`ENV`, `HEALTHCHECK`, `ENTRYPOINT`) is declared again there. The layer is
+  pushed compressed with zstd: 523 MB to pull on amd64, against 663 MB for the
+  gzip layers before. The size once pulled is the same.
 - **Fixed UID/GID 1000:1000.** Same owner as on the host for the bind-mounted
   volumes.
 - **One image for everyone, customised at run time.** The published image
@@ -80,32 +80,8 @@ essentials listed there.
 
 A change a user of the box notices goes in the annotation of the next release
 tag. `git tag -a v1.7` opens the editor for the notes, `git push origin v1.7`
-starts the workflow, which builds the amd64 image, publishes it on
-`ghcr.io/c4software/dev-box` as `latest` and `v1.7` (see
-[manual-install.md](manual-install.md#prebuilt-image)), and then creates the
-GitHub release from that text.
-
-The arm64 image is never built on the release tag. It is built on demand, by
-the `Build the arm64 image` workflow (`build-arm64.yml`), in one of three ways:
-
-```bash
-git tag v1.7-arm v1.7 && git push origin v1.7-arm   # a second tag, release name + -arm
-gh workflow run build-arm64.yml                     # the newest v* tag
-gh workflow run build-arm64.yml -f ref=v1.7         # a given release
-```
-
-or from the Actions tab of the repository (Run workflow, with the tag or empty
-for the newest one). The `-arm` tag only triggers the build: the image is built
-from the release tag it names, which must exist, and neither `build.yml` nor
-the box takes a `-arm` tag for a release.
-
-GitHub runs the workflows of the commit a pushed tag points to, so the `-arm`
-tag only works for releases made after v1.12 (their commit has the trigger).
-For v1.12 and older, use `gh workflow run` or the Actions tab: a `v1.12-arm`
-tag would run the old `build.yml` and publish a bogus release.
-
-It publishes `v1.7-arm64`, and moves `latest-arm64` when that is the newest
-release (rebuilding an older one never takes it back). An arm64 box compares
-itself with the newest `-arm64` tag of the registry, not with the tags of the
-repository, so it is told about a release only once its arm64 image exists. That release is what `devbox changelog` and the
+starts the workflow, which builds the image, publishes it on
+`ghcr.io/c4software/dev-box` (see
+[manual-install.md](manual-install.md#prebuilt-image)) and then creates the
+GitHub release from that text. That release is what `devbox changelog` and the
 next login show (see [updates.md](updates.md#the-changelog-at-login)).

@@ -104,6 +104,8 @@ export LANG="$BOX_LANG"
   printf 'export TS_DISABLE=%q\n' "${TS_DISABLE:-false}"
   # Environments asked for at start, shown by dev-box-status
   printf 'export DEV_ENVS=%q\n' "${DEV_ENVS:-}"
+  # The image .env names on the host, read by the update check (release.sh)
+  printf 'export DEVBOX_IMAGE=%q\n' "${DEVBOX_IMAGE:-}"
   # Always written, so the language of the box wins over the LANG an SSH
   # client forwards (sshd_config accepts it), which may not exist here
   printf 'export LANG=%q\n' "$BOX_LANG"
