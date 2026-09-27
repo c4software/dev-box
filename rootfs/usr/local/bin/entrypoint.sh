@@ -25,6 +25,26 @@ usermod -s "$USER_SHELL" "$USER_NAME"
 # refuses even with key authentication.
 usermod -p '*' "$USER_NAME"
 
+# GPU of the host (/dev/dri, passed by compose.override.yaml): its nodes belong
+# to the video and render groups of the host, whose GIDs mean nothing in the
+# image. The user joins the group that owns each node, created under the name
+# dri<gid> when the image has none with that GID. A node open to everyone
+# (0666) or owned by root needs nothing.
+for node in /dev/dri/card* /dev/dri/renderD*; do
+  [ -c "$node" ] || continue
+  gid="$(stat -c %g "$node")"
+  [ "$gid" -ne 0 ] || continue
+  group="$(getent group "$gid" | cut -d: -f1)"
+  if [ -z "$group" ]; then
+    group="dri$gid"
+    groupadd -g "$gid" "$group"
+  fi
+  if ! id -nG "$USER_NAME" | tr ' ' '\n' | grep -qxF "$group"; then
+    usermod -aG "$group" "$USER_NAME"
+    log "GPU: $USER_NAME added to group $group ($node)"
+  fi
+done
+
 # XDG_RUNTIME_DIR (used by the dotarchy zsh config: ssh-agent, rsync sockets)
 install -d -m 700 -o "$PUID" -g "$PGID" "/run/user/$PUID"
 

@@ -703,6 +703,20 @@ say "Rootless podman runs docker commands inside the box, but it loosens the iso
 say "of the container (seccomp, /proc/sys and AppArmor opened)."
 podman=no
 ask_yn "Turn podman on?" n && podman=yes
+gpu=no
+has_gpu=no
+for node in /dev/dri/renderD*; do
+  [ -c "$node" ] && has_gpu=yes
+done
+if [ "$has_gpu" = yes ]; then
+  say ""
+  say "This machine has a GPU (/dev/dri): passed to the box, ffmpeg decodes and encodes"
+  say "video on it (VA-API), OpenGL and Vulkan run on it. Intel, AMD and the Raspberry Pi's."
+  if ask_yn "Pass the GPU to the box?" y; then
+    gpu=yes
+    case " $dev_envs " in *" gpu "*) ;; *) dev_envs="${dev_envs:+$dev_envs }gpu" ;; esac
+  fi
+fi
 
 # --- .env, written from .env.example ---
 cp "$DIR/.env.example" "$DIR/.env.new"
@@ -729,25 +743,33 @@ mv "$DIR/.env.new" "$DIR/.env"
 say ""
 say "Wrote $SHOW_DIR/.env"
 
-if [ "$podman" = yes ]; then
+if [ "$podman" = yes ] || [ "$gpu" = yes ]; then
+  blocks=""
+  [ "$podman" = yes ] && blocks="podman"
+  [ "$gpu" = yes ] && blocks="${blocks:+$blocks and }GPU"
   if [ -f "$DIR/compose.override.yaml" ]; then
-    warn "compose.override.yaml already exists and is left alone: add the podman block
-  of compose.override.example.yaml to it by hand, or podman will not start"
+    warn "compose.override.yaml already exists and is left alone: add the $blocks block
+  of compose.override.example.yaml to it by hand, or it will not be in the box"
   else
-    cat >"$DIR/compose.override.yaml" <<'YAML'
-# Written by setup.sh because rootless podman was asked for (PODMAN_ENABLE=true
-# in .env). Why each line is needed: compose.override.example.yaml.
-services:
-  dev-box:
-    devices:
-      - /dev/net/tun
-      - /dev/fuse
-    security_opt:
-      - seccomp=unconfined
-      - systempaths=unconfined
-      - apparmor=unconfined
-YAML
-    say "Wrote $SHOW_DIR/compose.override.yaml (the podman settings)"
+    {
+      echo "# Written by setup.sh for the $blocks settings. Why each line is needed:"
+      echo "# compose.override.example.yaml."
+      echo "services:"
+      echo "  dev-box:"
+      echo "    devices:"
+      if [ "$podman" = yes ]; then
+        echo "      - /dev/net/tun"
+        echo "      - /dev/fuse"
+      fi
+      [ "$gpu" = yes ] && echo "      - /dev/dri"
+      if [ "$podman" = yes ]; then
+        echo "    security_opt:"
+        echo "      - seccomp=unconfined"
+        echo "      - systempaths=unconfined"
+        echo "      - apparmor=unconfined"
+      fi
+    } >"$DIR/compose.override.yaml"
+    say "Wrote $SHOW_DIR/compose.override.yaml (the $blocks settings)"
   fi
 fi
 

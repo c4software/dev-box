@@ -91,8 +91,9 @@ cp compose.override.example.yaml compose.override.yaml
 
 The example is empty by default, with commented blocks for extra volumes
 (say `/srv/partage:/home/dev/partage`), resource limits (`mem_limit`, `cpus`),
-and rootless podman (`/dev/fuse` and three `security_opt`, see
-[containers.md](containers.md)). It is also the place to publish a port of the
+rootless podman (`/dev/fuse` and three `security_opt`, see
+[containers.md](containers.md)) and the GPU of the host (`/dev/dri`, see
+[dev-envs.md](dev-envs.md#gpu-hardware-acceleration)). It is also the place to publish a port of the
 box on the host. Neither the setup script nor a rebuild ever touches it.
 
 ## Dotfiles sync and overrides

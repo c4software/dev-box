@@ -404,6 +404,7 @@ while IFS= read -r d; do
   esac
   note=""
   [ "$d" = /dev/fuse ] && note="$podman_note"
+  case "$d" in /dev/dri/*) note=" (the GPU, drivers: devbox dev-env gpu)" ;; esac
   entry "devices" "$d$note" "$container_undo"
 done < <(find /dev -maxdepth 2 -path /dev/pts -prune -o \( -type c -o -type b \) -print 2>/dev/null | sort)
 

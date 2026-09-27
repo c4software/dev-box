@@ -153,6 +153,9 @@ Never guess a command name. Run `devbox commands`.
 - "Install nmap" or "capture traffic" -> `devbox dev-env network`, then
   `sudo nmap -sS` or `sudo tcpdump -i any`; dig, nc, whois are already there
 - "Install ansible" -> `devbox dev-env ansible`
+- "Use the GPU" or "hardware video encoding" -> `ls /dev/dri` first: empty,
+  the host has to add `/dev/dri` to the devices of compose.override.yaml and
+  restart the container; there, `devbox dev-env gpu`, then `vainfo`
 - "What is available to install?" -> `devbox dev-env --list`
 - "What does the ruby environment install?" -> `devbox dev-env --info ruby`
 - "Add an environment for a tool of mine" -> a script in

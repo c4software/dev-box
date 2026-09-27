@@ -121,6 +121,11 @@ ethtool, ipcalc) go through `devbox pkg add` too, plus a mise tool each
 and passwordless sudo, so `sudo nmap -sS` and `sudo tcpdump -i any` work, but
 tcpdump only sees the box's own interfaces and the LAN is behind Docker's NAT.
 dig, nslookup, host, nc, whois and traceroute are in the image already.
+`gpu` installs the VA-API and Vulkan drivers of the host GPU through `devbox
+pkg` (intel-media-driver and vulkan-intel, or vulkan-radeon; mesa follows),
+with vainfo and vulkaninfo; it only shows up once the host passes `/dev/dri`
+(the GPU block of compose.override.yaml, then a restart), and the entrypoint
+adds the user to the group owning those nodes. NVIDIA is not covered.
 `db-clients` (mongosh, usql, mycli, litecli) and `ansible` (ansible-core,
 ansible-lint) go through mise, the PyPI ones on top of `python`, which they
 install first and keep on removal. OCaml is absent: upstream it needs opam,
