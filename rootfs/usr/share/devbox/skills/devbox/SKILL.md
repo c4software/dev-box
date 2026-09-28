@@ -106,8 +106,8 @@ Never guess a command name. Run `devbox commands`.
    --pending`, then `devbox migrate`.
 8. **Is it a file to move in or out of the box?** `devbox tailscale send` and
    `devbox tailscale receive`, over Taildrop. A whole folder to share, or the
-   shares of another machine: `devbox tailscale share`, `shares`, `open`
-   (Taildrive).
+   shares of another machine: `devbox tailscale share`, `shares`, `open`,
+   `get` for a local copy (Taildrive).
 9. **Is it a page to look at or click through?** `agent-browser` on the
    system Chromium, installed on demand with `devbox dev-env browser`; never
    `npx playwright install`. See `browser.md`.

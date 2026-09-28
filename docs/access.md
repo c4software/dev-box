@@ -156,8 +156,11 @@ devbox tailscale share --name notes ~/docs
 devbox tailscale shares               # what the box shares, then what the others share
 devbox tailscale open                 # browse the shares of the tailnet in yazi
 devbox tailscale open laptop/docs     # straight into one share
+devbox tailscale get                  # browse the shares, copy files into the current folder
+devbox tailscale get laptop/docs      # copy that share into ./docs
+devbox tailscale get laptop/docs/a.pdf ~/work   # one file, into ~/work
 devbox tailscale unshare              # stop sharing the current folder
-devbox tailscale close                # stop the bridge behind open
+devbox tailscale close                # stop the bridge, empty the downloaded copies
 ```
 
 `share` names the share after the folder: lowercase, only `a-z`, `0-9` and
@@ -173,10 +176,21 @@ In the other direction there is no mount: a container needs FUSE and
 `CAP_SYS_ADMIN` for that, which the box does not have. `open` starts an
 `rclone` instead, which serves the Taildrive WebDAV over SFTP on
 `127.0.0.1:2849` only, and opens yazi on `sftp://tailnet`: one folder per
-machine, one per share inside. The first `open` asks before installing
+machine, one per share inside. A file is downloaded when you hover it (up to
+10 MB, for the preview) or press Enter on it, then opens like a local one;
+writing to a share works too. Yazi keeps those copies in
+`/tmp/yazi-<uid>/sftp_*` and never empties it, on the disk of the host:
+`close` does. The first `open` asks before installing
 `rclone` (`mise use -g rclone@latest`, a single binary). The bridge runs
 until `devbox tailscale close` or the next restart; its log is in
-`~/.cache/dev-box/taildrive-sftp.log`. For a script, the WebDAV server is
+`~/.cache/dev-box/taildrive-sftp.log`. For the files in the box itself, where `ls`, an editor or a script see them,
+`get` copies a share, a folder or a file with the same `rclone`, into the
+current folder under its own name, or into the folder given. It is a copy,
+not a live view: running it again fetches what changed on the other machine,
+and never deletes anything on this side. Without an argument it opens a
+browser of the shares: Enter goes into a folder, the left arrow or backspace
+back up, `x` selects, `d` copies the selection (or the line under the cursor,
+a whole folder included) into the current folder, Esc leaves. For a script, the WebDAV server is
 enough: `rclone lsf ":webdav,url=http://100.100.100.100:8080/<tailnet>:laptop/docs"`
 or `curl`.
 

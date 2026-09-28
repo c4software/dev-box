@@ -52,7 +52,7 @@ use in scripts and in a `docker exec` from the host: `devbox update` and
 | `mise-install` | `dev-box-mise-install` | writes a mise-backed wrapper into `~/.local/bin`. `--list`, `--remove <cmd>`. |
 | `pkg` | `dev-box-pkg` | pacman packages that survive a rebuild. `add`, `drop`, `list`, `install`, `restore`. |
 | `serve` | `dev-box-serve` | publishes a local port to the tailnet with `tailscale serve`. `<port>`, `<listen>:<port>`, `--on <port>`, `--tcp`, `status`, `off [port\|all]`. |
-| `tailscale` | `dev-box-tailscale` | Taildrop, Taildrive and tailnet status. `send [machine] <file...>`, `receive [--once] [dir]`, `share [--name n] [dir]`, `unshare [name\|dir]`, `shares`, `open [machine[/share]]`, `close`, `status`. |
+| `tailscale` | `dev-box-tailscale` | Taildrop, Taildrive and tailnet status. `send [machine] <file...>`, `receive [--once] [dir]`, `share [--name n] [dir]`, `unshare [name\|dir]`, `shares`, `open [machine[/share]]`, `get [machine/share[/path]] [dir]`, `close`, `status`. |
 
 `dev-box-podman` carries `# devbox:hidden=true`: it is the wrapper behind the
 `docker` and `podman` symlinks, not something a user calls. It stays routable,
@@ -444,7 +444,8 @@ devbox tailscale share [--name <name>] [directory]   # Taildrive, default: here
 devbox tailscale unshare [name|directory]            # default: here
 devbox tailscale shares         # this box's shares, then the other machines'
 devbox tailscale open [machine[/share]]   # yazi on sftp://tailnet
-devbox tailscale close          # stop the rclone bridge behind open
+devbox tailscale get [<machine>/<share>[/path]] [dir]  # local copy, into . by default; no argument: a browser
+devbox tailscale close          # stop the rclone bridge, empty /tmp/yazi-<uid>/sftp_*
 devbox tailscale status
 ```
 
@@ -466,8 +467,14 @@ no mount (FUSE needs CAP_SYS_ADMIN): `open` starts an rclone (installed with
 `mise use -g rclone@latest` after asking) that serves that WebDAV over SFTP on
 `127.0.0.1:2849`, state in `~/.cache/dev-box/taildrive-sftp`, then opens yazi on
 `sftp://tailnet//<machine>/<share>` (declared in `~/.config/yazi/vfs.toml`,
-seeded). From inside yazi (`g T`) it moves that yazi with `ya emit cd`. `c s`
-in yazi shares the current directory. For a script, curl or
+seeded; `~/.config/yazi/yazi.toml` and the `vfs-preview` plugin download a
+remote file under 10 MB on hover, into /tmp/yazi-<uid>/sftp_*, which `close` empties, so that it previews). From inside yazi (`g T`) it moves that yazi with `ya emit cd`. `c s`
+in yazi shares the current directory. `get` is `rclone copy` of
+`<machine>/<share>[/path]` into `./<its name>`, or `<dir>/<its name>`: a folder
+or a single file, never deletes locally, run again to refresh. Without an
+argument, on a terminal, it is an fzf browser (enter opens, x selects, d
+copies into the current directory, left goes up), not usable by an agent; it is the way to give files of another machine to a tool
+of the box. For a script, curl or
 `rclone lsf ":webdav,url=http://100.100.100.100:8080/<tailnet>:<machine>/<share>"`
 reach the files without the bridge.
 

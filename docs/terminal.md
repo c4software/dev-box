@@ -68,7 +68,9 @@ directory listing:
   (`devbox tailscale share`), and **`g T` goes to the shares of the tailnet**,
   `sftp://tailnet`, one folder per machine (`devbox tailscale open`, see
   [access.md](access.md#taildrive)). The first time, it asks before installing
-  `rclone`, the bridge between Taildrive and yazi.
+  `rclone`, the bridge between Taildrive and yazi. A remote file is
+  downloaded on its own to be previewed (up to 10 MB), Enter opens it like a
+  local one.
   These chords come from `~/.config/yazi/keymap.toml`,
   a file the image seeds and never overwrites once you changed it (see
   [customization.md](customization.md#seeded-files-and-devbox-seed) for how

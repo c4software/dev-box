@@ -41,6 +41,8 @@ SEEDS=(
   "/etc/devbox/mise-config.toml:.config/mise/config.toml"
   "/etc/devbox/yazi/keymap.toml:.config/yazi/keymap.toml"
   "/etc/devbox/yazi/vfs.toml:.config/yazi/vfs.toml"
+  "/etc/devbox/yazi/yazi.toml:.config/yazi/yazi.toml"
+  "/etc/devbox/yazi/plugins/vfs-preview.yazi/main.lua:.config/yazi/plugins/vfs-preview.yazi/main.lua"
 )
 
 FORCE=false

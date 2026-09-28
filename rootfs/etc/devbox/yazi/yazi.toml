@@ -1,0 +1,11 @@
+# yazi settings shipped by dev-box, laid down in ~/.config/yazi/yazi.toml by
+# dev-box-seed (never overwritten once you changed it). Only additions: the
+# yazi defaults stay.
+
+[plugin]
+# A remote file (sftp://tailnet, see vfs.toml) is downloaded on its own to be
+# previewed, up to 10 MB, rather than waiting for Enter
+# (~/.config/yazi/plugins/vfs-preview.yazi).
+prepend_previewers = [
+  { mime = "vfs/{absent,stale}", run = "vfs-preview" },
+]

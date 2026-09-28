@@ -172,6 +172,8 @@ version is only reported.
 | `~/.config/mise/config.toml` | `rootfs/etc/devbox/mise-config.toml` |
 | `~/.config/yazi/keymap.toml` | `rootfs/etc/devbox/yazi/keymap.toml` |
 | `~/.config/yazi/vfs.toml` | `rootfs/etc/devbox/yazi/vfs.toml` |
+| `~/.config/yazi/yazi.toml` | `rootfs/etc/devbox/yazi/yazi.toml` |
+| `~/.config/yazi/plugins/vfs-preview.yazi/main.lua` | `rootfs/etc/devbox/yazi/plugins/vfs-preview.yazi/main.lua` |
 
 - `settings.json`: theme, effort level, empty commit/PR attribution, and the
   `harness@c4software` plugin from its GitHub marketplace. There is no `model`
@@ -209,6 +211,10 @@ version is only reported.
   `devbox tailscale open` starts (see [access.md](access.md#taildrive)). Its
   port, user and password must stay the ones the command uses. Your own SFTP
   servers go in the same file.
+- `yazi.toml` and the `vfs-preview` plugin: yazi only previews a remote file
+  once it is downloaded, the plugin downloads it on its own when it is under
+  10 MB (a photo, not a video), so the preview shows up after a moment. A bigger file waits for
+  Enter, which downloads and opens it.
 
 ## Your own dev environments
 
