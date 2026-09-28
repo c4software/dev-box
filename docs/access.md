@@ -1,4 +1,4 @@
-# Access: Tailscale, Headscale, SSH and Taildrop
+# Access: Tailscale, Headscale, SSH, Taildrop and Taildrive
 
 The box is reached in one of two ways, never both:
 
@@ -126,7 +126,7 @@ With `TS_DISABLE=true`, the commands that need a tailnet (`devbox serve`,
 tailnet, without going through a shell on the host.
 
 ```bash
-devbox tailscale                      # menu: send (machine, then file), receive, status
+devbox tailscale                      # menu: send, receive, share, shares, open, unshare, status
 devbox tailscale send laptop notes.md build.log
 devbox tailscale send build.log       # no machine given: a menu picks one online
 devbox tailscale receive              # waits, saves into ~/inbox
@@ -144,3 +144,53 @@ says so and exits 1 rather than failing obscurely.
 
 Taildrop also works with Headscale, version 0.23 and later, between machines
 that belong to the same user.
+
+## Taildrive
+
+Taildrive shares whole folders between the machines of the tailnet, read and
+write, served by `tailscaled` itself.
+
+```bash
+devbox tailscale share                # share the current folder, named after it
+devbox tailscale share --name notes ~/docs
+devbox tailscale shares               # what the box shares, then what the others share
+devbox tailscale open                 # browse the shares of the tailnet in yazi
+devbox tailscale open laptop/docs     # straight into one share
+devbox tailscale unshare              # stop sharing the current folder
+devbox tailscale close                # stop the bridge behind open
+```
+
+`share` names the share after the folder: lowercase, only `a-z`, `0-9` and
+`_`, accents dropped, so `~/projets/Mon-Site` becomes `mon_site`, and
+`mon_site_2` when that name is taken. Sharing a folder twice does nothing the
+second time. The other machines find it at
+`http://100.100.100.100:8080/<tailnet>/<box>/<share>`, the WebDAV server every
+Tailscale client runs: the macOS and Windows apps show it in the file manager,
+on Linux any WebDAV client works (`davfs2`, the file manager of GNOME or KDE,
+`rclone`). The files are read and written as your user of the box.
+
+In the other direction there is no mount: a container needs FUSE and
+`CAP_SYS_ADMIN` for that, which the box does not have. `open` starts an
+`rclone` instead, which serves the Taildrive WebDAV over SFTP on
+`127.0.0.1:2849` only, and opens yazi on `sftp://tailnet`: one folder per
+machine, one per share inside. The first `open` asks before installing
+`rclone` (`mise use -g rclone@latest`, a single binary). The bridge runs
+until `devbox tailscale close` or the next restart; its log is in
+`~/.cache/dev-box/taildrive-sftp.log`. For a script, the WebDAV server is
+enough: `rclone lsf ":webdav,url=http://100.100.100.100:8080/<tailnet>:laptop/docs"`
+or `curl`.
+
+The tailnet policy has to allow it, with two node attributes: `drive:share`
+on the machines that share, `drive:access` on the ones that read.
+
+```json
+"nodeAttrs": [
+  {
+    "target": ["autogroup:member"],
+    "attr": ["drive:share", "drive:access"]
+  }
+]
+```
+
+Without them `share` fails and says so, and `shares` finds nothing. Machines
+that are offline, or that do not share, show up at the end of `shares`.

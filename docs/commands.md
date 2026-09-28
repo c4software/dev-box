@@ -37,7 +37,7 @@ devbox commands        # bare list, one name per line, for completions
 | `mise-install` | `dev-box-mise-install` | write a mise-backed wrapper into `~/.local/bin` |
 | `pkg` | `dev-box-pkg` | pacman packages that survive an image rebuild |
 | `serve` | `dev-box-serve` | publish a local port to the tailnet with `tailscale serve` |
-| `tailscale` | `dev-box-tailscale` | Taildrop send and receive, tailnet status |
+| `tailscale` | `dev-box-tailscale` | Taildrop send and receive, Taildrive shares, tailnet status |
 
 Where each one is described in detail:
 

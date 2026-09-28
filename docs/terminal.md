@@ -63,7 +63,13 @@ directory listing:
 - **`c t` sends the selected files to another machine**, over Taildrop. The
   chord runs `devbox tailscale send` on the selection (or the hovered file), a
   menu asks which machine among the ones online, and the screen waits for
-  enter before going back to yazi. It comes from `~/.config/yazi/keymap.toml`,
+  enter before going back to yazi;
+- **`c s` shares the current directory** with the tailnet over Taildrive
+  (`devbox tailscale share`), and **`g T` goes to the shares of the tailnet**,
+  `sftp://tailnet`, one folder per machine (`devbox tailscale open`, see
+  [access.md](access.md#taildrive)). The first time, it asks before installing
+  `rclone`, the bridge between Taildrive and yazi.
+  These chords come from `~/.config/yazi/keymap.toml`,
   a file the image seeds and never overwrites once you changed it (see
   [customization.md](customization.md#seeded-files-and-devbox-seed) for how
   the seed works), so it is the place for your own bindings too. `~` in yazi

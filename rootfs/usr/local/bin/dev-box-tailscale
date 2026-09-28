@@ -1,26 +1,45 @@
 #!/usr/bin/env bash
 # devbox:name=tailscale
-# devbox:summary=Taildrop: send, receive, tailnet status
-# devbox:summary.fr=Taildrop : envoyer, recevoir, état du tailnet
-# devbox:args=[send|receive|status]
+# devbox:summary=Taildrop and Taildrive: send and receive files, share folders
+# devbox:summary.fr=Taildrop et Taildrive : envoyer, recevoir, partager des dossiers
+# devbox:args=[send|receive|share|unshare|shares|open|close|status]
 # devbox:requires=tailscale
 # Moving files to and from the other machines of the tailnet, over Taildrop,
-# plus the state of the link. Modelled on omarchy-tailscale-send and
-# omarchy-tailscale-receive, without the desktop notifications.
+# sharing folders with them over Taildrive, plus the state of the link.
 #
 #   dev-box-tailscale send <machine> <file...>   send over Taildrop
 #   dev-box-tailscale send <file...>             the same, gum asks which machine
 #   dev-box-tailscale receive [--once] [dir]     wait and store the files
+#   dev-box-tailscale share [--name n] [dir]     share a folder (default: here)
+#   dev-box-tailscale unshare [name|dir]         stop sharing (default: here)
+#   dev-box-tailscale shares                     the shares of the box and the tailnet
+#   dev-box-tailscale open [machine[/share]]     browse the tailnet shares in yazi
+#   dev-box-tailscale close                      stop the server behind open
 #   dev-box-tailscale status                     state of the link and the peers
-#   dev-box-tailscale                            menu: gum picks the machine and the file
+#   dev-box-tailscale                            menu
 #
-# The default receive directory is ~/inbox, created if missing.
+# The default receive directory is ~/inbox, created if missing. A share is
+# named after its folder (lowercase, a-z 0-9 and _), with _2, _3 when the name
+# is taken. open needs rclone (asked for, installed with mise): it serves the
+# WebDAV of Taildrive over SFTP on 127.0.0.1, which yazi reads as
+# sftp://tailnet (~/.config/yazi/vfs.toml, seeded).
 set -euo pipefail
 
 INBOX_DEFAULT="$HOME/inbox"
+# Taildrive: the WebDAV server tailscaled runs for the shares of the tailnet,
+# and the local SFTP bridge yazi reads it through. The port, the user and the
+# password are the ones of ~/.config/yazi/vfs.toml; the bridge only listens
+# on the loopback, and anything in the box reaches DRIVE_URL directly anyway.
+DRIVE_URL="http://100.100.100.100:8080"
+SFTP_PORT=2849
+SFTP_USER=devbox
+SFTP_PASS=devbox
+BRIDGE_DIR="$HOME/.cache/dev-box"
+BRIDGE_STATE="$BRIDGE_DIR/taildrive-sftp"
+BRIDGE_LOG="$BRIDGE_DIR/taildrive-sftp.log"
 
 log() { echo "[dev-box-tailscale] $*"; }
-usage() { sed -n '7,16p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '7,26p' "$0" | sed 's/^# \?//'; }
 
 # The help stays readable even when Tailscale is off.
 case "${1:-}" in -h|--help) usage; exit 0 ;; esac
@@ -112,15 +131,330 @@ online_peers() {
              | if $n != "" then $n else .HostName end' 2>/dev/null | sort -u || true
 }
 
-# Without arguments, on a terminal: send, receive or status as a gum menu;
-# send picks the machine among the online peers and the file with gum file.
+# --- Taildrive ---------------------------------------------------------------
+
+drive_hint() {
+  echo "  Taildrive needs two node attributes in the tailnet policy: drive:share" >&2
+  echo "  to share from a machine, drive:access to reach the shares of the others." >&2
+  echo '  "nodeAttrs": [{"target": ["autogroup:member"], "attr": ["drive:share", "drive:access"]}]' >&2
+}
+
+# The name of the tailnet (the first segment of every Taildrive path) and the
+# name of this box in it, the one the other machines see.
+tailnet_name() {
+  tailscale status --json 2>/dev/null | jq -r '.CurrentTailnet.Name // empty' 2>/dev/null || true
+}
+self_name() {
+  tailscale status --json 2>/dev/null \
+    | jq -r '((.Self.DNSName // "") | split(".")[0] // "") as $n
+             | if $n != "" then $n else .Self.HostName end' 2>/dev/null || true
+}
+
+# The shares of this box, one "name<TAB>path" per line. `tailscale drive list`
+# has no JSON: its columns are cut at the offsets of the header, so a path
+# with spaces stays whole.
+local_shares() {
+  tailscale drive list 2>/dev/null | awk '
+    /^name[ \t]/ { p = index($0, "path"); a = index($0, " as"); next }
+    /^-/ || !p { next }
+    { n = substr($0, 1, p - 1)
+      d = a ? substr($0, p, a - p + 1) : substr($0, p)
+      sub(/[ \t]+$/, "", n); sub(/[ \t]+$/, "", d)
+      if (n != "") print n "\t" d }' || true
+}
+
+# A share name tailscale accepts, from any text: lowercase, a-z, 0-9 and _
+# (tailscale also takes spaces and parentheses, left out: the name ends up in
+# URLs and on command lines). Accents are dropped first (été gives ete).
+share_name_for() {
+  printf '%s' "$1" | { LC_ALL=C.UTF-8 iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null || cat; } \
+    | LC_ALL=C tr '[:upper:]' '[:lower:]' \
+    | LC_ALL=C sed -E 's/[^a-z0-9_]+/_/g; s/_+/_/g; s/^_//; s/_$//'
+}
+
+share_path_of() { # <name>: the path shared under that name, empty if none
+  printf '%s\n' "$SHARES" | awk -F'\t' -v n="$1" '$1 == n { print $2; exit }'
+}
+
+share_url() { # <name>
+  local tailnet self
+  tailnet="$(tailnet_name)"; self="$(self_name)"
+  echo "  from the other machines: $DRIVE_URL/${tailnet:-<tailnet>}/${self:-<this box>}/$1"
+  echo "  from another dev-box: devbox tailscale open ${self:-<this box>}/$1"
+}
+
+do_share() {
+  local name="" dir="" path base n i existing out
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --name) [ $# -ge 2 ] || { echo "usage: devbox tailscale share [--name <name>] [dir]" >&2; exit 2; }
+              name="$2"; shift 2 ;;
+      --name=*) name="${1#--name=}"; shift ;;
+      -*) echo "dev-box-tailscale: unknown option $1" >&2; exit 2 ;;
+      *) [ -z "$dir" ] || { echo "usage: devbox tailscale share [--name <name>] [dir]" >&2; exit 2; }
+         dir="$1"; shift ;;
+    esac
+  done
+  path="$(realpath -e -- "${dir:-$PWD}" 2>/dev/null)" \
+    || { echo "dev-box-tailscale: $dir does not exist" >&2; exit 1; }
+  [ -d "$path" ] || { echo "dev-box-tailscale: $path is not a directory" >&2; exit 1; }
+
+  SHARES="$(local_shares)"
+  existing="$(printf '%s\n' "$SHARES" | awk -F'\t' -v p="$path" '$2 == p { print $1; exit }')"
+  if [ -n "$name" ]; then
+    n="$(share_name_for "$name")"
+    [ -n "$n" ] || { echo "dev-box-tailscale: '$name' gives no usable name (a-z, 0-9, _)" >&2; exit 2; }
+    [ "$n" = "$name" ] || log "name '$name' becomes '$n'"
+    case "$(share_path_of "$n")" in
+      "") ;;
+      "$path") log "$path is already shared as $n"; share_url "$n"; return 0 ;;
+      *) echo "dev-box-tailscale: '$n' already shares $(share_path_of "$n")" >&2
+         echo "  another name (--name), or devbox tailscale unshare $n first" >&2
+         exit 1 ;;
+    esac
+  elif [ -n "$existing" ]; then
+    log "$path is already shared as $existing"
+    share_url "$existing"
+    return 0
+  else
+    base="$(share_name_for "$(basename "$path")")"
+    [ -n "$base" ] || base="share"
+    n="$base"; i=2
+    while [ -n "$(share_path_of "$n")" ]; do n="${base}_$i"; i=$((i + 1)); done
+  fi
+
+  if ! out="$(tailscale drive share "$n" "$path" 2>&1)"; then
+    log "⚠ the share failed: $out"
+    drive_hint
+    exit 1
+  fi
+  log "$path shared as $n"
+  share_url "$n"
+  echo "  to stop: devbox tailscale unshare $n"
+}
+
+do_unshare() {
+  local arg="${1:-}" path names name
+  SHARES="$(local_shares)"
+  if [ -z "$SHARES" ]; then log "nothing is shared from this box"; return 0; fi
+
+  if [ -n "$arg" ] && [ -n "$(share_path_of "$arg")" ]; then
+    names="$arg"
+  else
+    path="$(realpath -e -- "${arg:-$PWD}" 2>/dev/null || true)"
+    if [ -z "$path" ]; then
+      log "no share is called $arg, nothing to stop (devbox tailscale shares lists them)"
+      return 0
+    fi
+    names="$(printf '%s\n' "$SHARES" | awk -F'\t' -v p="$path" '$2 == p { print $1 }')"
+    if [ -z "$names" ]; then
+      if [ -z "$arg" ] && [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1; then
+        names="$(printf '%s\n' "$SHARES" | awk -F'\t' '{ printf "%-20s %s\n", $1, $2 }' \
+          | gum choose --height 10 --header "Stop sharing" | awk '{ print $1 }')" || true
+        [ -n "$names" ] || { log "nothing chosen, nothing stopped"; return 0; }
+      else
+        log "$path is not shared, nothing to stop (devbox tailscale shares lists them)"
+        return 0
+      fi
+    fi
+  fi
+
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    tailscale drive unshare "$name"
+    log "$name no longer shared"
+  done <<<"$names"
+}
+
+# PROPFIND one level under <path> of the Taildrive WebDAV server, with a
+# timeout: an offline machine never answers.
+propfind() { # <path> <seconds>
+  curl -fsS -m "$2" -X PROPFIND -H 'Depth: 1' "$DRIVE_URL$1" 2>/dev/null
+}
+
+# The entries right under <path> in a PROPFIND answer on stdin, one per line,
+# still percent-encoded (they go back into URLs as they are).
+children() { # <path>
+  local h
+  { grep -o '<[A-Za-z]*:\{0,1\}href>[^<]*<' || true; } \
+    | sed -e 's/^<[^>]*>//' -e 's/<$//' -e 's/&amp;/\&/g' \
+    | while IFS= read -r h; do
+        h="${h#"$1"}"; h="${h%/}"
+        [ -n "$h" ] && [ "${h#*/}" = "$h" ] && printf '%s\n' "$h"
+      done || true
+}
+
+urldecode() { printf '%b' "${1//%/\\x}"; }
+
+do_shares() {
+  local tailnet self listing m s tmp shown=false quiet=() down=()
+  tailnet="$(tailnet_name)"; self="$(self_name)"
+  SHARES="$(local_shares)"
+
+  echo "Shared from this box (${self:-?}):"
+  if [ -n "$SHARES" ]; then
+    printf '%s\n' "$SHARES" | awk -F'\t' '{ printf "  %-24s %s\n", $1, $2 }'
+    echo "  reached at $DRIVE_URL/${tailnet:-<tailnet>}/${self:-<this box>}/<name>"
+  else
+    echo "  nothing yet: devbox tailscale share, in the folder to share"
+  fi
+  echo
+  echo "Shared by the other machines:"
+  if [ -z "$tailnet" ]; then
+    echo "  unknown tailnet: is Tailscale connected? (devbox tailscale status)"
+    return 1
+  fi
+  if ! listing="$(propfind "/$tailnet/" 5)"; then
+    echo "  Taildrive does not answer on $DRIVE_URL"
+    drive_hint
+    return 1
+  fi
+
+  # One request per machine, all at once: the offline ones only cost the
+  # timeout, once.
+  tmp="$(mktemp -d)"
+  while IFS= read -r m; do
+    [ -n "$m" ] || continue
+    ( if propfind "/$tailnet/$m/" 4 >"$tmp/$m.xml"; then
+        children "/$tailnet/$m/" <"$tmp/$m.xml" >"$tmp/$m.list"
+      fi ) &
+  done < <(printf '%s' "$listing" | children "/$tailnet/")
+  wait
+
+  while IFS= read -r m; do
+    [ -n "$m" ] || continue
+    if [ ! -e "$tmp/$m.list" ]; then down+=("$(urldecode "$m")"); continue; fi
+    if [ ! -s "$tmp/$m.list" ]; then quiet+=("$(urldecode "$m")"); continue; fi
+    while IFS= read -r s; do
+      printf '  %-32s devbox tailscale open %s\n' \
+        "$(urldecode "$m")/$(urldecode "$s")" "$(urldecode "$m")/$(urldecode "$s")"
+      shown=true
+    done <"$tmp/$m.list"
+  done < <(printf '%s' "$listing" | children "/$tailnet/")
+  rm -rf "$tmp"
+
+  $shown || echo "  no share found"
+  [ ${#quiet[@]} -eq 0 ] || echo "  nothing shared by: ${quiet[*]}"
+  [ ${#down[@]} -eq 0 ] || echo "  no answer from: ${down[*]} (offline, or no drive:share)"
+  echo
+  echo "Browse them: devbox tailscale open, or g T in yazi."
+  echo "Over WebDAV: $DRIVE_URL/$tailnet/<machine>/<share>"
+}
+
+# The SFTP bridge: rclone serves the WebDAV of Taildrive over SFTP on the
+# loopback, which yazi can browse (it reads SFTP, not WebDAV). A real mount
+# would need FUSE and CAP_SYS_ADMIN, which the container does not have. The
+# bridge runs until `close` or the next restart of the box.
+bridge_up() { (exec 3<>"/dev/tcp/127.0.0.1/$SFTP_PORT") 2>/dev/null; }
+
+bridge_pid() { # the pid of our rclone, empty when it is not running
+  local pid tailnet
+  [ -r "$BRIDGE_STATE" ] || return 0
+  read -r pid tailnet <"$BRIDGE_STATE" || true
+  [ -n "${pid:-}" ] && kill -0 "$pid" 2>/dev/null \
+    && grep -qa rclone "/proc/$pid/cmdline" 2>/dev/null && echo "$pid"
+  return 0
+}
+
+ensure_rclone() {
+  mise which rclone >/dev/null 2>&1 && return 0
+  echo "Browsing the shares needs rclone, which is not installed: it bridges the"
+  echo "WebDAV of Taildrive to SFTP for yazi. A single binary, installed with mise."
+  if [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1 \
+     && gum confirm "Install rclone now (mise use -g rclone@latest)?"; then
+    mise use -g rclone@latest
+  else
+    echo "Nothing installed. To do it: mise use -g rclone@latest" >&2
+    return 1
+  fi
+}
+
+bridge_start() {
+  local tailnet pid running="" bin
+  tailnet="$(tailnet_name)"
+  if [ -z "$tailnet" ]; then
+    echo "dev-box-tailscale: unknown tailnet, is Tailscale connected? (devbox tailscale status)" >&2
+    return 1
+  fi
+  pid="$(bridge_pid)"
+  [ -z "$pid" ] || read -r _ running <"$BRIDGE_STATE" || true
+  if [ -n "$pid" ] && [ "$running" = "$tailnet" ] && bridge_up; then
+    return 0
+  fi
+  # Started for another tailnet (a new login), or stuck: started again.
+  [ -z "$pid" ] || kill "$pid" 2>/dev/null || true
+  if bridge_up; then
+    echo "dev-box-tailscale: port $SFTP_PORT is taken by another program, the bridge cannot start" >&2
+    return 1
+  fi
+  ensure_rclone || return 1
+  bin="$(mise which rclone)"
+  mkdir -p "$BRIDGE_DIR"
+  log "starting the Taildrive bridge (rclone, SFTP on 127.0.0.1:$SFTP_PORT)"
+  # setsid: out of the session of the caller, so that it outlives the shell
+  # yazi ran this command in.
+  setsid "$bin" serve sftp ":webdav,url='$DRIVE_URL/$tailnet':" \
+    --addr "127.0.0.1:$SFTP_PORT" --user "$SFTP_USER" --pass "$SFTP_PASS" \
+    --vfs-cache-mode writes --dir-cache-time 10s --contimeout 5s \
+    >"$BRIDGE_LOG" 2>&1 </dev/null &
+  pid=$!
+  printf '%s %s\n' "$pid" "$tailnet" >"$BRIDGE_STATE"
+  for _ in $(seq 1 50); do
+    bridge_up && return 0
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.2
+  done
+  log "⚠ the bridge did not start, the end of $BRIDGE_LOG:"
+  tail -n 5 "$BRIDGE_LOG" >&2
+  return 1
+}
+
+do_open() {
+  local target="${1:-}" url
+  target="${target#/}"; target="${target%/}"
+  bridge_start || exit 1
+  if ! grep -qs '^\[sftp\.tailnet\]' "$HOME/.config/yazi/vfs.toml"; then
+    log "⚠ ~/.config/yazi/vfs.toml does not declare [sftp.tailnet], yazi will not find the shares"
+    log "  devbox seed --force .config/yazi/vfs.toml lays down the shipped one"
+  fi
+  url="sftp://tailnet//$target"
+  # Called from yazi (g T): move that yazi rather than opening another one.
+  if [ -n "${YAZI_ID:-}" ] && command -v ya >/dev/null 2>&1; then
+    ya emit cd "$url"
+    return 0
+  fi
+  if [ -t 0 ] && [ -t 1 ] && command -v yazi >/dev/null 2>&1; then
+    exec yazi "$url"
+  fi
+  log "bridge running: yazi $url"
+  log "or: sftp -P $SFTP_PORT $SFTP_USER@127.0.0.1 (password $SFTP_PASS)"
+}
+
+do_close() {
+  local pid
+  pid="$(bridge_pid)"
+  if [ -n "$pid" ]; then
+    kill "$pid"
+    log "Taildrive bridge stopped"
+  else
+    log "the Taildrive bridge is not running, nothing to stop"
+  fi
+  rm -f "$BRIDGE_STATE"
+}
+
+# Without arguments, on a terminal: every subcommand as a gum menu; send
+# picks the machine among the online peers and the file with gum file.
 menu() {
   local choice machine file dir
   choice="$(printf '%s\n' \
       "send      a file to another machine, over Taildrop" \
       "receive   wait for files, into ~/inbox" \
+      "share     this folder with the tailnet, over Taildrive" \
+      "shares    what is shared, here and by the other machines" \
+      "open      browse the shares of the tailnet, in yazi" \
+      "unshare   stop sharing a folder" \
       "status    the link and the peers" \
-    | gum choose --height 5 --header "Tailscale")" || exit 0
+    | gum choose --height 9 --header "Tailscale")" || exit 0
   [ -n "$choice" ] || exit 0
   case "${choice%% *}" in
     send)
@@ -134,7 +468,11 @@ menu() {
       dir="$(gum input --value "$INBOX_DEFAULT" --header "Directory to receive into")" || exit 0
       do_receive "${dir:-$INBOX_DEFAULT}"
       ;;
-    status) exec tailscale status ;;
+    share)   do_share ;;
+    shares)  do_shares ;;
+    open)    do_open ;;
+    unshare) do_unshare ;;
+    status)  exec tailscale status ;;
   esac
 }
 
@@ -143,6 +481,11 @@ cmd="${1:-}"
 case "$cmd" in
   send)    do_send "$@" ;;
   receive) do_receive "$@" ;;
+  share)   do_share "$@" ;;
+  unshare) do_unshare "$@" ;;
+  shares)  do_shares ;;
+  open)    do_open "$@" ;;
+  close)   do_close ;;
   status)  exec tailscale status ;;
   -h|--help) usage ;;
   "")

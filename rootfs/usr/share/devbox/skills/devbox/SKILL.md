@@ -5,7 +5,7 @@ description: >
   devbox command and dev-box-* binaries, /etc/devbox and ~/.config/dev-box,
   installing a language (dev-env), a pacman package that survives a rebuild,
   the global mise config, podman, databases, the GPU, dotfiles (dotarchy),
-  updates, access (Tailscale, sshd, Taildrop), agent wrappers, a browser to
+  updates, access (Tailscale, sshd, Taildrop, Taildrive), agent wrappers, a browser to
   screenshot or drive a page, the dev-box repo. Also when something in the box
   breaks: command not found, no network, disk full, cannot ssh, a change lost
   after a rebuild.
@@ -105,7 +105,9 @@ Never guess a command name. Run `devbox commands`.
 7. **Is a home left over from an older image misbehaving?** `devbox migrate
    --pending`, then `devbox migrate`.
 8. **Is it a file to move in or out of the box?** `devbox tailscale send` and
-   `devbox tailscale receive`, over Taildrop.
+   `devbox tailscale receive`, over Taildrop. A whole folder to share, or the
+   shares of another machine: `devbox tailscale share`, `shares`, `open`
+   (Taildrive).
 9. **Is it a page to look at or click through?** `agent-browser` on the
    system Chromium, installed on demand with `devbox dev-env browser`; never
    `npx playwright install`. See `browser.md`.
@@ -167,6 +169,7 @@ Never guess a command name. Run `devbox commands`.
   to change which one
 - "How much of my Claude quota is left?" -> `devbox agent usage claude`
 - "Send this file to my laptop" -> `devbox tailscale send laptop <file>`
+- "Share this project with my laptop" -> `devbox tailscale share` in its folder
 - "Check the page renders" -> `devbox dev-env browser` once, then
   `agent-browser open <url>`, `agent-browser snapshot`,
   `agent-browser screenshot /tmp/page.png`; see `browser.md`

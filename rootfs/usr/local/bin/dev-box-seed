@@ -40,6 +40,7 @@ SEEDS=(
   "/etc/devbox/llm-proxy.ts:.omp/agent/extensions/llm-proxy.ts"
   "/etc/devbox/mise-config.toml:.config/mise/config.toml"
   "/etc/devbox/yazi/keymap.toml:.config/yazi/keymap.toml"
+  "/etc/devbox/yazi/vfs.toml:.config/yazi/vfs.toml"
 )
 
 FORCE=false

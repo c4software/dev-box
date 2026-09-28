@@ -1,0 +1,14 @@
+# yazi virtual file systems shipped by dev-box, laid down in
+# ~/.config/yazi/vfs.toml by dev-box-seed (never overwritten once you changed
+# it). Your own SFTP servers go here too.
+#
+# sftp://tailnet is the Taildrive of the tailnet: the shares of every machine,
+# as <machine>/<share>. `devbox tailscale open` (or g T in yazi) starts the
+# bridge behind it, an rclone that serves the WebDAV of Taildrive over SFTP on
+# the loopback only. The port, the user and the password are the ones
+# dev-box-tailscale starts it with: change them here and it no longer answers.
+[sftp.tailnet]
+host     = "127.0.0.1"
+port     = 2849
+user     = "devbox"
+password = "devbox"

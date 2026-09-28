@@ -12,4 +12,12 @@ prepend_keymap = [
   # tailnet over Taildrop. devbox tailscale send asks which machine, among the
   # ones online right now, then holds the screen so that the result is read.
   { on = [ "c", "t" ], run = 'shell --block "devbox tailscale send %s; printf \"\\nPress enter to go back to yazi\"; read -r _"', desc = "Send to a machine over Taildrop" },
+  # The current directory is shared with the tailnet over Taildrive, under a
+  # name taken from the directory; the screen holds to show the name and the
+  # address the other machines use.
+  { on = [ "c", "s" ], run = 'shell --block "devbox tailscale share; printf \"\\nPress enter to go back to yazi\"; read -r _"', desc = "Share this directory over Taildrive" },
+  # The shares of the tailnet (sftp://tailnet, see vfs.toml): the command
+  # starts the bridge, then moves this yazi there. The screen only holds when
+  # something went wrong. (g t is the trash of yazi.)
+  { on = [ "g", "T" ], run = 'shell --block "devbox tailscale open || { printf \"\\nPress enter to go back to yazi\"; read -r _; }"', desc = "Go to the Taildrive shares of the tailnet" },
 ]

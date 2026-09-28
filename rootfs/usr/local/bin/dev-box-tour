@@ -192,7 +192,9 @@ tour() {
       "dev server to the other machines and prints its URL, devbox serve off" \
       "stops it. devbox tailscale send <machine> <file> and devbox tailscale" \
       "receive move files over Taildrop, into ~/inbox. In yazi, c t sends the" \
-      "selected files the same way."
+      "selected files the same way. devbox tailscale share shares the current" \
+      "folder over Taildrive, devbox tailscale open (g T in yazi) browses the" \
+      "shares of the other machines."
   fi
 
   step "Teach your agent the box" "sed -n '1,40p' ~/.claude/skills/devbox/SKILL.md" \

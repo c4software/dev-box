@@ -68,7 +68,8 @@ docker exec -it -u dev dev-box zsh -l    # always works, on the host
 ```
 
 `ssh -t dev@dev-box env NO_TMUX=1 zsh` gives a shell without tmux. Headscale
-policies, `devbox serve` to reach a dev server, and Taildrop are in
+policies, `devbox serve` to reach a dev server, Taildrop and Taildrive
+(shared folders) are in
 [docs/access.md](docs/access.md).
 
 ## The devbox command
@@ -153,7 +154,7 @@ belong to root: on Linux, `sudo rm -rf ~/dev-box`.
 - [Commands](docs/commands.md): every `devbox` command, the tour, the login
   message
 - [Access](docs/access.md): Tailscale, Headscale, SSH without Tailscale,
-  `devbox serve`, Taildrop
+  `devbox serve`, Taildrop, Taildrive
 - [Terminal](docs/terminal.md): clipboard, `xdg-open`, the yazi file manager,
   notifications
 - [Tools and packages](docs/tools.md): pacman, `devbox tui`, `devbox pkg`, mise

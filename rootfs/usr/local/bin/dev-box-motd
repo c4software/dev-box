@@ -81,6 +81,8 @@ TIPS=(
   'devbox serve 8080:3000|tailnet port 8080, app on 3000|tailscale'
   'devbox tailscale send laptop file.tar|Taildrop a file to another machine|tailscale'
   'devbox tailscale receive|wait for Taildrop files into ~/inbox|tailscale'
+  'devbox tailscale share|share this folder with the tailnet (Taildrive)|tailscale'
+  'devbox tailscale open|browse the Taildrive shares of the tailnet in yazi|tailscale'
   'NO_TMUX=1 ssh dev@box|a shell without the tmux session'
 )
 

@@ -171,6 +171,7 @@ version is only reported.
 | `~/.omp/agent/extensions/llm-proxy.ts` | same file |
 | `~/.config/mise/config.toml` | `rootfs/etc/devbox/mise-config.toml` |
 | `~/.config/yazi/keymap.toml` | `rootfs/etc/devbox/yazi/keymap.toml` |
+| `~/.config/yazi/vfs.toml` | `rootfs/etc/devbox/yazi/vfs.toml` |
 
 - `settings.json`: theme, effort level, empty commit/PR attribution, and the
   `harness@c4software` plugin from its GitHub marketplace. There is no `model`
@@ -199,10 +200,15 @@ version is only reported.
   a box whose file was never touched loses those lines at the next start, and
   each agent it still uses declares itself again on its next call, at the
   version already installed.
-- `keymap.toml` adds the `c t` chord to yazi, which sends the selected files
-  over Taildrop (see [terminal.md](terminal.md#the-file-manager)). It only
-  prepends bindings, the yazi defaults stay. It is the place for your own
-  bindings too.
+- `keymap.toml` adds chords to yazi: `c t` sends the selected files over
+  Taildrop, `c s` shares the current directory over Taildrive, `g T` goes to
+  the Taildrive shares of the tailnet (see
+  [terminal.md](terminal.md#the-file-manager)). It only prepends bindings,
+  the yazi defaults stay. It is the place for your own bindings too.
+- `vfs.toml` declares `sftp://tailnet` to yazi, the Taildrive bridge that
+  `devbox tailscale open` starts (see [access.md](access.md#taildrive)). Its
+  port, user and password must stay the ones the command uses. Your own SFTP
+  servers go in the same file.
 
 ## Your own dev environments
 
