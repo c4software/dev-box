@@ -5,23 +5,27 @@
 # devbox:args=[name...|--remove name...|--list]
 #
 # A catalogue of terminal apps (TUIs) worth having in the box, installed on
-# demand. They are pacman packages, so they go through `devbox pkg`: the name
+# demand. Most are pacman packages, so they go through `devbox pkg`: the name
 # lands in ~/.config/dev-box/packages and the app comes back at every start
-# after an image rebuild. Nothing here is installed unless you ask for it.
+# after an image rebuild. The few that Arch does not package come from their
+# GitHub release into ~/.local/bin, which lives in the home and survives a
+# rebuild on its own. Nothing here is installed unless you ask for it.
 #
 #   dev-box-tui                    interactive: install or remove, then a menu
 #   dev-box-tui btop atac          install these apps right away
 #   dev-box-tui --remove btop      remove these apps (and forget them)
 #   dev-box-tui --list             the catalogue, with what is installed
+#   dev-box-tui slk --login        sign slk in with a browser session
 #
-# Running it twice breaks nothing: pacman skips what is there, a removal of
-# something already gone only updates the list. Any other Arch package goes
-# through `devbox pkg add` or `devbox pkg install`, the fuzzy picker.
+# Running it twice breaks nothing: pacman skips what is there, a release app
+# is fetched again at its latest version, a removal of something already gone
+# only updates the list. Any other Arch package goes through `devbox pkg add`
+# or `devbox pkg install`, the fuzzy picker.
 set -euo pipefail
 
 # <name>|<short description shown in the menu and in --list>
 # The name is the pacman package. Every one exists on Arch Linux and on
-# Arch Linux ARM (checked on 2026-09-23).
+# Arch Linux ARM (checked on 2026-09-23), except the ones of RELEASES.
 APPS=(
   "btop|System monitor: cpu, memory, disks, network, processes"
   "htop|The classic process viewer"
@@ -41,7 +45,18 @@ APPS=(
   "gping|ping with a graph"
   "trippy|traceroute and ping, live"
   "termshark|Wireshark in the terminal (tshark)"
+  "slk|Slack in the terminal (getslk.sh)"
 )
+
+# <name>|<GitHub repository>
+# Not packaged by Arch: the latest release goes into ~/.local/bin/<name>. The
+# asset is <name>_<version>_linux_<arch>.tar.gz, checked against the
+# checksums.txt of the release, for x86_64 and arm64.
+RELEASES=(
+  "slk|gammons/slk"
+)
+LOCAL_BIN="$HOME/.local/bin"
+SLK_TOKENS="${XDG_DATA_HOME:-$HOME/.local/share}/slk/tokens"
 
 log() { printf '\033[1m[dev-box-tui]\033[0m %s\n' "$*"; }
 err() { echo "dev-box-tui: $*" >&2; }
@@ -62,7 +77,67 @@ app_desc() {
   return 1
 }
 
-is_installed() { pacman -Q "$1" >/dev/null 2>&1; }
+release_repo() {
+  local r
+  for r in "${RELEASES[@]}"; do
+    [ "${r%%|*}" = "$1" ] && {
+      printf '%s' "${r#*|}"
+      return 0
+    }
+  done
+  return 1
+}
+
+# A release app counts as installed as soon as its binary is on the PATH,
+# wherever it comes from.
+is_installed() {
+  if release_repo "$1" >/dev/null; then
+    command -v "$1" >/dev/null 2>&1
+  else
+    pacman -Q "$1" >/dev/null 2>&1
+  fi
+}
+
+# Downloads the latest release of a RELEASES app into ~/.local/bin, after
+# checking its sha256. Run again, it replaces the binary with the latest one.
+install_release() {
+  local name="$1" repo arch version asset base tmp
+  repo="$(release_repo "$name")"
+  case "$(uname -m)" in
+  x86_64) arch="x86_64" ;;
+  aarch64 | arm64) arch="arm64" ;;
+  *)
+    err "$name: no release for $(uname -m)."
+    return 1
+    ;;
+  esac
+  version="$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" |
+    grep -oE '"tag_name": *"v[0-9][^"]*"' | grep -oE '[0-9][0-9.]*[0-9]' | head -n1)" || true
+  [ -n "$version" ] || {
+    err "$name: could not read the latest release of $repo (network, or the GitHub API rate limit)."
+    return 1
+  }
+  asset="${name}_${version}_linux_${arch}.tar.gz"
+  base="https://github.com/$repo/releases/download/v$version"
+  tmp="$(mktemp -d)"
+  log "$name: downloading $version ($arch) from github.com/$repo"
+  if ! curl -fsSL -o "$tmp/$asset" "$base/$asset" ||
+    ! curl -fsSL -o "$tmp/checksums.txt" "$base/checksums.txt"; then
+    rm -rf "$tmp"
+    err "$name: download failed."
+    return 1
+  fi
+  if ! (cd "$tmp" && grep " $asset\$" checksums.txt | sha256sum -c --quiet -); then
+    rm -rf "$tmp"
+    err "$name: the checksum of $asset does not match, nothing installed."
+    return 1
+  fi
+  tar -xzf "$tmp/$asset" -C "$tmp" "$name"
+  mkdir -p "$LOCAL_BIN"
+  install -m 755 "$tmp/$name" "$LOCAL_BIN/$name"
+  rm -rf "$tmp"
+  log "$name: installed in $LOCAL_BIN/$name"
+}
 
 show_list() {
   local a name mark
@@ -74,7 +149,8 @@ show_list() {
     printf '  \033[32m%s\033[0m \033[36m%-11s\033[0m %s\n' "$mark" "$name" "${a#*|}"
   done
   printf '\n* installed. Without arguments: a menu, install or remove.\n'
-  printf 'Every app is a pacman package kept by devbox pkg, so it survives a rebuild.\n'
+  printf 'Every app survives a rebuild: a pacman package kept by devbox pkg, or a\n'
+  printf 'release in ~/.local/bin (%s).\n' "$(printf '%s\n' "${RELEASES[@]%%|*}" | paste -sd, - | sed 's/,/, /g')"
 }
 
 # --- Arguments ---------------------------------------------------------------
@@ -88,11 +164,15 @@ while [ $# -gt 0 ]; do
     exit 0
     ;;
   -h | --help)
-    sed -n '7,19p' "$0" | sed 's/^# \?//'
+    sed -n '7,23p' "$0" | sed 's/^# \?//'
     exit 0
     ;;
   --remove)
     ACTION="remove"
+    shift
+    ;;
+  --login)
+    ACTION="login"
     shift
     ;;
   -*)
@@ -169,6 +249,111 @@ menu() {
   done <<<"$chosen"
 }
 
+# --- slk login ---------------------------------------------------------------
+
+# slk only signs in through the Slack desktop app, which the box does not have.
+# At launch it simply loads ~/.local/share/slk/tokens/<team id>.json, and keeps
+# that token when it cannot refresh it from the desktop app. So the token file
+# is written here from a browser session: the d cookie and the xoxc token,
+# checked with auth.test. The d cookie is HttpOnly, no console script can read
+# it, but a "Copy as cURL" of any Slack API request carries both, so that is
+# what gets pasted. The secrets never go on a command line, curl reads its
+# headers from stdin.
+slk_steps() {
+  cat <<'TXT'
+slk signs in through the Slack desktop app, which the box does not have. From
+the session of your browser instead:
+  1. Open https://app.slack.com in your browser and sign in.
+  2. DevTools, Network tab, filter on api/, click a channel, then right click
+     one of the requests, Copy, Copy as cURL (bash).
+  3. Run devbox tui slk --login and paste it.
+TXT
+}
+
+slk_login() {
+  local cookie="" token="" line paste answer team_id team url domain file
+  if [ ! -t 0 ]; then
+    err "no terminal, the cookie and the token are asked for interactively."
+    exit 2
+  fi
+  command -v slk >/dev/null 2>&1 || log "slk is not installed yet: devbox tui slk"
+  slk_steps
+  echo
+  echo "Nothing is shown while you paste."
+  # A copied curl command spans several lines ending with a backslash: read
+  # until the last one. Anything else is taken as the bare xoxc token, and the
+  # d cookie is asked for next.
+  read -rsp "cURL command (or the xoxc token): " line
+  paste="$line"
+  if [[ "$line" == curl* ]]; then
+    while [[ "$line" =~ \\[[:space:]]*$ ]] && IFS= read -rs line; do
+      paste+=$'\n'"$line"
+    done
+    echo
+    token="$(grep -oE 'xoxc-[A-Za-z0-9-]+' <<<"$paste" | head -n1)" || true
+    cookie="$(grep -oE '(^|[^A-Za-z0-9_])d=xoxd-[^;[:space:]"'"'"']+' <<<"$paste" |
+      head -n1 | sed 's/^.*d=//')" || true
+    [ -n "$token" ] || err "no xoxc- token in that command: copy a request to /api/, not the page itself."
+    [ -n "$cookie" ] || err "no d cookie in that command: copy it from a browser signed in to app.slack.com."
+    [ -n "$token" ] && [ -n "$cookie" ] || exit 1
+  else
+    echo
+    token="$line"
+    read -rsp "d cookie (DevTools, Application, Cookies, value of d): " cookie
+    echo
+  fi
+  cookie="${cookie//[[:space:]]/}"
+  token="${token//[[:space:]]/}"
+  case "$cookie" in xoxd-*) ;; *)
+    err "the d cookie starts with xoxd-, nothing written."
+    exit 1
+    ;;
+  esac
+  case "$token" in xoxc-*) ;; *)
+    err "the token starts with xoxc-, nothing written."
+    exit 1
+    ;;
+  esac
+
+  answer="$(printf 'header = "Authorization: Bearer %s"\nheader = "Cookie: d=%s"\n' "$token" "$cookie" |
+    curl -fsS -K - -X POST https://slack.com/api/auth.test)" || {
+    err "could not reach slack.com, nothing written."
+    exit 1
+  }
+  if [ "$(jq -r '.ok' <<<"$answer")" != "true" ]; then
+    err "Slack refused them ($(jq -r '.error // "unknown error"' <<<"$answer")), nothing written."
+    err "Copy both again from a browser that is signed in, then retry."
+    exit 1
+  fi
+  team_id="$(jq -r '.team_id' <<<"$answer")"
+  team="$(jq -r '.team' <<<"$answer")"
+  url="$(jq -r '.url' <<<"$answer")"
+  domain="${url#https://}"
+  domain="${domain%%.slack.com*}"
+
+  mkdir -p "$SLK_TOKENS"
+  chmod 700 "$SLK_TOKENS"
+  file="$SLK_TOKENS/$team_id.json"
+  (
+    umask 077
+    jq -n --arg t "$token" --arg c "$cookie" --arg d "$domain" \
+      --arg id "$team_id" --arg n "$team" \
+      '{access_token: $t, cookie: $c, domain: $d, team_id: $id, team_name: $n}' >"$file.tmp"
+  )
+  mv "$file.tmp" "$file"
+  log "slk: signed in to $team ($domain.slack.com), token in $file"
+  log "Run slk. When Slack ends that browser session, run devbox tui slk --login again."
+}
+
+if [ "$ACTION" = "login" ]; then
+  if [ "${SELECTED[*]}" != "slk" ]; then
+    err "--login only applies to slk: devbox tui slk --login"
+    exit 2
+  fi
+  slk_login
+  exit 0
+fi
+
 [ "${#SELECTED[@]}" -gt 0 ] || menu
 
 # The names are validated before the first action: better to refuse right away
@@ -181,21 +366,41 @@ for name in "${SELECTED[@]}"; do
   }
 done
 
-# One pacman run for the whole selection: dev-box-pkg installs, checks, and
-# keeps the names. Removal goes the same way, in reverse.
+# One pacman run for the pacman apps: dev-box-pkg installs, checks, and keeps
+# the names. The release apps go to ~/.local/bin one by one. Removal goes the
+# same way, in reverse.
+PACMAN_APPS=()
+RELEASE_APPS=()
 for name in "${SELECTED[@]}"; do
   log "$name: $(app_desc "$name")"
+  if release_repo "$name" >/dev/null; then
+    RELEASE_APPS+=("$name")
+  else
+    PACMAN_APPS+=("$name")
+  fi
 done
 if [ "$ACTION" = "install" ]; then
-  dev-box-pkg add "${SELECTED[@]}"
+  [ "${#PACMAN_APPS[@]}" -eq 0 ] || dev-box-pkg add "${PACMAN_APPS[@]}"
+  for name in "${RELEASE_APPS[@]}"; do
+    install_release "$name"
+  done
   for name in "${SELECTED[@]}"; do
     [ "$name" = lazydocker ] && ! [ -S "/run/user/$(id -u)/podman/podman.sock" ] &&
       log "lazydocker needs podman: PODMAN_ENABLE=true in .env on the host, then restart the container."
     [ "$name" = visidata ] && log "visidata runs as vd."
     [ "$name" = tealdeer ] && log "tealdeer runs as tldr; the first tldr --update fetches the pages."
+    [ "$name" = slk ] && slk_steps && log "devbox tui slk again updates slk."
   done
   log "done: ${SELECTED[*]}"
 else
-  dev-box-pkg drop "${SELECTED[@]}"
+  [ "${#PACMAN_APPS[@]}" -eq 0 ] || dev-box-pkg drop "${PACMAN_APPS[@]}"
+  for name in "${RELEASE_APPS[@]}"; do
+    if [ -e "$LOCAL_BIN/$name" ]; then
+      rm -f "$LOCAL_BIN/$name"
+      log "$name: removed $LOCAL_BIN/$name"
+    else
+      log "$name: not in $LOCAL_BIN, nothing to remove."
+    fi
+  done
   log "removed: ${SELECTED[*]}"
 fi

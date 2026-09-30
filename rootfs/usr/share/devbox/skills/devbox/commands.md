@@ -140,15 +140,26 @@ start. `--list` marks the box's own scripts.
 
 A catalogue of terminal apps, none installed until asked for: btop, htop,
 ncdu, lazydocker, k9s, dive, atac, rainfrog, pgcli, jless, visidata, tealdeer,
-glow, fastfetch, hyperfine, gping, trippy, termshark. Each name is the pacman
-package, present on Arch Linux and Arch Linux ARM. The install goes through
-`devbox pkg add`, so the app is written to `~/.config/dev-box/packages` and
-reinstalled at start after a rebuild; `--remove` goes through `devbox pkg drop`.
+glow, fastfetch, hyperfine, gping, trippy, termshark, slk. Each name but slk
+is the pacman package, present on Arch Linux and Arch Linux ARM. The install
+goes through `devbox pkg add`, so the app is written to
+`~/.config/dev-box/packages` and reinstalled at start after a rebuild;
+`--remove` goes through `devbox pkg drop`. slk (a Slack client, getslk.sh) is
+not packaged by Arch: its latest GitHub release, sha256 checked, goes into
+`~/.local/bin/slk`, kept by the home; running `devbox tui slk` again updates
+it, `--remove` deletes the binary. slk only signs in through the Slack desktop
+app, absent from the box: `devbox tui slk --login` takes a "Copy as cURL (bash)" of any
+app.slack.com request to `/api/` (DevTools, Network), pulls the xoxc token and
+the HttpOnly `d` cookie out of it (or asks for both when a bare token is
+pasted), checks them with auth.test and writes
+`~/.local/share/slk/tokens/<team id>.json`. Run it again when Slack ends the
+browser session.
 
 ```
 devbox tui --list
 devbox tui btop atac
 devbox tui --remove btop
+devbox tui slk --login      # sign slk in from a browser session
 devbox tui                  # menu
 ```
 

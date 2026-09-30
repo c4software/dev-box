@@ -26,9 +26,27 @@ rest) and rootless podman (see [containers.md](containers.md)).
 `devbox tui` is a catalogue of terminal apps worth having at hand, none of them
 installed until you ask: btop, htop, ncdu, lazydocker, k9s, dive, atac,
 rainfrog, pgcli, jless, visidata, tealdeer, glow, fastfetch, hyperfine, gping,
-trippy and termshark. Every one is a pacman package present on Arch Linux and
-Arch Linux ARM, and the install goes through `devbox pkg`, so the app comes
-back after a rebuild.
+trippy, termshark and slk. Every one but slk is a pacman package present on
+Arch Linux and Arch Linux ARM, and the install goes through `devbox pkg`, so
+the app comes back after a rebuild. slk, a Slack client
+([getslk.sh](https://getslk.sh/)), is not packaged by Arch: its latest GitHub
+release, checked against its checksums, goes into `~/.local/bin`, which lives
+in the home and survives a rebuild too. `devbox tui slk` again updates it.
+
+slk signs in through the Slack desktop app, which the box does not have, so
+`devbox tui slk --login` signs it in from your browser session instead:
+
+1. Open https://app.slack.com in your browser and sign in.
+2. DevTools, Network tab, filter on `api/`, click a channel, then right click
+   one of the requests, Copy, Copy as cURL (bash).
+3. Run `devbox tui slk --login` and paste it.
+
+The copied command carries both halves of the session: the `xoxc-` token and
+the `d` cookie, which no console script can read since it is HttpOnly. The
+bare `xoxc-` token can be pasted instead, the `d` cookie is then asked for.
+The pair is checked with Slack, then written to
+`~/.local/share/slk/tokens/<team id>.json`. Nothing refreshes it without the
+desktop app: when Slack ends that browser session, run `--login` again.
 
 ```bash
 devbox tui --list            # the catalogue, installed ones marked
