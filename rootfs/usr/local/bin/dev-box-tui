@@ -271,7 +271,7 @@ TXT
 }
 
 slk_login() {
-  local cookie="" token="" line paste answer team_id team url domain file
+  local cookie="" token="" line paste answer team_id team url domain file tty
   if [ ! -t 0 ]; then
     err "no terminal, the cookie and the token are asked for interactively."
     exit 2
@@ -280,18 +280,24 @@ slk_login() {
   slk_steps
   echo
   echo "Nothing is shown while you paste."
+  # Echo off, and canonical mode off: in canonical mode Linux drops anything
+  # past 4095 bytes on a line, and a copied curl line with its cookies can get
+  # there. Enter still ends a line, Ctrl-C still stops.
+  tty="$(stty -g)"
+  trap 'stty "$tty"' EXIT
+  stty -echo -icanon min 1 time 0
   # A copied curl command spans several lines ending with a backslash: read
   # until the last one. Anything else is taken as the bare xoxc token, and the
   # d cookie is asked for next.
-  read -rsp "cURL command (or the xoxc token): " line
+  IFS= read -rp "cURL command (or the xoxc token): " line
   paste="$line"
   if [[ "$line" == curl* ]]; then
-    while [[ "$line" =~ \\[[:space:]]*$ ]] && IFS= read -rs line; do
+    while [[ "$line" =~ \\[[:space:]]*$ ]] && IFS= read -r line; do
       paste+=$'\n'"$line"
     done
     echo
     token="$(grep -oE 'xoxc-[A-Za-z0-9-]+' <<<"$paste" | head -n1)" || true
-    cookie="$(grep -oE '(^|[^A-Za-z0-9_])d=xoxd-[^;[:space:]"'"'"']+' <<<"$paste" |
+    cookie="$(grep -oE '(^|[^A-Za-z0-9_-])d=xoxd-[^;[:space:]"'"'"']+' <<<"$paste" |
       head -n1 | sed 's/^.*d=//')" || true
     [ -n "$token" ] || err "no xoxc- token in that command: copy a request to /api/, not the page itself."
     [ -n "$cookie" ] || err "no d cookie in that command: copy it from a browser signed in to app.slack.com."
@@ -299,9 +305,11 @@ slk_login() {
   else
     echo
     token="$line"
-    read -rsp "d cookie (DevTools, Application, Cookies, value of d): " cookie
+    IFS= read -rp "d cookie (DevTools, Application, Cookies, value of d): " cookie
     echo
   fi
+  stty "$tty"
+  trap - EXIT
   cookie="${cookie//[[:space:]]/}"
   token="${token//[[:space:]]/}"
   case "$cookie" in xoxd-*) ;; *)
