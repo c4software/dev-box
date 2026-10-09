@@ -34,8 +34,10 @@ on the argument:
   any key closes it. Enter on a picture in yazi comes here too. A floating pane
   (tmux 3.7) rather than `display-popup`, which draws no image.
 
-The `open` function discards the output of `xdg-open`, so its messages arrive
-as a terminal notification through `notify-send` instead (see below). `EDITOR`
+The `open` function discards the output of `xdg-open`, so its messages show
+for a few seconds in the status line of tmux instead, and arrive as a terminal
+notification through `notify-send` (see below), which a terminal only displays
+when it does not have the focus. `EDITOR`
 and `VISUAL` are set to `nvim` system-wide for the same reason: a pane opened
 by a command only carries the environment of the login shell, not the exports
 of the dotarchy config, and yazi would otherwise fall back on `vi`, which the

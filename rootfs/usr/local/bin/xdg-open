@@ -14,8 +14,8 @@
 # ahead of the dotarchy default. The `open` function of the dotarchy aliases
 # (and the `repo` alias built on it) calls xdg-open with its output discarded,
 # in the background: the tmux pane still opens, since tmux is reached through
-# its socket, and a message that would be lost goes through notify-send too,
-# which reaches the terminal over /dev/tty.
+# its socket, and a message that would be lost goes to the status line of tmux
+# and through notify-send, which reaches the terminal over /dev/tty.
 # Usage: xdg-open URL|FILE|DIRECTORY
 set -euo pipefail
 
@@ -32,10 +32,17 @@ esac
 
 target="$1"
 
-# say: on the terminal when there is one, through a notification otherwise.
+# say: on the terminal when there is one. Otherwise in the status line of tmux
+# and through a notification: a terminal only shows a notification when it
+# does not have the focus, which it has when the command was typed in it. A #
+# is doubled, display-message reads its text as a format.
 say() {
   echo "$1"
-  [ -t 1 ] || notify-send "dev-box" "$1" 2>/dev/null || true
+  [ -t 1 ] && return 0
+  if [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
+    tmux display-message -d 5000 "${1//\#/##}" 2>/dev/null || true
+  fi
+  notify-send "dev-box" "$1" 2>/dev/null || true
 }
 
 # run: the command in a new tmux pane, or in the foreground. The split follows
