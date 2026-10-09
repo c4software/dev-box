@@ -262,7 +262,7 @@ which is the only way to run a change that is not on `main` yet.
 
 The image builds and runs on arm64 as it does on amd64.
 `docker compose up -d --build` picks the right base by itself. On the Pi,
-`archlinux:latest` is replaced by the community image `menci/archlinuxarm:base`
+`ghcr.io/archlinux/archlinux:latest` is replaced by the community image `menci/archlinuxarm:base`
 (Arch Linux ARM, rebuilt daily). That is a third-party base, not an official
 Arch one, which is the price of arm64 here. `mise` is not packaged for Arch
 Linux ARM either, so the build falls back to the official installer from

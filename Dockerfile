@@ -1,10 +1,14 @@
-# syntax=docker/dockerfile:1
-
+# No `# syntax=` line on purpose: it makes BuildKit pull docker/dockerfile from
+# Docker Hub before anything else, and nothing here needs more than the
+# frontend built into BuildKit (RUN --mount is the only extra).
+#
 # Base image per architecture (BuildKit provides TARGETARCH):
-#   - amd64: the official archlinux image, which only exists for x86_64;
+#   - amd64: the official archlinux image, which only exists for x86_64,
+#     taken from ghcr.io where Arch publishes it too: an anonymous pull from
+#     Docker Hub is rate limited, and a GitHub runner shares its address;
 #   - arm64: Arch Linux ARM through the community image menci/archlinuxarm,
-#     rebuilt every day (Raspberry Pi 5).
-FROM archlinux:latest AS base-amd64
+#     rebuilt every day (Raspberry Pi 5), which only exists on Docker Hub.
+FROM ghcr.io/archlinux/archlinux:latest AS base-amd64
 FROM menci/archlinuxarm:base AS base-arm64
 
 # Declared before the FROM so it can be used in its stage name.

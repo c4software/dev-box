@@ -32,8 +32,9 @@ in the agent skill.
 - **Tailscale inside the container.** The box is only reachable from the
   tailnet, nothing is published on the host, and Tailscale SSH handles
   authentication.
-- **amd64 and arm64.** The official `archlinux` image exists only for x86_64,
-  so arm64 builds (Raspberry Pi 5) use Arch Linux ARM through the community
+- **amd64 and arm64.** The official `archlinux` image (pulled from
+  `ghcr.io/archlinux/archlinux`, not Docker Hub) exists only for x86_64, so
+  arm64 builds (Raspberry Pi 5) use Arch Linux ARM through the community
   image `menci/archlinuxarm:base`, rebuilt daily. BuildKit picks the base from
   `TARGETARCH`, and the rest of the image assumes nothing about the
   architecture. Both are published under the same tags, one multi-arch
