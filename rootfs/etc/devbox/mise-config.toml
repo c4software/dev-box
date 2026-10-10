@@ -5,9 +5,6 @@
 
 [tools]
 node = "lts"
-# shellcheck: the lint every script of the repo must pass (aqua backend,
-# release binaries for x86_64 and aarch64).
-shellcheck = "latest"
 
 # No coding agent here: claude, pi, omp, codex and opencode each have a wrapper
 # in /usr/local/bin that installs the tool on its first call (`mise use -g`

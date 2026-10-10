@@ -94,7 +94,10 @@ Dev tools live in the persistent home, declared in `~/.config/mise/config.toml`
 [customization.md](customization.md#seeded-files-and-devbox-seed)):
 
 - `node` (LTS)
-- `shellcheck` (`aqua:koalaman/shellcheck`, the lint of the scripts)
+
+`shellcheck`, the lint of the scripts, is not one of them: it is in the image
+(`/usr/local/bin/shellcheck`, the release binary of the project, pinned in the
+`Dockerfile`), so it is there before mise has installed anything.
 
 No coding agent is installed by default. `claude` (Claude Code,
 `aqua:anthropics/claude-code`), `pi` (`aqua:earendil-works/pi`), `omp`

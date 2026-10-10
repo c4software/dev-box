@@ -78,6 +78,25 @@ RUN sed -i -E 's#^(NoExtract *=.*) usr/share/i18n/\*#\1#' /etc/pacman.conf \
          curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh; \
        fi \
     && mise --version \
+    # shellcheck, the lint every script of the repo must pass, so that it is
+    # there in a box that has not installed its mise tools yet, and for root.
+    # The static release binary (16 MB, 55 MB on arm64) rather than the Arch
+    # package, which brings ghc-libs and some fifty haskell packages (207 MB)
+    # and is not in the Arch Linux ARM repositories. The project publishes no
+    # checksum file: the version is pinned here with the sha256 of each archive.
+    && sc=v0.11.0 && arch="$(uname -m)" \
+    && case "$arch" in \
+         x86_64)  sum=8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198 ;; \
+         aarch64) sum=12b331c1d2db6b9eb13cfca64306b1b157a86eb69db83023e261eaa7e7c14588 ;; \
+         *) echo "shellcheck: no release binary for $arch" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL -o /tmp/shellcheck.tar.xz \
+         "https://github.com/koalaman/shellcheck/releases/download/$sc/shellcheck-$sc.linux.$arch.tar.xz" \
+    && echo "$sum  /tmp/shellcheck.tar.xz" | sha256sum -c - \
+    && tar -xJf /tmp/shellcheck.tar.xz -C /usr/local/bin --no-same-owner \
+         --strip-components=1 "shellcheck-$sc/shellcheck" \
+    && rm /tmp/shellcheck.tar.xz \
+    && shellcheck --version \
     && pacman -S --noconfirm --disable-sandbox glibc \
     && sed -i -E 's/^#(fr_FR|en_US)(\.UTF-8 UTF-8)/\1\2/' /etc/locale.gen \
     && locale-gen \
