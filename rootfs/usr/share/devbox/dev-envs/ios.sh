@@ -16,15 +16,61 @@ against: the standalone build mise itself uses for python, taken as a tool of
 its own (http:lldb-python, no command on the PATH, the default python is left
 alone), and lldb and lldb-dap are started through a launcher that points
 PYTHONHOME at it. lldb also leaves address randomization on for the program
-it starts: turning it off is refused inside a container. What is left to you, once, because it takes your Apple
-account:
-  xtool setup          sign in, and build the iOS SDK from an Xcode.xip
-The Xcode.xip comes from developer.apple.com, and its version must be the one
-that carries this Swift. There is no simulator: an app runs on a real device,
-paired over USB once (the USB block of compose.override.example.yaml, then
-`devbox pkg add usbmuxd` and `sudo usbmuxd`), then reached over the network. linux x86_64 only. A removal
-takes out xtool, pymobiledevice3 and the Python of lldb, and leaves swift,
-python, the SDK in ~/.swiftpm and what xtool setup stored in place.
+it starts: turning it off is refused inside a container. There is no
+simulator: an app runs on a real device. linux x86_64 only. A removal takes
+out xtool, pymobiledevice3 and the Python of lldb, and leaves swift, python,
+the SDK in ~/.swiftpm and what xtool setup stored in place.
+
+What is left to you:
+
+TXT
+  next_steps
+}
+
+# What the install cannot do, since it takes an Apple account, a download
+# behind a login and a device: printed at the end of an install and by --info.
+next_steps() {
+  cat <<'TXT'
+  1. The Apple account and the iOS SDK, once
+     Download Xcode from https://developer.apple.com/download/all/?q=Xcode in
+     a browser (the page asks for an Apple ID, a free one will do, and the
+     file weighs several GB). Take the Xcode that carries the Swift of the
+     box (`swift --version`). Put the .xip in the home of the box: ./data/home
+     on the host, or scp. Then, in the box:
+       xtool setup
+     Login mode: 0, an API key, with a paid Apple Developer Program
+     membership; 1, the password, with any Apple ID (email, password, the
+     two-factor code), which goes through private Apple APIs, hence the
+     throwaway Apple ID xtool suggests. Then the path of the .xip: xtool
+     builds the SDK from it, which takes a while.
+       swift sdk list        must answer darwin
+     The .xip can be deleted afterwards.
+
+  2. The device, once
+     On the host, copy the USB block of compose.override.example.yaml into
+     your compose.override.yaml, stop a usbmuxd running there (the device has
+     one owner), then docker compose up -d. In the box:
+       devbox pkg add usbmuxd
+     Plug the iPhone or iPad in, unlock it, then:
+       sudo usbmuxd          again after each restart of the box
+       xtool devices         answer Trust on the device, then run it again
+
+  3. A first app
+       xtool new Hello
+       cd Hello
+       xtool dev             builds, signs, installs on the device
+     The first build takes a few minutes, the next ones are quick. On the
+     device, if asked: Settings, Privacy & Security, Developer Mode (it
+     restarts), then xtool dev again. At the first launch of the app, on
+     "Untrusted Developer": Settings, General, VPN & Device Management, your
+     Apple ID, Trust. With a free account the signature lasts 7 days: xtool
+     dev again renews it. The bundle ID is in xtool.yml.
+
+  4. Around it
+       xtool dev build                builds without installing
+       pymobiledevice3 usbmux list    the devices usbmuxd sees
+       pymobiledevice3 syslog live    the logs of the device
+       lldb                           the debugger of the toolchain
 TXT
 }
 
@@ -99,8 +145,9 @@ install() {
   give_lldb_python
   log "xtool $(mise x "$XTOOL" -- xtool --version 2>&1 | awk '{print $NF}'), pymobiledevice3 $(mise x pypi:pymobiledevice3 -- pymobiledevice3 version 2>&1 | tail -n 1)"
   log "$("$(mise where swift)/bin/lldb" --version 2>&1 | head -n 1)"
-  log "next, once: xtool setup (your Apple account, and an Xcode.xip from developer.apple.com)"
-  log "then: xtool new MyApp, cd MyApp, xtool dev build"
+  log "ios is ready, three steps are left to you (devbox dev-env --info ios):"
+  echo
+  next_steps
 }
 
 uninstall() {

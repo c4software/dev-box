@@ -116,7 +116,10 @@ left to you, since it takes your Apple account: `xtool setup` signs in and
 builds the iOS SDK from an `Xcode.xip` downloaded from developer.apple.com.
 There is no simulator: an app runs on a real device, plugged into the host
 and given to the box by the USB block of `compose.override.example.yaml`, with
-`devbox pkg add usbmuxd` and `sudo usbmuxd` in the box. `ios` also makes the
+`devbox pkg add usbmuxd` and `sudo usbmuxd` in the box. The install ends on
+those steps, one by one (the Xcode download and `xtool setup`, the device,
+`xtool new` and `xtool dev` for a first app, what to answer on the device),
+and `devbox dev-env --info ios` shows them again. `ios` also makes the
 `lldb` of the toolchain work: it takes the Python 3.9 lldb was built against
 as a mise tool of its own (`http:lldb-python`, pinned with its sha256, no
 command on the PATH, the default python untouched) and starts `lldb` and
