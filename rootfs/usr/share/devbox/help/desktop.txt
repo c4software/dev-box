@@ -11,8 +11,11 @@ A graphical session of the box, shown by gliff on your machine
 
   2. In the box: install it
        devbox dev-env desktop
-       devbox dev-env browser    Chromium, when you want a browser in it
-     Nothing runs afterwards: devbox desktop says "off".
+     Nothing runs afterwards: devbox desktop says "off". The apps are not
+     part of it, pick the ones you want:
+       devbox desktop install code       VS Code (Code - OSS)
+       devbox desktop install chromium   a browser
+       devbox desktop apps               the apps on offer
 
   3. On your machine: connect
      gliff is a client for Hyprland (Omarchy: omarchy pkg add gliff). With
@@ -27,15 +30,17 @@ A graphical session of the box, shown by gliff on your machine
   4. In the session: the keys
        SUPER + Return            a terminal (foot)
        SUPER + B                 Chromium
+       SUPER + C                 VS Code
        SUPER + Q                 close the window
        SUPER + F                 full screen
        SUPER + arrows            move the focus
        SUPER + 1 to 4            a workspace, with SHIFT to send a window
 
   5. In the box: see it, stop it
-       devbox desktop            on or off, the clients connected
+       devbox desktop            a menu: state, start, stop, the apps
+       devbox desktop status     on or off, the clients connected
        devbox desktop stop       stop it, with every window in it
-       devbox desktop browser    open Chromium in the session from a shell
+       devbox desktop open code  open an app in the session from a shell
 
   Off until you connect, on until you stop it
      Closing gliff, or losing the link, leaves the session as it is: the
@@ -44,8 +49,10 @@ A graphical session of the box, shown by gliff on your machine
      more with a browser: devbox desktop stop when you are done. A restart
      of the box stops it too. While it is on, the status line of tmux shows
      "desktop on" and every login says so.
-     Your own Hyprland config, which replaces the one of the image:
-       ~/.config/dev-box/desktop/hyprland.conf
+     Your own Hyprland config, which replaces the one of the image, and
+     your own background:
+       ~/.config/dev-box/desktop/hyprland.lua
+       ~/.config/dev-box/desktop/wallpaper.jpg
 
   What was tried
      The session and the stream, with the test client of gliff through a

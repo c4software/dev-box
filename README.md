@@ -89,7 +89,7 @@ menu when called without arguments.
 | `devbox override` | what this box changes from the image defaults, and how to undo it; `--diff [path]` shows the changes in the files |
 | `devbox diagnostic ["problem"]` | starts your coding agent on the box's diagnostic guide: gathers facts with read-only commands, says what is wrong, asks before changing anything; `--report` prints the facts without an agent, to paste to someone |
 | `devbox tour` | a guided tour of the box, two minutes |
-| `devbox help` | step by step help for what a command cannot do alone, picked in a list: `ios` and `ios-usb` (iPhone and iPad apps), `gpu`, `desktop` (a graphical session of the box on your screen), `podman`, `tailscale` (moving a box reached over SSH to the tailnet), `image` (a new image), `backup` |
+| `devbox help` | step by step help for what a command cannot do alone, picked in a list: `ios` and `ios-usb` (iPhone and iPad apps), `gpu`, `desktop` (a graphical session of the box on your screen, below), `podman`, `tailscale` (moving a box reached over SSH to the tailnet), `image` (a new image), `backup` |
 
 The full list is in [docs/commands.md](docs/commands.md).
 
@@ -173,3 +173,13 @@ belong to root: on Linux, `sudo rm -rf ~/dev-box`.
 - [Architecture and contributing](docs/architecture.md): design choices,
   releases, and pointers to [AGENTS.md](AGENTS.md) and
   [extending.md](rootfs/usr/share/devbox/skills/devbox/extending.md)
+
+## A graphical session, when you need one
+
+`devbox dev-env desktop` gives the box a graphical session, for VS Code, a
+browser or any window, shown on your machine by
+[gliff](https://github.com/omacom/gliff) through the ssh connection you
+already have. Nothing runs until you connect, and it stays on until
+`devbox desktop stop`. See [Dev environments](docs/dev-envs.md).
+
+![The graphical session of a box: the dev-box wallpaper, a terminal showing devbox desktop status, the apps and the help topics on the left, VS Code on the right](docs/screenshots/desktop.jpg)

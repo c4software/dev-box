@@ -34,7 +34,7 @@ devbox commands        # bare list, one name per line, for completions
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates |
 | `changelog` | `dev-box-changelog` | what changed in the box, newest first; the 3 latest, `-n N`, `--all`, `--upcoming` for what the next image brings |
 | `tour` | `dev-box-tour` | a guided tour of the box, two minutes, commands run under your eyes |
-| `desktop` | `dev-box-desktop` | the graphical session of `devbox dev-env desktop`, reached with gliff, started at connection and stopped by hand: its state, `start`, `stop`, `browser` |
+| `desktop` | `dev-box-desktop` | the graphical session of `devbox dev-env desktop`, reached with gliff, started at connection and stopped by hand: a menu without an argument, `status`, `start`, `stop`, and its graphical apps (VS Code, Chromium): `apps`, `install`, `remove`, `open` |
 | `help` | `dev-box-help` | step by step help for what a command cannot do alone: without a topic, a list to pick from; `--list`, `--check` |
 | `migrate` | `dev-box-migrate` | run the migrations shipped by the image, once each |
 | `mise-install` | `dev-box-mise-install` | write a mise-backed wrapper into `~/.local/bin` |

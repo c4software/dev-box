@@ -152,24 +152,38 @@ It holds about 270 MB of memory while it is on, so the box keeps it in sight:
 the status line of tmux shows `desktop on` and the login message warns about it
 until it is stopped.
 
+![The graphical session of a box: the dev-box wallpaper, a terminal showing devbox desktop status, the apps and the help topics on the left, VS Code on the right](screenshots/desktop.jpg)
+
 ```bash
 devbox dev-env desktop            # in the box, once; needs the GPU (devbox help gpu)
+devbox desktop install code       # VS Code in it; chromium for a browser
 gliff --headless dev@dev-box      # from your machine: the session starts
-devbox desktop                    # in the box: on or off, the clients connected
+devbox desktop                    # in the box: a menu, or its state without a terminal
 devbox desktop stop               # stop it, with every window in it
 ```
+
+The apps are not part of the environment. `devbox desktop apps` lists the ones
+on offer, `devbox desktop install <app>` and `remove <app>` go through
+`devbox pkg`, so an app comes back after a rebuild: `code` (VS Code as Arch
+packages it, Code - OSS, whose extensions come from Open VSX) and `chromium`
+(with `noto-fonts`, the same browser as `devbox dev-env browser`). Both start
+with `--no-sandbox`, since a container refuses the namespaces their sandbox
+wants. In the session `SUPER + C` and `SUPER + B` open them, and from a shell
+`devbox desktop open <app>`.
 
 A gliff client runs `gliff-server` over ssh. In the box that name is a
 launcher of the image, which starts the session when it is not there, then
 hands over to the real `gliff-server`: a mise tool (`http:gliff`, the package
 of the Omarchy repository, pinned with its sha256, nothing on the PATH). The
 session is a Hyprland nested in a labwc that has no screen, since Hyprland
-does not start without one; both come through `devbox pkg`, with `foot` and
-`libva`. Hyprland needs the GPU of the host in the box (`/dev/dri`) and does
-not start without it. It reads `/etc/devbox/desktop/hyprland.conf`, bare on
-purpose, or your own `~/.config/dev-box/desktop/hyprland.conf`. The session
-opens Chromium when the box has it (`devbox dev-env browser`), a terminal
-otherwise. x86_64 only, the one it was tried on, with the test client of gliff
+does not start without one; both come through `devbox pkg`, with `foot`,
+`swaybg` and `libva`. Hyprland needs the GPU of the host in the box
+(`/dev/dri`) and does not start without it. It reads
+`/etc/devbox/desktop/hyprland.lua`, bare on purpose and in the Lua format
+Hyprland is moving to, or your own `~/.config/dev-box/desktop/hyprland.lua`.
+The background is `/usr/share/devbox/desktop/wallpaper.jpg`, or your own
+`~/.config/dev-box/desktop/wallpaper.jpg` (or `.png`). The session opens
+Chromium when the box has it, a terminal otherwise. x86_64 only, the one it was tried on, with the test client of gliff
 through a real ssh connection; Tailscale SSH with the key of a client is not
 tried yet. `devbox help desktop` has the steps and the keys.
 

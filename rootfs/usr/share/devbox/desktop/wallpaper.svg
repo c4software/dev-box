@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2560" height="1440" viewBox="0 0 2560 1440">
+  <!-- dev-box: the source of wallpaper.jpg, the background of `devbox desktop`.
+       Rendered on a machine that has JetBrains Mono:
+       rsvg-convert -w 2560 wallpaper.svg | magick png:- -quality 90 wallpaper.jpg -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1321"/>
+      <stop offset="0.55" stop-color="#131a2e"/>
+      <stop offset="1" stop-color="#1b1530"/>
+    </linearGradient>
+    <radialGradient id="teal" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#2dd4bf" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="violet" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#8b5cf6" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="amber" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#f59e0b" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#f59e0b" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="48" height="48" patternUnits="userSpaceOnUse">
+      <circle cx="24" cy="24" r="1.6" fill="#9fb3d9" fill-opacity="0.13"/>
+    </pattern>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <radialGradient id="shade" cx="0.5" cy="0.5" r="0.75">
+      <stop offset="0.6" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="2560" height="1440" fill="url(#sky)"/>
+  <ellipse cx="520" cy="300" rx="900" ry="700" fill="url(#teal)"/>
+  <ellipse cx="2150" cy="1150" rx="1000" ry="760" fill="url(#violet)"/>
+  <ellipse cx="1750" cy="260" rx="560" ry="420" fill="url(#amber)"/>
+  <rect width="2560" height="1440" fill="url(#dots)"/>
+
+  <!-- The box: a home that stays (the solid one) inside an image that is
+       rebuilt (the dashed one). -->
+  <g transform="translate(1280 660)">
+    <rect x="-330" y="-250" width="660" height="500" rx="44" fill="none"
+          stroke="url(#edge)" stroke-width="5" stroke-opacity="0.55" stroke-dasharray="26 20"/>
+    <rect x="-250" y="-170" width="500" height="340" rx="30" fill="#0b1020" fill-opacity="0.72"
+          stroke="url(#edge)" stroke-width="6"/>
+    <circle cx="-204" cy="-126" r="10" fill="#f87171" fill-opacity="0.85"/>
+    <circle cx="-172" cy="-126" r="10" fill="#fbbf24" fill-opacity="0.85"/>
+    <circle cx="-140" cy="-126" r="10" fill="#34d399" fill-opacity="0.85"/>
+    <path d="M -180 -30 L -110 20 L -180 70" fill="none" stroke="#2dd4bf" stroke-width="22"
+          stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="-70" y="48" width="170" height="22" rx="11" fill="#e5e9f5"/>
+  </g>
+
+  <text x="1280" y="1040" text-anchor="middle" font-family="JetBrainsMono Nerd Font, JetBrains Mono, monospace"
+        font-weight="700" font-size="112" letter-spacing="2" fill="#e5e9f5">dev-box</text>
+  <text x="1280" y="1104" text-anchor="middle" font-family="JetBrainsMono Nerd Font, JetBrains Mono, monospace"
+        font-size="34" fill="#9fb3d9" fill-opacity="0.85">a disposable image around a persistent home</text>
+
+  <rect width="2560" height="1440" fill="url(#shade)"/>
+</svg>

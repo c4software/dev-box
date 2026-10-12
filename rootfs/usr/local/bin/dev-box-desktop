@@ -2,7 +2,7 @@
 # devbox:name=desktop
 # devbox:summary=A graphical session of the box, reached with gliff, started at connection, stopped by hand
 # devbox:summary.fr=Une session graphique de la box, jointe avec gliff, démarrée à la connexion, arrêtée à la main
-# devbox:args=[status|start|stop|browser]
+# devbox:args=[status|start|stop|apps|install app...|remove app...|open app]
 #
 # A graphical session in the box, for a browser or any window, shown on your
 # machine by gliff (https://github.com/omacom/gliff) through the ssh
@@ -10,10 +10,14 @@
 # the session starts with it, and then stays, with what is open in it, until
 # you stop it. Nothing stops it behind your back, a restart of the box aside.
 #
-#   dev-box-desktop            the state of the session, and how to reach it
-#   dev-box-desktop start      start the session without waiting for a client
-#   dev-box-desktop stop       stop it now, with every window in it
-#   dev-box-desktop browser    open Chromium in the session
+#   dev-box-desktop                 a menu on a terminal, the state otherwise
+#   dev-box-desktop status          the state of the session, how to reach it
+#   dev-box-desktop start           start the session without waiting for a client
+#   dev-box-desktop stop            stop it now, with every window in it
+#   dev-box-desktop apps            the graphical apps on offer, what is installed
+#   dev-box-desktop install code    install apps (code, chromium), through devbox pkg
+#   dev-box-desktop remove code     remove them
+#   dev-box-desktop open code       open an app in the session, from a shell
 #
 # It comes with `devbox dev-env desktop`, which needs the GPU of the host in
 # the box (devbox help gpu). A gliff client runs `gliff-server` over ssh: in
@@ -22,8 +26,10 @@
 # a private screen sized to your window. The session is a Hyprland nested in
 # a labwc that has no screen, since Hyprland does not start without one.
 #
-# Hyprland reads /etc/devbox/desktop/hyprland.conf, or your own
-# ~/.config/dev-box/desktop/hyprland.conf when there is one.
+# Hyprland reads /etc/devbox/desktop/hyprland.lua, or your own
+# ~/.config/dev-box/desktop/hyprland.lua when there is one. The background
+# is /usr/share/devbox/desktop/wallpaper.jpg, or your own
+# ~/.config/dev-box/desktop/wallpaper.jpg (or .png).
 #
 # A session left on is easy to forget: while it runs, the status line of tmux
 # says so, and so does the login message.
@@ -33,12 +39,26 @@ export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 STATE="$XDG_RUNTIME_DIR/dev-box-desktop"
 PIDFILE="$STATE/pid"
 LOG="$STATE/session.log"
-HYPR_USER="$HOME/.config/dev-box/desktop/hyprland.conf"
-HYPR_IMAGE="/etc/devbox/desktop/hyprland.conf"
+HYPR_USER="$HOME/.config/dev-box/desktop/hyprland.lua"
+# The format Hyprland is leaving (0.57 drops it): a config of your own
+# written for the first release of this command is still read.
+HYPR_USER_LEGACY="$HOME/.config/dev-box/desktop/hyprland.conf"
+HYPR_IMAGE="/etc/devbox/desktop/hyprland.lua"
+WALLPAPER_IMAGE="/usr/share/devbox/desktop/wallpaper.jpg"
 GLIFF_TOOL="http:gliff"
 START_TIMEOUT=20
 
-usage() { sed -n '7,29p' "$0" | sed 's/^# \?//'; }
+# The graphical apps on offer: <name>|<packages>|<key>|<command>|<description>
+# The packages go through `devbox pkg`, so an app comes back after a rebuild.
+# The key opens it in the session, with SUPER (hyprland.conf). --no-sandbox:
+# a container refuses the namespaces the sandbox of Chromium and of Electron
+# wants.
+APPS=(
+  "code|code|C|code --no-sandbox --ozone-platform=wayland|VS Code (Code - OSS: its extensions come from Open VSX)"
+  "chromium|chromium noto-fonts|B|chromium --no-sandbox --no-first-run --ozone-platform=wayland|Chromium, the browser of devbox dev-env browser"
+)
+
+usage() { sed -n '7,35p' "$0" | sed 's/^# \?//'; }
 err() { echo "dev-box-desktop: $*" >&2; }
 
 # The real gliff-server, from the mise tool of the desktop environment. It is
@@ -48,6 +68,80 @@ real_server() {
   where="$(mise where "$GLIFF_TOOL" 2>/dev/null)" || return 1
   [ -x "$where/usr/bin/gliff-server" ] || return 1
   echo "$where/usr/bin/gliff-server"
+}
+
+log() { printf '\033[1m[dev-box-desktop]\033[0m %s\n' "$*"; }
+
+app_names() {
+  local a
+  for a in "${APPS[@]}"; do printf '%s\n' "${a%%|*}"; done
+}
+
+# app_field <name> <n>: field n of the app, 2 packages, 3 key, 4 command,
+# 5 description. Exits 1 on a name that is not in the catalogue.
+app_field() {
+  local a
+  for a in "${APPS[@]}"; do
+    [ "${a%%|*}" = "$1" ] || continue
+    printf '%s\n' "$a" | cut -d'|' -f"$2"
+    return 0
+  done
+  return 1
+}
+
+# The command of an app is its first word: installed when it is on the PATH.
+app_installed() {
+  local cmd
+  cmd="$(app_field "$1" 4)" || return 1
+  command -v "${cmd%% *}" >/dev/null 2>&1
+}
+
+need_app() {
+  app_field "$1" 1 >/dev/null && return 0
+  err "unknown app '$1'"
+  err "Apps: $(app_names | tr '\n' ' ')"
+  exit 1
+}
+
+show_apps() {
+  local n mark
+  printf '\033[1mGraphical apps\033[0m (devbox desktop install <app>..., devbox desktop remove <app>...)\n\n'
+  while IFS= read -r n; do
+    mark=" "
+    app_installed "$n" && mark="*"
+    printf '  \033[32m%s\033[0m \033[36m%-9s\033[0m %s \033[2m(SUPER + %s)\033[0m\n' \
+      "$mark" "$n" "$(app_field "$n" 5)" "$(app_field "$n" 3)"
+  done < <(app_names)
+  printf '\n* installed. They open in the session: devbox desktop open <app>, or their key.\n'
+}
+
+install_apps() {
+  local n pkgs
+  [ $# -gt 0 ] || {
+    err "install needs an app: $(app_names | tr '\n' ' ')"
+    exit 2
+  }
+  for n in "$@"; do need_app "$n"; done
+  for n in "$@"; do
+    read -r -a pkgs <<< "$(app_field "$n" 2)"
+    log "$n: $(app_field "$n" 5)"
+    dev-box-pkg add "${pkgs[@]}"
+    log "$n is there: SUPER + $(app_field "$n" 3) in the session, or devbox desktop open $n"
+  done
+}
+
+remove_apps() {
+  local n pkgs
+  [ $# -gt 0 ] || {
+    err "remove needs an app: $(app_names | tr '\n' ' ')"
+    exit 2
+  }
+  for n in "$@"; do need_app "$n"; done
+  for n in "$@"; do
+    read -r -a pkgs <<< "$(app_field "$n" 2)"
+    dev-box-pkg drop "${pkgs[@]}"
+    log "$n removed, what it kept in the home is left in place."
+  done
 }
 
 installed() {
@@ -114,7 +208,11 @@ tmux_mark() {
 
 start_session() {
   local conf="$HYPR_IMAGE" waited=0 pid
-  [ -r "$HYPR_USER" ] && conf="$HYPR_USER"
+  if [ -r "$HYPR_USER" ]; then
+    conf="$HYPR_USER"
+  elif [ -r "$HYPR_USER_LEGACY" ]; then
+    conf="$HYPR_USER_LEGACY"
+  fi
   mkdir -p "$STATE"
   # One start at a time: two clients connecting together share the session.
   exec 9> "$STATE/lock"
@@ -132,10 +230,11 @@ start_session() {
   mkdir -p "$STATE"
   : > "$LOG"
   # labwc has no screen and no keyboard of its own (headless), and runs
-  # Hyprland as its one client. setsid: the session outlives the ssh
-  # connection that started it.
+  # Hyprland as its one client, through start-hyprland as Hyprland asks, and
+  # without the XDG_CURRENT_DESKTOP of labwc, which Hyprland sets itself.
+  # setsid: the session outlives the ssh connection that started it.
   WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 \
-    setsid labwc -s "Hyprland --config $conf" >> "$LOG" 2>&1 9>&- < /dev/null &
+    setsid labwc -s "env -u XDG_CURRENT_DESKTOP start-hyprland -- --config $conf" >> "$LOG" 2>&1 9>&- < /dev/null &
   pid=$!
   echo "$pid" > "$PIDFILE"
   until instance >/dev/null; do
@@ -153,9 +252,11 @@ start_session() {
 
 # The pids of the session: labwc, and the Hyprland it started, which labwc
 # puts in a session of its own and which would outlive it. hyprland.lock
-# holds the pid of Hyprland on its first line.
+# holds the pid of Hyprland on its first line. start-hyprland, its watchdog,
+# comes first: it would start a Hyprland that was stopped again.
 session_pids() {
   local f pid
+  pgrep -u "$(id -u)" -x start-hyprland 2>/dev/null || true
   session_pid || true
   for f in "$XDG_RUNTIME_DIR"/hypr/*/hyprland.lock; do
     [ -r "$f" ] || continue
@@ -220,18 +321,24 @@ serve() {
   exec "$real" --instance "$HYPRLAND_INSTANCE_SIGNATURE" "${args[@]}"
 }
 
-browser() {
+# Opens an app in the session, from a shell or from a key of the session.
+# From a key nothing is there to read an error: it goes to the screen.
+open_app() {
+  local n="$1" cmd
+  shift
+  need_app "$n"
   if ! session_pid >/dev/null || ! instance >/dev/null; then
     err "the session is not running: connect with gliff, or devbox desktop start"
     exit 1
   fi
-  command -v chromium >/dev/null 2>&1 || {
-    err "no browser in the box: devbox dev-env browser"
-    exit 1
-  }
   session_env
-  # --no-sandbox: a container refuses the namespaces the sandbox wants.
-  setsid chromium --no-sandbox --ozone-platform=wayland "$@" > /dev/null 2>&1 < /dev/null &
+  if ! app_installed "$n"; then
+    hyprctl notify 3 8000 0 "$n is not installed: devbox desktop install $n" >/dev/null 2>&1 || true
+    err "$n is not installed: devbox desktop install $n"
+    exit 1
+  fi
+  read -r -a cmd <<< "$(app_field "$n" 4)"
+  setsid "${cmd[@]}" "$@" > /dev/null 2>&1 < /dev/null &
 }
 
 # What the session opens: the browser when there is one, a terminal
@@ -244,10 +351,29 @@ autostart() {
     waited=$((waited + 1))
     [ "$waited" -lt 120 ] || exit 0
   done
-  if command -v chromium >/dev/null 2>&1; then
-    exec chromium --no-sandbox --ozone-platform=wayland
+  local cmd
+  if app_installed chromium; then
+    read -r -a cmd <<< "$(app_field chromium 4)"
+    exec "${cmd[@]}"
   fi
   exec foot
+}
+
+# The background of the session: yours when there is one, the one of the
+# image otherwise. swaybg draws it on every screen a client brings. A box
+# that installed the environment before it had a background has no swaybg:
+# nothing to do then, devbox dev-env desktop adds it.
+wallpaper() {
+  local file="$WALLPAPER_IMAGE" f
+  for f in "$HOME/.config/dev-box/desktop/wallpaper.jpg" "$HOME/.config/dev-box/desktop/wallpaper.png"; do
+    if [ -r "$f" ]; then
+      file="$f"
+      break
+    fi
+  done
+  command -v swaybg >/dev/null 2>&1 || exit 0
+  [ -r "$file" ] || exit 0
+  exec swaybg -i "$file" -m fill
 }
 
 status() {
@@ -262,12 +388,98 @@ status() {
     echo "desktop: off, starts when a gliff client connects"
   fi
   echo "  from your machine: gliff --headless $(id -un)@$(uname -n)"
-  echo "  the steps: devbox help desktop"
+  echo "  the apps: devbox desktop apps. The steps: devbox help desktop"
 }
 
-case "${1:-status}" in
+# One question, then what it needs: the same shape as the other menus.
+menu() {
+  local choice names=() n picked
+  status
+  echo
+  choice="$(gum choose --header "devbox desktop: what do you want to do?" \
+    "Start the session" "Stop the session" "Install apps" "Remove apps" "Open an app" "Nothing")" || exit 0
+  case "$choice" in
+    Start*)
+      need_installed
+      start_session
+      status
+      ;;
+    Stop*)
+      stop_session
+      echo "desktop: off"
+      ;;
+    Install*)
+      while IFS= read -r n; do
+        app_installed "$n" || names+=("$n  $(app_field "$n" 5)")
+      done < <(app_names)
+      [ "${#names[@]}" -gt 0 ] || {
+        echo "Every app is installed."
+        exit 0
+      }
+      picked="$(printf '%s\n' "${names[@]}" \
+        | gum choose --no-limit --header "Apps to install (x to tick, enter to confirm)")" || exit 0
+      [ -n "$picked" ] || exit 0
+      names=()
+      while IFS= read -r n; do names+=("${n%% *}"); done <<< "$picked"
+      install_apps "${names[@]}"
+      ;;
+    Remove*)
+      while IFS= read -r n; do
+        app_installed "$n" && names+=("$n  $(app_field "$n" 5)")
+      done < <(app_names)
+      [ "${#names[@]}" -gt 0 ] || {
+        echo "No app is installed."
+        exit 0
+      }
+      picked="$(printf '%s\n' "${names[@]}" \
+        | gum choose --no-limit --header "Apps to remove (x to tick, enter to confirm)")" || exit 0
+      [ -n "$picked" ] || exit 0
+      names=()
+      while IFS= read -r n; do names+=("${n%% *}"); done <<< "$picked"
+      remove_apps "${names[@]}"
+      ;;
+    Open*)
+      while IFS= read -r n; do
+        app_installed "$n" && names+=("$n")
+      done < <(app_names)
+      [ "${#names[@]}" -gt 0 ] || {
+        echo "No app is installed: devbox desktop install code"
+        exit 0
+      }
+      picked="$(printf '%s\n' "${names[@]}" | gum choose --header "App to open in the session")" || exit 0
+      [ -n "$picked" ] || exit 0
+      open_app "$picked"
+      ;;
+  esac
+}
+
+case "${1:-}" in
   -h | --help) usage ;;
+  "")
+    if [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1; then
+      menu
+    else
+      status
+    fi
+    ;;
   status) status ;;
+  apps) show_apps ;;
+  install)
+    shift
+    install_apps "$@"
+    ;;
+  remove)
+    shift
+    remove_apps "$@"
+    ;;
+  open)
+    shift
+    [ $# -gt 0 ] || {
+      err "open needs an app: $(app_names | tr '\n' ' ')"
+      exit 2
+    }
+    open_app "$@"
+    ;;
   start)
     need_installed
     start_session
@@ -278,15 +490,16 @@ case "${1:-status}" in
     echo "desktop: off"
     ;;
   browser)
-    need_installed
+    # The first name of `open chromium`, kept.
     shift
-    browser "$@"
+    open_app chromium "$@"
     ;;
   serve)
     shift
     serve "$@"
     ;;
   autostart) autostart ;;
+  wallpaper) wallpaper ;;
   mark)
     # What the login message runs: the mark follows the state of the session.
     if session_pid >/dev/null; then tmux_mark on; else tmux_mark off; fi
