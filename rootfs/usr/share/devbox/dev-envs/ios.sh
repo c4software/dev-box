@@ -71,6 +71,12 @@ next_steps() {
        pymobiledevice3 usbmux list    the devices usbmuxd sees
        pymobiledevice3 syslog live    the logs of the device
        lldb                           the debugger of the toolchain
+
+  Steps 1 and 3 follow the documentation of xtool, the place to look when
+  one of them has changed:
+       https://github.com/xtool-org/xtool
+       https://xtool.sh/documentation/xtool/installation-linux
+       https://xtool.sh/tutorials/xtool/first-app
 TXT
 }
 
