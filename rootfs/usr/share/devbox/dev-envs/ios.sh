@@ -19,7 +19,9 @@ PYTHONHOME at it. lldb also leaves address randomization on for the program
 it starts: turning it off is refused inside a container. There is no
 simulator: an app runs on a real device. linux x86_64 only. A removal takes
 out xtool, pymobiledevice3 and the Python of lldb, and leaves swift, python,
-the SDK in ~/.swiftpm and what xtool setup stored in place.
+the SDK (~/.swiftpm/swift-sdks), the Apple sign-in of xtool
+(~/.local/share/xtool) and the pairing records of pymobiledevice3
+(~/.pymobiledevice3) in place.
 
 What is left to you:
 
@@ -35,8 +37,9 @@ next_steps() {
      Download Xcode from https://developer.apple.com/download/all/?q=Xcode in
      a browser (the page asks for an Apple ID, a free one will do, and the
      file weighs several GB). Take the Xcode that carries the Swift of the
-     box (`swift --version`). Put the .xip in the home of the box: ./data/home
-     on the host, or scp. Then, in the box:
+     box (`swift --version`): Xcode 27 for Swift 6.4, Xcode 26 for Swift 6.3.
+     Put the .xip in the home of the box: ./data/home on the host, or scp.
+     Then, in the box:
        xtool setup
      Login mode: 0, an API key, with a paid Apple Developer Program
      membership; 1, the password, with any Apple ID (email, password, the
@@ -44,7 +47,7 @@ next_steps() {
      throwaway Apple ID xtool suggests. Then the path of the .xip: xtool
      builds the SDK from it, which takes a while.
        swift sdk list        must answer darwin
-     The .xip can be deleted afterwards.
+     Keep the .xip if there is room: a lost ~/.swiftpm asks for it again.
 
   2. The device, once
      On the host, copy the USB block of compose.override.example.yaml into
@@ -54,6 +57,8 @@ next_steps() {
      Plug the iPhone or iPad in, unlock it, then:
        sudo usbmuxd          again after each restart of the box
        xtool devices         answer Trust on the device, then run it again
+     usbmuxd keeps its pairing records in /var/lib/lockdown, outside the
+     home: expect Trust again after a rebuild of the box.
 
   3. A first app
        xtool new Hello
@@ -72,13 +77,22 @@ next_steps() {
        pymobiledevice3 syslog live    the logs of the device
        lldb                           the debugger of the toolchain
 
+  5. A newer Swift, later
+     swift is pinned: devbox dev-env --remove swift, then devbox dev-env ios,
+     which installs the newer one and gives lldb its Python again. The SDK
+     stays registered. A build that then fails on stale modules: delete the
+     .build of the project. A Swift of another minor version wants the SDK
+     of its own Xcode:
+       swift sdk remove darwin
+       xtool sdk install ~/Xcode.xip
+
   Steps 1 and 3 follow the documentation of xtool, the place to look when
   one of them has changed:
        https://github.com/xtool-org/xtool
        https://xtool.sh/documentation/xtool/installation-linux
        https://xtool.sh/tutorials/xtool/first-app
-  The same tools on Arch (Swift, xtool, pymobiledevice3, lldb), with what was
-  found along the way:
+  The same tools on Arch, with what was found along the way (the matching
+  Xcode, what a change of toolchain keeps and breaks, step 5):
        https://github.com/joshuaswarren/omarchy-apple-dev
 TXT
 }
@@ -164,5 +178,6 @@ uninstall() {
   unuse "$XTOOL" pypi:pymobiledevice3 "$LLDB_PYTHON"
   mise unset -g APPIMAGE_EXTRACT_AND_RUN
   log "swift and python stay: devbox dev-env --remove swift python."
-  log "the iOS SDK (~/.swiftpm) and what xtool setup stored are left in place."
+  log "left in place: the iOS SDK (~/.swiftpm/swift-sdks), the Apple sign-in of xtool"
+  log "(~/.local/share/xtool), the pairing records of pymobiledevice3 (~/.pymobiledevice3)."
 }
