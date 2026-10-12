@@ -44,3 +44,18 @@ services:
     # second devices key would be refused.
     # devices:
     #   - /dev/dri
+    #
+    # An iPhone or iPad plugged into the host, for `devbox dev-env ios`: the
+    # USB bus as a volume, so that a device plugged in after the start shows
+    # up too (a devices entry would freeze the list at start), and the cgroup
+    # rule that lets the box open USB devices (character major 189). The box
+    # runs no udev and no systemd: start the daemon by hand, once the device
+    # is plugged in and unlocked, with `devbox pkg add usbmuxd` then
+    # `sudo usbmuxd`; `xtool devices` lists it once "Trust" is answered on its
+    # screen. Stop a usbmuxd running on the host first, the device has one
+    # owner. The whole bus is given: every USB device of the host is within
+    # reach of the box.
+    # volumes:
+    #   - /dev/bus/usb:/dev/bus/usb
+    # device_cgroup_rules:
+    #   - 'c 189:* rmw'

@@ -112,6 +112,11 @@ refreshed by running the command again. `android-sdk` is the full SDK to build
 apps (cmdline-tools pinned in mise, platform-tools, newest platform and
 build-tools through sdkmanager, JDK 21 when no java is declared), and
 `flutter` sits on it, Android and web targets; both x86_64 only, no emulator.
+`swift` is the swift.org toolchain made to run on Arch (`libxml2-legacy`
+through `devbox pkg add`, ncurses links inside the toolchain, version pinned,
+no lldb), and `ios` sits on it and on python: xtool and pymobiledevice3, to
+build and install iPhone and iPad apps without a Mac, on a real device, after
+one `xtool setup` by the user (Apple account, Xcode.xip); both x86_64 only.
 `browser` is a headless Chromium plus
 `noto-fonts`, installed through `devbox pkg add` (pacman, reinstalled at start
 after a rebuild) because the mise registry has no browser that runs on Arch

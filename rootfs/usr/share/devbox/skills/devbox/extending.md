@@ -133,7 +133,9 @@ on (say in the message how to remove it). PHP is the one exception, baked into
 the image through the `Dockerfile` because mise would have to compile it; OCaml
 is not in it for the same reason. `browser`, `media` (for ffmpeg) and
 `network` (nmap, tcpdump) go through `devbox pkg add` instead: the mise registry has no usable build, the Arch package
-works on amd64 and ARM, and `devbox pkg` puts it back after a rebuild.
+works on amd64 and ARM, and `devbox pkg` puts it back after a rebuild. `swift`
+takes one library that way (`libxml2-legacy`), the toolchain itself comes
+from mise.
 
 The same file dropped in `~/.config/dev-box/dev-envs/` of a box adds an
 environment to that box only, or replaces the image's one of the same name:

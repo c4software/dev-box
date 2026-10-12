@@ -2,7 +2,7 @@
 
 `devbox dev-env` installs or removes a whole language environment in one call,
 through mise. No `curl | sh`, and no pacman except for PHP, the browser,
-media and network (see below). The GPU drivers have their own command,
+media, network and one library for Swift (see below). The GPU drivers have their own command,
 `devbox gpu` (see [gpu.md](gpu.md)). Whatever mise installs is declared in
 `~/.config/mise/config.toml`, survives a rebuild, and is upgraded by
 `devbox update tools` like the rest.
@@ -94,8 +94,34 @@ to a phone over USB or `adb connect`. `flutter` sits on it, from the official
 stable archive through mise, with the Android and web engine artifacts fetched
 at install and Linux desktop turned off; the web target runs with
 `flutter run -d web-server --web-hostname 0.0.0.0`. Both are x86_64 only,
-Google publishes no arm64 build-tools. Swift is not offered: swift.org
-publishes no build for Arch, and the Ubuntu one needs library aliases to start.
+Google publishes no arm64 build-tools.
+
+`swift` is the toolchain of swift.org, which publishes no build for Arch: mise
+takes the Red Hat UBI 9 one, and the environment gives it the two things Arch
+no longer has. `libxml2.so.2` comes from the `libxml2-legacy` package, through
+`devbox pkg`. The ncurses libraries without wide characters are links to the
+wide ones of the image, laid inside the toolchain itself, where its binaries
+look before the system: nothing is added to `/usr`, and no `LD_LIBRARY_PATH`
+is set. A version `devbox update tools` installed would come without those
+links, so the version is pinned to the one of the day; remove the environment
+and install it again to move to a newer Swift. `lldb` does not start: it wants
+the Python 3.9 of UBI 9.
+
+`ios` builds iPhone and iPad apps without a Mac. It sits on `swift` and
+`python` and adds [xtool](https://github.com/xtool-org/xtool), which builds,
+signs and installs a SwiftPM app, and `pymobiledevice3`, which talks to the
+device. xtool is an AppImage and the box has no FUSE to mount one, so
+`APPIMAGE_EXTRACT_AND_RUN=1` goes into the mise config with it. One step is
+left to you, since it takes your Apple account: `xtool setup` signs in and
+builds the iOS SDK from an `Xcode.xip` downloaded from developer.apple.com.
+There is no simulator: an app runs on a real device, plugged into the host
+and given to the box by the USB block of `compose.override.example.yaml`, with
+`devbox pkg add usbmuxd` and `sudo usbmuxd` in the box. `ios` also makes the
+`lldb` of the toolchain work: it takes the Python 3.9 lldb was built against
+as a mise tool of its own (`http:lldb-python`, pinned with its sha256, no
+command on the PATH, the default python untouched) and starts `lldb` and
+`lldb-dap` through a launcher that sets `PYTHONHOME` for them alone. Both are
+x86_64 only.
 
 ## The exceptions: PHP, browser, media, network
 
@@ -166,7 +192,7 @@ and `uninstall`, plus `is_installed` when the mise config cannot tell and
 `is_supported` when it does not run everywhere, and `is_hidden` for an alias
 kept out of the menu and the list but still installed by name and by
 `DEV_ENVS` (`gpu`, now `devbox gpu install`). What this machine cannot take
-(`android`, `android-sdk` and `flutter` on arm64) is left out of the menu and
+(`android`, `android-sdk`, `flutter`, `swift` and `ios` on arm64) is left out of the menu and
 the list, and skipped by `DEV_ENVS`, so one `.env` serves both architectures.
 The image ships them in `/usr/share/devbox/dev-envs/`, and `devbox dev-env`
 finds every file there on its own.
