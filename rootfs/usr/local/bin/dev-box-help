@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# devbox:name=help
+# devbox:summary=Step by step help for what a command cannot do alone (iOS, GPU, podman, Tailscale, image, backup)
+# devbox:summary.fr=Aide pas à pas pour ce qu'une commande ne peut pas faire seule (iOS, GPU, podman, Tailscale, image, sauvegarde)
+# devbox:args=[topic|--list|--check]
+#
+# The step by step texts of the box, for what a command cannot do on its own:
+# an account to sign in to, a download behind a login, a cable to plug, a file
+# to edit on the host.
+#
+#   dev-box-help            pick a topic in a list, or print the list without a terminal
+#   dev-box-help <topic>    one topic
+#   dev-box-help --list     the topics, one per line with their title
+#   dev-box-help --check    hold every topic to the layout, say what breaks it
+#
+# The topics of the image are in /usr/share/devbox/help, yours go in
+# ~/.config/dev-box/help/<topic>.txt and win over the image's of the same
+# name. The layout of a topic is described at the top of
+# /usr/share/devbox/lib/help.sh. The commands themselves are listed by
+# `devbox --help`.
+set -euo pipefail
+
+# shellcheck source=/dev/null
+. /usr/share/devbox/lib/help.sh
+
+usage() { sed -n '7,20p' "$0" | sed 's/^# \?//'; }
+err() { echo "dev-box-help: $*" >&2; }
+
+# Yours, or the image's: said next to a topic that does not come from the image.
+origin() {
+  case "${HELP_FILES[$1]}" in
+    "$HELP_USER_DIR"/*)
+      if [ -f "$HELP_SYSTEM_DIR/$1.txt" ]; then echo "yours, over the image's"; else echo "yours"; fi
+      ;;
+    *) echo "image" ;;
+  esac
+}
+
+name_width() {
+  local n w=0
+  for n in "${HELP_NAMES[@]}"; do
+    [ "${#n}" -gt "$w" ] && w="${#n}"
+  done
+  echo "$w"
+}
+
+show_list() {
+  local t w note
+  w="$(name_width)"
+  printf '\033[1mHelp topics\033[0m (devbox help <topic>)\n\n'
+  for t in "${HELP_NAMES[@]}"; do
+    note=""
+    [ "$(origin "$t")" = image ] || note=" \033[2m($(origin "$t"))\033[0m"
+    printf "  \033[36m%-${w}s\033[0m  %s$note\n" "$t" "$(help_title "$t")"
+  done
+  printf '\nThe commands of the box: devbox --help.\n'
+  printf 'Your own topics go in ~/.config/dev-box/help/<topic>.txt (layout: /usr/share/devbox/lib/help.sh).\n'
+}
+
+show_topic() {
+  local t="$1"
+  help_exists "$t" || {
+    err "unknown topic '$t'"
+    err "Topics: ${HELP_NAMES[*]}"
+    exit 1
+  }
+  # On a terminal a topic longer than the screen is paged, a shorter one is
+  # printed as it is (less -F).
+  if [ -t 1 ] && command -v less >/dev/null 2>&1; then
+    {
+      printf '\033[1m%s\033[0m\n\n' "$(help_title "$t")"
+      help_body "$t"
+    } | less -FRX
+  else
+    printf '\033[1m%s\033[0m\n\n' "$(help_title "$t")"
+    help_body "$t"
+  fi
+}
+
+menu() {
+  local lines=() t w chosen
+  w="$(name_width)"
+  for t in "${HELP_NAMES[@]}"; do
+    lines+=("$(printf "%-${w}s  %s" "$t" "$(help_title "$t")")")
+  done
+  chosen="$(printf '%s\n' "${lines[@]}" \
+    | gum choose --height 15 --header "Help: what do you want to do?")" || true
+  [ -n "$chosen" ] || exit 0
+  show_topic "${chosen%% *}"
+}
+
+check() {
+  local t failed=0
+  for t in "${HELP_NAMES[@]}"; do
+    if help_check "${HELP_FILES[$t]}"; then
+      printf '  ok  %s\n' "$t"
+    else
+      failed=1
+    fi
+  done
+  [ "$failed" -eq 0 ] || {
+    err "the layout is described at the top of /usr/share/devbox/lib/help.sh"
+    exit 1
+  }
+}
+
+help_load
+[ "${#HELP_NAMES[@]}" -gt 0 ] || {
+  err "no topic found in $HELP_SYSTEM_DIR"
+  exit 1
+}
+
+case "${1:-}" in
+  -h | --help)
+    usage
+    ;;
+  --list | -l)
+    show_list
+    ;;
+  --check)
+    check
+    ;;
+  "")
+    if [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1; then
+      menu
+    else
+      show_list
+    fi
+    ;;
+  -*)
+    err "unknown option '$1'"
+    exit 2
+    ;;
+  *)
+    show_topic "$1"
+    ;;
+esac

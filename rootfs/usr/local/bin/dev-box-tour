@@ -197,6 +197,14 @@ tour() {
       "shares of the other machines."
   fi
 
+  step "When a command is not enough: devbox help" "devbox help --list" \
+    "Some things no command can do for you: sign in to an account, download" \
+    "a file behind a login, plug a cable, edit a file on the host. devbox" \
+    "help holds those steps, one topic each, picked in a list: giving the" \
+    "GPU to the box, turning docker and podman on, moving to Tailscale," \
+    "taking a new image, backing the box up, building iPhone and iPad" \
+    "apps. Each step says where it happens, on the host or in the box."
+
   step "Teach your agent the box" "sed -n '1,40p' ~/.claude/skills/devbox/SKILL.md" \
     "A skill in ~/.claude/skills/devbox (also for pi and omp) tells a coding" \
     "agent how this box works: which command does what, what is lost on a" \
@@ -225,8 +233,9 @@ tour() {
 
   step "That is the tour" "devbox" \
     "devbox tour plays it again any time. devbox opens the menu, devbox" \
-    "status tells where things stand, and the login line drops one command" \
-    "to try at every session."
+    "status tells where things stand, devbox help has the steps that are" \
+    "left to you, and the login line drops one command to try at every" \
+    "session."
 }
 
 offer() {

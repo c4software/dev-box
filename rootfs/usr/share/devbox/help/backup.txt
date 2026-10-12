@@ -1,0 +1,36 @@
+Backing the box up and restoring it, from the host
+
+  The home, the projects and the Tailscale state live in ./data on the
+  host: a rebuild loses nothing, a dead disk loses it all. Both scripts run
+  on the host, in the install directory, and need zstd there.
+
+  1. On the host: write an archive
+       scripts/backup.sh             into ./backups
+       scripts/backup.sh /mnt/disk   into another directory
+     It holds the home without its caches, the projects without their
+     node_modules, .env and compose.override.yaml. .env carries TS_AUTHKEY
+     and GITHUB_TOKEN: keep the archive as a secret.
+
+  2. On the host: put it somewhere else
+     An archive left on the same disk protects from a mistake, not from the
+     disk. Copy it to another machine.
+
+  3. On the host: restore
+       scripts/restore.sh backups/dev-box-<name>-<date>.tar.zst
+     It stops the container, lists what would be overwritten and asks
+     before unpacking. Nothing outside the archive is deleted. Then:
+       docker compose up -d
+
+  4. In the box: the tools
+     The mise toolchains were not in the archive: the start installs them
+     again, or
+       devbox update tools
+
+  What stays out
+     data/tailscale, the identity of the node: restored elsewhere, two
+     machines would claim the same one. scripts/backup.sh --with-tailscale
+     takes it in. The podman images are left out too, and are pulled again.
+
+  Sources
+     docs/backup.md of the repository:
+       https://github.com/c4software/dev-box/blob/main/docs/backup.md

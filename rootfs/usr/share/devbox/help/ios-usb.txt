@@ -1,0 +1,50 @@
+An iPhone or iPad plugged into your machine, the box on another
+
+  The USB block of compose.override.example.yaml only reaches a device that
+  is plugged into the machine running the box. When the box is on a remote
+  machine and the device on your desk, the usbmuxd of your own machine does
+  the USB part and the box talks to it through the network. Nothing goes
+  into the compose file, no usbmuxd runs in the box, and the pairing records
+  stay on your machine: a rebuild of the box asks for no new Trust.
+
+  1. On your machine: the device and its usbmuxd
+     Linux: install usbmuxd (Arch: sudo pacman -S usbmuxd), which starts on
+     its own when a device is plugged in. macOS has it already. Plug the
+     iPhone or iPad in, unlock it, answer Trust.
+
+  2. On your machine: connect to the box with usbmuxd in tow
+       ssh -R 27015:/var/run/usbmuxd <user>@<box>
+     Port 27015 of the box, on its loopback only, leads to the usbmuxd of
+     your machine for as long as that SSH session lasts. From Windows, where
+     Apple's service listens on a port: ssh -R 27015:127.0.0.1:27015.
+
+  3. In the box, in that session: point xtool at it
+       export USBMUXD_SOCKET_ADDRESS=127.0.0.1:27015
+       xtool devices
+       xtool dev
+     xtool reads that variable, its own Docker image is built on it.
+     pymobiledevice3 takes the address as an option:
+       pymobiledevice3 usbmux list --usbmux 127.0.0.1:27015
+     Put the export line in your shell config to keep it.
+
+  When the SSH connection refuses the forward
+     Both machines are on the tailnet: let your machine listen there instead
+     (socat is a package of every distribution), and point the box at it.
+       socat TCP-LISTEN:27015,bind=<its tailnet address>,reuseaddr,fork \
+         UNIX-CONNECT:/var/run/usbmuxd
+     and in the box:
+       export USBMUXD_SOCKET_ADDRESS=<your machine>:27015
+     Whoever your tailnet policy lets reach that port can drive the device:
+     stop socat when you are done.
+
+  The other ways
+     The device can go to the machine running the box: plug it there, then
+     step 2 of `devbox help ios`.
+     Without a cable, over Tailscale, once paired over USB: not something the
+     box sets up (iOS 27, a TUN device, a Python the box does not have), and
+     xtool does not go through it. The route is written down in
+       https://github.com/joshuaswarren/omarchy-apple-dev/blob/main/docs/OVER-TAILNET.md
+
+  Sources
+     Step 3 comes from the Dockerfile of xtool:
+       https://github.com/xtool-org/xtool/blob/main/Dockerfile

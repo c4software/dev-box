@@ -6,6 +6,7 @@
 #   devbox <cmd> [args...] run the command
 #   devbox <cmd> --help    summary, usage, then the binary's own help if it has one
 #   devbox --help          usage and the table of commands
+#   devbox help [topic]    step by step help (dev-box-help), a command like any other
 #   devbox commands        the same list, without a header (for completions)
 #
 # The commands are not hardcoded here. They are discovered by reading the
@@ -137,6 +138,7 @@ Usage:
   devbox                 selection menu
   devbox <cmd> [args...] run a command
   devbox <cmd> --help    help for that command
+  devbox help [topic]    step by step help (the iOS setup, ...)
   devbox commands        bare list of the commands
 
 EOT
@@ -198,7 +200,7 @@ discover
 
 case "${1:-}" in
   "")            menu ;;
-  -h|--help|help) usage; exit 0 ;;
+  -h|--help)     usage; exit 0 ;;
   commands)      visible_names; exit 0 ;;
   -*)            unknown "$1" ;;
 esac

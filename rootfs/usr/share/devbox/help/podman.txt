@@ -1,0 +1,37 @@
+docker and podman inside the box: turning them on
+
+  docker run, docker build and docker compose can work in the box, answered
+  by a rootless podman. It is off by default: nesting it lifts part of the
+  isolation of the box (seccomp, the read-only /proc/sys, AppArmor), which
+  makes an escape from the container to the host easier.
+
+  1. On the host: the podman block
+     In the install directory, copy compose.override.example.yaml to
+     compose.override.yaml when it does not exist yet, and uncomment the
+     podman block: /dev/fuse in devices, and the three security_opt lines.
+
+  2. On the host: the setting
+     In .env:
+       PODMAN_ENABLE=true
+
+  3. On the host: restart the container
+       docker compose up -d
+
+  4. In the box: check it
+       docker run --rm alpine echo ok
+       devbox status         says whether podman answers
+     A socket that never came up: ~/.cache/dev-box-podman.log.
+
+  What comes with it
+       devbox dbs postgres   a development database, in podman
+       devbox tui lazydocker a terminal view of the containers
+
+  Its limits
+     Containers are rootless: no --privileged, no published port below
+     1024. A published port is reachable from the box (curl localhost:8080),
+     and from your machine through the address of the box. The images live
+     in ~/.local/share/containers, outside the backup: they are pulled again.
+
+  Sources
+     docs/containers.md of the repository:
+       https://github.com/c4software/dev-box/blob/main/docs/containers.md

@@ -31,70 +31,15 @@ TXT
 
 # What the install cannot do, since it takes an Apple account, a download
 # behind a login and a device: printed at the end of an install and by --info.
+# The text is the ios topic of `devbox help`, without its title.
+IOS_HELP="/usr/share/devbox/help/ios.txt"
+
 next_steps() {
-  cat <<'TXT'
-  1. The Apple account and the iOS SDK, once
-     Download Xcode from https://developer.apple.com/download/all/?q=Xcode in
-     a browser (the page asks for an Apple ID, a free one will do, and the
-     file weighs several GB). Take the Xcode that carries the Swift of the
-     box (`swift --version`): Xcode 27 for Swift 6.4, Xcode 26 for Swift 6.3.
-     Put the .xip in the home of the box: ./data/home on the host, or scp.
-     Then, in the box:
-       xtool setup
-     Login mode: 0, an API key, with a paid Apple Developer Program
-     membership; 1, the password, with any Apple ID (email, password, the
-     two-factor code), which goes through private Apple APIs, hence the
-     throwaway Apple ID xtool suggests. Then the path of the .xip: xtool
-     builds the SDK from it, which takes a while.
-       swift sdk list        must answer darwin
-     Keep the .xip if there is room: a lost ~/.swiftpm asks for it again.
-
-  2. The device, once
-     On the host, copy the USB block of compose.override.example.yaml into
-     your compose.override.yaml, stop a usbmuxd running there (the device has
-     one owner), then docker compose up -d. In the box:
-       devbox pkg add usbmuxd
-     Plug the iPhone or iPad in, unlock it, then:
-       sudo usbmuxd          again after each restart of the box
-       xtool devices         answer Trust on the device, then run it again
-     usbmuxd keeps its pairing records in /var/lib/lockdown, outside the
-     home: expect Trust again after a rebuild of the box.
-
-  3. A first app
-       xtool new Hello
-       cd Hello
-       xtool dev             builds, signs, installs on the device
-     The first build takes a few minutes, the next ones are quick. On the
-     device, if asked: Settings, Privacy & Security, Developer Mode (it
-     restarts), then xtool dev again. At the first launch of the app, on
-     "Untrusted Developer": Settings, General, VPN & Device Management, your
-     Apple ID, Trust. With a free account the signature lasts 7 days: xtool
-     dev again renews it. The bundle ID is in xtool.yml.
-
-  4. Around it
-       xtool dev build                builds without installing
-       pymobiledevice3 usbmux list    the devices usbmuxd sees
-       pymobiledevice3 syslog live    the logs of the device
-       lldb                           the debugger of the toolchain
-
-  5. A newer Swift, later
-     swift is pinned: devbox dev-env --remove swift, then devbox dev-env ios,
-     which installs the newer one and gives lldb its Python again. The SDK
-     stays registered. A build that then fails on stale modules: delete the
-     .build of the project. A Swift of another minor version wants the SDK
-     of its own Xcode:
-       swift sdk remove darwin
-       xtool sdk install ~/Xcode.xip
-
-  Steps 1 and 3 follow the documentation of xtool, the place to look when
-  one of them has changed:
-       https://github.com/xtool-org/xtool
-       https://xtool.sh/documentation/xtool/installation-linux
-       https://xtool.sh/tutorials/xtool/first-app
-  The same tools on Arch, with what was found along the way (the matching
-  Xcode, what a change of toolchain keeps and breaks, step 5):
-       https://github.com/joshuaswarren/omarchy-apple-dev
-TXT
+  if [ -r "$IOS_HELP" ]; then
+    tail -n +3 "$IOS_HELP"
+  else
+    echo "  $IOS_HELP is missing: devbox help ios cannot show the steps."
+  fi
 }
 
 XTOOL="github:xtool-org/xtool"
@@ -168,7 +113,7 @@ install() {
   give_lldb_python
   log "xtool $(mise x "$XTOOL" -- xtool --version 2>&1 | awk '{print $NF}'), pymobiledevice3 $(mise x pypi:pymobiledevice3 -- pymobiledevice3 version 2>&1 | tail -n 1)"
   log "$("$(mise where swift)/bin/lldb" --version 2>&1 | head -n 1)"
-  log "ios is ready, three steps are left to you (devbox dev-env --info ios):"
+  log "ios is ready, three steps are left to you (shown again by devbox help ios):"
   echo
   next_steps
 }

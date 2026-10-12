@@ -1,0 +1,32 @@
+A new image: updating the box itself, from the host
+
+  devbox update takes care of the dotfiles, the tools and the shipped
+  config. The image is the one thing the box cannot change: that happens on
+  the host. The home (./data) is kept through it.
+
+  1. In the box: see what is waiting
+       devbox check --image          is this image the latest
+       devbox changelog --upcoming   what the next one brings
+
+  2. On the host: take the new image
+     In the install directory. With the published image (DEVBOX_IMAGE in
+     .env):
+       docker compose pull && docker compose up -d
+     An install made by the setup script: running the script again does the
+     same, and refreshes compose.yaml and the other shipped files. With an
+     image built from a clone:
+       git pull
+       docker compose build --pull --no-cache && docker compose up -d
+     --pull alone is not enough to move Arch: without --no-cache the
+     packages stay at the date of the first build.
+
+  3. In the box: back in
+     The session was cut by the restart: connect again. The first login
+     shows what changed, and the migrations of the new image ran at start.
+       devbox changelog      what changed, again
+       devbox update         the dotfiles, the tools and the shipped config
+
+  Sources
+     docs/updates.md and docs/manual-install.md of the repository:
+       https://github.com/c4software/dev-box/blob/main/docs/updates.md
+       https://github.com/c4software/dev-box/blob/main/docs/manual-install.md

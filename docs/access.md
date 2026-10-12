@@ -118,7 +118,8 @@ stays up and reports unhealthy, and you get in with
 `docker exec -it -u dev dev-box zsh -l`.
 
 With `TS_DISABLE=true`, the commands that need a tailnet (`devbox serve`,
-`devbox tailscale`) leave the menu, and say why when called.
+`devbox tailscale`) leave the menu, and say why when called. Moving such a box
+to Tailscale later is `devbox help tailscale`, step by step.
 
 ## Taildrop
 

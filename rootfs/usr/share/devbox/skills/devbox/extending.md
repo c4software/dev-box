@@ -244,6 +244,29 @@ out, `gh workflow run build.yml --ref v1.7`, and joins the same `v1.7` and
 image is pulled and the container restarted shows them. A release edited on GitHub afterwards is picked up at the next
 check. Keep Markdown headings out of the notes: they are flattened.
 
+### A help topic for the user
+
+`devbox help` holds the steps a command cannot do alone: an account, a
+download behind a login, a cable, a file to edit on the host. A topic is a
+text file, `rootfs/usr/share/devbox/help/<topic>.txt`, found on its own. Its
+layout is a contract, written at the top of
+`rootfs/usr/share/devbox/lib/help.sh`:
+
+- line 1 is the title, 64 characters at most, line 2 is empty;
+- an optional introduction, indented by 2;
+- numbered steps, `  1. Title`, from 1 without a gap; a step done outside the
+  box says where in its title (`On the host: ...`, `In the box: ...`);
+- optional sections after the steps, `  Title` without a number, `  Sources`
+  last when the steps were taken from somewhere;
+- text indented by 5, commands by 7, one per line; 78 columns, ASCII only.
+
+`devbox help --check` must pass: run it in the throwaway container. Then name
+the topic in the summary of `dev-box-help` (both languages) when it is one a
+user would look for, in the table of `docs/commands.md` and in the README
+row. A dev environment that ends on such steps prints the topic instead of
+keeping a copy of it (`ios.sh`). Write only what was checked, and say in the
+text what was not.
+
 ### A guide in this skill
 
 A new `.md` file in `rootfs/usr/share/devbox/skills/devbox/`, and a line for it

@@ -118,8 +118,23 @@ There is no simulator: an app runs on a real device, plugged into the host
 and given to the box by the USB block of `compose.override.example.yaml`, with
 `devbox pkg add usbmuxd` and `sudo usbmuxd` in the box. The install ends on
 those steps, one by one (the Xcode download and `xtool setup`, the device,
-`xtool new` and `xtool dev` for a first app, what to answer on the device),
-and `devbox dev-env --info ios` shows them again. `ios` also makes the
+`xtool new` and `xtool dev` for a first app, what to answer on the device,
+moving to a newer Swift), and `devbox help ios` shows them again.
+
+When the box runs on a remote machine and the device is on your desk, the USB
+block is of no use: the usbmuxd of your own machine does the USB part, and the
+box reaches it through SSH. Nothing goes into the compose file and no usbmuxd
+runs in the box.
+
+```bash
+ssh -R 27015:/var/run/usbmuxd <user>@<box>       # from your machine, device plugged in
+export USBMUXD_SOCKET_ADDRESS=127.0.0.1:27015    # in the box, in that session
+xtool devices
+```
+
+`devbox help ios-usb` has the whole of it, checked as far as xtool opening
+that address, not yet with a device at the other end: what your machine needs, what to do
+when the SSH connection refuses the forward, and the other ways. `ios` also makes the
 `lldb` of the toolchain work: it takes the Python 3.9 lldb was built against
 as a mise tool of its own (`http:lldb-python`, pinned with its sha256, no
 command on the PATH, the default python untouched) and starts `lldb` and

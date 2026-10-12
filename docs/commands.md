@@ -9,6 +9,7 @@ devbox status          # what the box is doing right now
 devbox update tools    # run a command with its arguments
 devbox seed --help     # summary, usage, then the command's own help
 devbox --help          # usage and the table of commands
+devbox help            # step by step help, picked in a list (`devbox help ios`)
 devbox commands        # bare list, one name per line, for completions
 ```
 
@@ -33,6 +34,7 @@ devbox commands        # bare list, one name per line, for completions
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates |
 | `changelog` | `dev-box-changelog` | what changed in the box, newest first; the 3 latest, `-n N`, `--all`, `--upcoming` for what the next image brings |
 | `tour` | `dev-box-tour` | a guided tour of the box, two minutes, commands run under your eyes |
+| `help` | `dev-box-help` | step by step help for what a command cannot do alone: without a topic, a list to pick from; `--list`, `--check` |
 | `migrate` | `dev-box-migrate` | run the migrations shipped by the image, once each |
 | `mise-install` | `dev-box-mise-install` | write a mise-backed wrapper into `~/.local/bin` |
 | `pkg` | `dev-box-pkg` | pacman packages that survive an image rebuild |
@@ -49,7 +51,7 @@ Where each one is described in detail:
 - `agent`: [agents.md](agents.md)
 - `diagnostic`: [troubleshooting.md](troubleshooting.md)
 - `serve`, `tailscale`: [access.md](access.md)
-- `tour`, `motd`: below
+- `tour`, `motd`, `help`: below
 
 In the box, the `devbox` skill carries the same reference for coding agents,
 in more detail:
@@ -101,9 +103,10 @@ behave as before.
 ## The first login, and the tour
 
 The first time a shell opens in a new box, gum asks whether to take the tour:
-fifteen steps at most, two minutes, each one explaining one thing about the box
+seventeen steps at most, two minutes, each one explaining one thing about the box
 and offering to run the real command right there (`devbox status`,
-`devbox dev-env --list`, `devbox tui --list`, `devbox agent set`, and so on).
+`devbox dev-env --list`, `devbox tui --list`, `devbox agent set`,
+`devbox help --list`, and so on).
 The databases step only shows when podman is on, the tailnet step only with
 Tailscale, and the steps about the overrides and about changing the box print
 links to the matching pages of the repository the image was built from.
@@ -114,6 +117,42 @@ The entrypoint writes `~/.config/dev-box/tour-pending` on a brand new home, the
 login script hands it to `dev-box-tour --offer`, which removes the flag before
 asking, so a closed terminal does not bring the question back. Homes created
 before the tour existed get the flag once, through a migration.
+
+## Step by step help
+
+Some things a command cannot do for you: sign in to an account, download a
+file behind a login, plug a cable, edit a file on the host. `devbox help`
+holds the steps for those, one topic each.
+
+```bash
+devbox help            # pick a topic in a list; the list itself without a terminal
+devbox help ios        # one topic
+devbox help --list     # the topics, one per line with their title
+devbox help --check    # hold every topic to the layout
+```
+
+| Topic | Steps for |
+| --- | --- |
+| `ios` | what is left to you after `devbox dev-env ios`: Xcode and `xtool setup`, the device, a first app, a newer Swift |
+| `ios-usb` | an iPhone or iPad plugged into your machine while the box runs on another |
+| `gpu` | giving `/dev/dri` to the box on the host, then the drivers and the test |
+| `podman` | turning docker and podman on: the override block, `PODMAN_ENABLE`, the restart |
+| `tailscale` | moving a box reached over plain SSH to Tailscale: `.env`, attaching the node, the policy, what it opens |
+| `image` | taking a new image on the host, and what to do before and after in the box |
+| `backup` | `scripts/backup.sh` and `scripts/restore.sh` on the host |
+
+On a terminal, a topic longer than the screen opens in `less`.
+
+Every topic has the same layout, the way every dev environment has the same
+functions: a title on the first line, an optional introduction, numbered steps
+that say where they happen (on the host, in the box), then optional sections,
+`Sources` last. Text is indented by 5 and commands by 7, in 78 columns of
+ASCII. The whole contract is at the top of `/usr/share/devbox/lib/help.sh`,
+and `devbox help --check` says which line of which topic breaks it.
+
+A file of the same layout in `~/.config/dev-box/help/<topic>.txt` adds a topic
+to your box, or replaces the image's one of the same name; `--list` marks it.
+`devbox --help` remains the usage and the table of commands.
 
 ## The login message
 

@@ -1,0 +1,35 @@
+The GPU of the host in the box: video, OpenGL, Vulkan
+
+  The box sees no GPU until the host hands /dev/dri over: Intel, AMD and the
+  one of a Raspberry Pi. NVIDIA goes through its own Container Toolkit and
+  is not covered.
+
+  1. On the host: give /dev/dri to the box
+     In the install directory, in compose.override.yaml (the GPU block of
+     compose.override.example.yaml):
+       services:
+         dev-box:
+           devices:
+             - /dev/dri
+     With the podman block already there, /dev/dri goes into its devices
+     list: a second devices key is refused. Then restart the container:
+       docker compose up -d
+     A host without /dev/dri (Docker Desktop on macOS) refuses to start the
+     container with that line.
+
+  2. In the box: the drivers
+       devbox gpu            the state, and the next step when one is missing
+       devbox gpu install    the drivers of the GPU found, through devbox pkg
+     They come back on their own after a rebuild.
+
+  3. In the box: check it
+       devbox dev-env media  ffmpeg, which the test needs
+       devbox gpu test       10 s of 1080p encoded on the GPU, then the CPU
+
+  What does not use it
+     Headless Chromium (devbox dev-env browser) renders in software, with or
+     without the GPU.
+
+  Sources
+     docs/gpu.md of the repository:
+       https://github.com/c4software/dev-box/blob/main/docs/gpu.md

@@ -54,7 +54,8 @@ services:
     # `sudo usbmuxd`; `xtool devices` lists it once "Trust" is answered on its
     # screen. Stop a usbmuxd running on the host first, the device has one
     # owner. The whole bus is given: every USB device of the host is within
-    # reach of the box.
+    # reach of the box. A device plugged into another machine than this
+    # host needs none of this: `devbox help ios-usb` in the box.
     # volumes:
     #   - /dev/bus/usb:/dev/bus/usb
     # device_cgroup_rules:

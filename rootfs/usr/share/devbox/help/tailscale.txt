@@ -1,0 +1,51 @@
+From plain SSH to Tailscale: the box on your tailnet
+
+  A box started with TS_DISABLE=true is reached through its own SSH server,
+  on a port of the host. With Tailscale it becomes a machine of your tailnet
+  instead: reached from anywhere by its name, nothing published on the
+  host, and devbox serve, Taildrop and Taildrive at hand. The two never run
+  together. Headscale works too.
+
+  1. On the host: the settings
+     In the install directory, in .env:
+       TS_DISABLE=false
+       TS_HOSTNAME=dev-box   the name of the machine on the tailnet
+     Optional: TS_AUTHKEY, to attach without a login URL, and
+     TS_LOGIN_SERVER, the URL of your Headscale.
+
+  2. On the host: restart, and attach the box
+       docker compose up -d
+       docker compose logs -f
+     The logs print a login URL: open it, or give it to headscale nodes
+     register. With TS_AUTHKEY the box attaches on its own. The identity of
+     the node is kept in ./data/tailscale: this happens once.
+
+  3. In the policy of your tailnet: allow the shell
+     Tailscale SSH is refused without an ssh rule, and that rule alone does
+     not open the network: once the policy has grants or acls, traffic to
+     the box must be allowed too, or port 22 is filtered.
+       "grants": [{ "src": ["alice@"], "dst": ["alice@"], "ip": ["*"] }],
+       "ssh": [{ "action": "accept", "src": ["alice@"],
+                 "dst": ["alice@"], "users": ["dev"] }]
+     src and dst: the user who owns the machines. users: your account in
+     the box (USER_NAME).
+
+  4. On your machine: connect
+       ssh dev@dev-box
+     From any machine of the tailnet. On the host, this always works:
+       docker exec -it -u dev dev-box zsh -l
+
+  5. In the box: what it opens
+       devbox serve 3000         a dev server, published on the tailnet
+       devbox tailscale send     a file to another machine, over Taildrop
+       devbox tailscale share    this folder, over Taildrive
+       devbox status             says how the box is reached
+
+  Going back
+     TS_DISABLE=true and SSH_AUTHORIZED_KEYS in .env, then docker compose
+     up -d: the box starts its own SSH server again.
+
+  Sources
+     docs/access.md of the repository, where the policy was validated with
+     Headscale:
+       https://github.com/c4software/dev-box/blob/main/docs/access.md

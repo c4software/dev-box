@@ -225,6 +225,15 @@ described at the top of `/usr/share/devbox/lib/dev-env.sh`, and copying one of
 the image's scripts from `/usr/share/devbox/dev-envs/` is the quickest start.
 See [dev-envs.md](dev-envs.md) for what the shipped ones do.
 
+## Your own help topics
+
+A text file in `~/.config/dev-box/help/<topic>.txt` adds a topic to
+`devbox help` on your box, or replaces the image's one of the same name, and
+survives rebuilds; `--list` marks it. The layout is described at the top of
+`/usr/share/devbox/lib/help.sh`, `devbox help --check` holds your file to it,
+and copying one from `/usr/share/devbox/help/` is the quickest start. See
+[commands.md](commands.md#step-by-step-help).
+
 ## Wrappers in `~/.local/bin` and `devbox mise-install`
 
 `claude`, `pi`, `omp`, `opencode` and `codex` already have a wrapper in

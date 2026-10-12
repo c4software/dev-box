@@ -7,6 +7,9 @@
 devbox|le menu de tout ce que la box sait faire
 devbox status|l'état de la box sur une seule page
 devbox tour|une visite guidée de la box, deux minutes
+devbox help|aide pas à pas : iOS, le GPU, podman, Tailscale, une nouvelle image, les sauvegardes
+devbox help image|les étapes pour prendre une nouvelle image, sur l'hôte puis dans la box
+devbox help backup|sauvegarder la box et la restaurer, depuis l'hôte
 devbox update|mettre à jour les dotfiles, les outils et la config livrée
 devbox update tools|mettre à jour les outils mise seulement
 devbox update dotfiles|récupérer à nouveau les dotfiles
