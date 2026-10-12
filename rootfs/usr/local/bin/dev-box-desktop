@@ -1,0 +1,299 @@
+#!/usr/bin/env bash
+# devbox:name=desktop
+# devbox:summary=A graphical session of the box, reached with gliff, started at connection, stopped by hand
+# devbox:summary.fr=Une session graphique de la box, jointe avec gliff, démarrée à la connexion, arrêtée à la main
+# devbox:args=[status|start|stop|browser]
+#
+# A graphical session in the box, for a browser or any window, shown on your
+# machine by gliff (https://github.com/omacom/gliff) through the ssh
+# connection you already have. Nothing runs until a gliff client connects:
+# the session starts with it, and then stays, with what is open in it, until
+# you stop it. Nothing stops it behind your back, a restart of the box aside.
+#
+#   dev-box-desktop            the state of the session, and how to reach it
+#   dev-box-desktop start      start the session without waiting for a client
+#   dev-box-desktop stop       stop it now, with every window in it
+#   dev-box-desktop browser    open Chromium in the session
+#
+# It comes with `devbox dev-env desktop`, which needs the GPU of the host in
+# the box (devbox help gpu). A gliff client runs `gliff-server` over ssh: in
+# the box that name is a launcher (dev-box-desktop serve) that starts the
+# session when it is not there, then hands over to the real gliff-server, on
+# a private screen sized to your window. The session is a Hyprland nested in
+# a labwc that has no screen, since Hyprland does not start without one.
+#
+# Hyprland reads /etc/devbox/desktop/hyprland.conf, or your own
+# ~/.config/dev-box/desktop/hyprland.conf when there is one.
+#
+# A session left on is easy to forget: while it runs, the status line of tmux
+# says so, and so does the login message.
+set -euo pipefail
+
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+STATE="$XDG_RUNTIME_DIR/dev-box-desktop"
+PIDFILE="$STATE/pid"
+LOG="$STATE/session.log"
+HYPR_USER="$HOME/.config/dev-box/desktop/hyprland.conf"
+HYPR_IMAGE="/etc/devbox/desktop/hyprland.conf"
+GLIFF_TOOL="http:gliff"
+START_TIMEOUT=20
+
+usage() { sed -n '7,29p' "$0" | sed 's/^# \?//'; }
+err() { echo "dev-box-desktop: $*" >&2; }
+
+# The real gliff-server, from the mise tool of the desktop environment. It is
+# kept off the PATH so that `gliff-server` stays the launcher of the image.
+real_server() {
+  local where
+  where="$(mise where "$GLIFF_TOOL" 2>/dev/null)" || return 1
+  [ -x "$where/usr/bin/gliff-server" ] || return 1
+  echo "$where/usr/bin/gliff-server"
+}
+
+installed() {
+  real_server >/dev/null && command -v Hyprland >/dev/null 2>&1 && command -v labwc >/dev/null 2>&1
+}
+
+need_installed() {
+  installed && return 0
+  err "the desktop environment is not installed: devbox dev-env desktop"
+  exit 1
+}
+
+session_pid() {
+  local pid
+  [ -r "$PIDFILE" ] || return 1
+  pid="$(cat "$PIDFILE")"
+  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null || return 1
+  echo "$pid"
+}
+
+# The Hyprland of the session: its instance signature, once its socket is there.
+instance() {
+  local d
+  for d in "$XDG_RUNTIME_DIR"/hypr/*/; do
+    [ -S "$d.socket.sock" ] || continue
+    d="${d%/}"
+    echo "${d##*/}"
+    return 0
+  done
+  return 1
+}
+
+# The gliff-server processes of this user: the clients connected right now.
+clients() {
+  local real
+  real="$(real_server)" || {
+    echo 0
+    return 0
+  }
+  pgrep -u "$(id -u)" -f "^$real " 2>/dev/null | wc -l
+}
+
+# The status line of tmux, for as long as the session is on. The text lives
+# in a tmux option of its own, @devbox_desktop, that status-right refers to:
+# the status line of the dotfiles is kept as it is, and turning the mark off
+# is emptying the option. A reload of the tmux config drops the reference;
+# the login message puts it back (dev-box-desktop mark).
+TMUX_MARK='#{E:@devbox_desktop}'
+tmux_mark() {
+  local current
+  command -v tmux >/dev/null 2>&1 || return 0
+  tmux has-session 2>/dev/null || return 0
+  if [ "$1" = off ]; then
+    tmux set -gu @devbox_desktop 2>/dev/null || true
+    return 0
+  fi
+  tmux set -g @devbox_desktop '#[fg=yellow,bold]🖥  desktop on#[default] ' 2>/dev/null || return 0
+  current="$(tmux show -gv status-right 2>/dev/null || true)"
+  case "$current" in
+    *"$TMUX_MARK"*) ;;
+    *) tmux set -g status-right "$TMUX_MARK$current" 2>/dev/null || true ;;
+  esac
+}
+
+start_session() {
+  local conf="$HYPR_IMAGE" waited=0 pid
+  [ -r "$HYPR_USER" ] && conf="$HYPR_USER"
+  mkdir -p "$STATE"
+  # One start at a time: two clients connecting together share the session.
+  exec 9> "$STATE/lock"
+  flock 9
+  if session_pid >/dev/null && instance >/dev/null; then
+    flock -u 9
+    return 0
+  fi
+  ls /dev/dri/renderD* >/dev/null 2>&1 || {
+    err "no GPU in the box, and Hyprland does not start without one: devbox help gpu"
+    exit 1
+  }
+  # What an earlier session left behind would be taken for this one.
+  stop_session
+  mkdir -p "$STATE"
+  : > "$LOG"
+  # labwc has no screen and no keyboard of its own (headless), and runs
+  # Hyprland as its one client. setsid: the session outlives the ssh
+  # connection that started it.
+  WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 \
+    setsid labwc -s "Hyprland --config $conf" >> "$LOG" 2>&1 9>&- < /dev/null &
+  pid=$!
+  echo "$pid" > "$PIDFILE"
+  until instance >/dev/null; do
+    sleep 0.5
+    waited=$((waited + 1))
+    if ! kill -0 "$pid" 2>/dev/null || [ "$waited" -ge $((START_TIMEOUT * 2)) ]; then
+      err "the session did not start, see $LOG"
+      stop_session
+      exit 1
+    fi
+  done
+  tmux_mark on >/dev/null 2>&1 || true
+  flock -u 9
+}
+
+# The pids of the session: labwc, and the Hyprland it started, which labwc
+# puts in a session of its own and which would outlive it. hyprland.lock
+# holds the pid of Hyprland on its first line.
+session_pids() {
+  local f pid
+  session_pid || true
+  for f in "$XDG_RUNTIME_DIR"/hypr/*/hyprland.lock; do
+    [ -r "$f" ] || continue
+    pid="$(sed -n '1p' "$f")"
+    [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null && echo "$pid"
+  done
+}
+
+stop_session() {
+  local pids pid
+  mapfile -t pids < <(session_pids)
+  # Hyprland first: the windows of the session close with it.
+  for pid in "${pids[@]}"; do
+    kill -TERM "$pid" 2>/dev/null || true
+  done
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    mapfile -t pids < <(session_pids)
+    [ "${#pids[@]}" -gt 0 ] || break
+    sleep 0.3
+  done
+  for pid in "${pids[@]}"; do
+    kill -KILL "$pid" 2>/dev/null || true
+  done
+  rm -f "$PIDFILE"
+  rm -rf "$XDG_RUNTIME_DIR/hypr"
+  tmux_mark off >/dev/null 2>&1 || true
+}
+
+# Sets the environment of a client of the session: its Hyprland, its display.
+session_env() {
+  local sig
+  sig="$(instance)"
+  export HYPRLAND_INSTANCE_SIGNATURE="$sig"
+  # hyprland.lock: the pid of Hyprland, then the name of its Wayland socket.
+  WAYLAND_DISPLAY="$(sed -n '2p' "$XDG_RUNTIME_DIR/hypr/$sig/hyprland.lock" 2>/dev/null || true)"
+  export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
+}
+
+# What `gliff-server` runs in the box: the session first, then the real
+# server. The box has no screen to mirror, so a client that asks for one
+# (--output, or nothing) gets the private screen instead: the two options
+# cannot be given together.
+serve() {
+  local real args=() headless=false
+  real="$(real_server)" || {
+    err "gliff-server is not installed in this box: devbox dev-env desktop"
+    exit 1
+  }
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --output) shift ;;
+      --output=*) ;;
+      --headless) headless=true; args+=("$1") ;;
+      *) args+=("$1") ;;
+    esac
+    shift || true
+  done
+  [ "$headless" = true ] || args+=(--headless)
+  # Nothing but the protocol may reach stdout: it is the link to the client.
+  start_session >&2
+  session_env
+  exec "$real" --instance "$HYPRLAND_INSTANCE_SIGNATURE" "${args[@]}"
+}
+
+browser() {
+  if ! session_pid >/dev/null || ! instance >/dev/null; then
+    err "the session is not running: connect with gliff, or devbox desktop start"
+    exit 1
+  fi
+  command -v chromium >/dev/null 2>&1 || {
+    err "no browser in the box: devbox dev-env browser"
+    exit 1
+  }
+  session_env
+  # --no-sandbox: a container refuses the namespaces the sandbox wants.
+  setsid chromium --no-sandbox --ozone-platform=wayland "$@" > /dev/null 2>&1 < /dev/null &
+}
+
+# What the session opens: the browser when there is one, a terminal
+# otherwise. The session has no screen until a client brings its own, and a
+# window cannot open without one: wait for it.
+autostart() {
+  local waited=0
+  until hyprctl monitors 2>/dev/null | grep -q '^Monitor '; do
+    sleep 0.5
+    waited=$((waited + 1))
+    [ "$waited" -lt 120 ] || exit 0
+  done
+  if command -v chromium >/dev/null 2>&1; then
+    exec chromium --no-sandbox --ozone-platform=wayland
+  fi
+  exec foot
+}
+
+status() {
+  if ! installed; then
+    echo "desktop: not installed (devbox dev-env desktop; it needs the GPU of the host, devbox help gpu)"
+    return 0
+  fi
+  if session_pid >/dev/null && instance >/dev/null; then
+    echo "desktop: on, $(clients) client(s) connected"
+    echo "  it stays on, with what is open in it, until: devbox desktop stop"
+  else
+    echo "desktop: off, starts when a gliff client connects"
+  fi
+  echo "  from your machine: gliff --headless $(id -un)@$(uname -n)"
+  echo "  the steps: devbox help desktop"
+}
+
+case "${1:-status}" in
+  -h | --help) usage ;;
+  status) status ;;
+  start)
+    need_installed
+    start_session
+    status
+    ;;
+  stop)
+    stop_session
+    echo "desktop: off"
+    ;;
+  browser)
+    need_installed
+    shift
+    browser "$@"
+    ;;
+  serve)
+    shift
+    serve "$@"
+    ;;
+  autostart) autostart ;;
+  mark)
+    # What the login message runs: the mark follows the state of the session.
+    if session_pid >/dev/null; then tmux_mark on; else tmux_mark off; fi
+    ;;
+  *)
+    err "unknown command '$1'"
+    usage >&2
+    exit 2
+    ;;
+esac

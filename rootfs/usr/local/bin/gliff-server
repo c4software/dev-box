@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# What a gliff client (https://github.com/omacom/gliff) runs over ssh. In the
+# box this is a launcher: it starts the graphical session when it is not
+# running, then hands over to the real gliff-server, which
+# `devbox dev-env desktop` installs. See dev-box-desktop.
+exec /usr/local/bin/dev-box-desktop serve "$@"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # devbox:name=help
-# devbox:summary=Step by step help for what a command cannot do alone (iOS, GPU, podman, Tailscale, image, backup)
-# devbox:summary.fr=Aide pas à pas pour ce qu'une commande ne peut pas faire seule (iOS, GPU, podman, Tailscale, image, sauvegarde)
+# devbox:summary=Step by step help for what a command cannot do alone (iOS, GPU, desktop, podman, Tailscale, image, backup)
+# devbox:summary.fr=Aide pas à pas pour ce qu'une commande ne peut pas faire seule (iOS, GPU, bureau, podman, Tailscale, image, sauvegarde)
 # devbox:args=[topic|--list|--check]
 #
 # The step by step texts of the box, for what a command cannot do on its own:

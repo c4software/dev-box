@@ -34,6 +34,7 @@ devbox commands        # bare list, one name per line, for completions
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates |
 | `changelog` | `dev-box-changelog` | what changed in the box, newest first; the 3 latest, `-n N`, `--all`, `--upcoming` for what the next image brings |
 | `tour` | `dev-box-tour` | a guided tour of the box, two minutes, commands run under your eyes |
+| `desktop` | `dev-box-desktop` | the graphical session of `devbox dev-env desktop`, reached with gliff, started at connection and stopped by hand: its state, `start`, `stop`, `browser` |
 | `help` | `dev-box-help` | step by step help for what a command cannot do alone: without a topic, a list to pick from; `--list`, `--check` |
 | `migrate` | `dev-box-migrate` | run the migrations shipped by the image, once each |
 | `mise-install` | `dev-box-mise-install` | write a mise-backed wrapper into `~/.local/bin` |
@@ -45,7 +46,7 @@ Where each one is described in detail:
 
 - `status`, `check`, `update`, `migrate`, `changelog`: [updates.md](updates.md)
 - `seed`, `sync`, `override`, `mise-install`: [customization.md](customization.md)
-- `dev-env`: [dev-envs.md](dev-envs.md)
+- `dev-env`, `desktop`: [dev-envs.md](dev-envs.md)
 - `tui`, `pkg`: [tools.md](tools.md)
 - `dbs`: [databases.md](databases.md)
 - `agent`: [agents.md](agents.md)
@@ -136,6 +137,7 @@ devbox help --check    # hold every topic to the layout
 | `ios` | what is left to you after `devbox dev-env ios`: Xcode and `xtool setup`, the device, a first app, a newer Swift |
 | `ios-usb` | an iPhone or iPad plugged into your machine while the box runs on another |
 | `gpu` | giving `/dev/dri` to the box on the host, then the drivers and the test |
+| `desktop` | a graphical session of the box shown by gliff: the GPU, `devbox dev-env desktop`, connecting, the keys, stopping it |
 | `podman` | turning docker and podman on: the override block, `PODMAN_ENABLE`, the restart |
 | `tailscale` | moving a box reached over plain SSH to Tailscale: `.env`, attaching the node, the policy, what it opens |
 | `image` | taking a new image on the host, and what to do before and after in the box |
@@ -159,7 +161,8 @@ to your box, or replaces the image's one of the same name; `--list` marks it.
 Landing in the box prints one line, once per tmux session and once per shell
 outside tmux: a command of the box drawn at random, and what it does. A second
 line, in yellow, appears when an update is waiting, and another one while the
-`DEV_ENVS` environments of `.env` are still installing, or when they failed. It
+`DEV_ENVS` environments of `.env` are still installing, or when they failed, and
+a warning while the graphical session of `devbox desktop` is running. It
 is `devbox motd`. It reads nothing but the box itself, no network and no cache,
 and costs a few milliseconds.
 

@@ -1,0 +1,59 @@
+A graphical session of the box, shown by gliff on your machine
+
+  For a browser of the box, or any window, on your screen. gliff shows a
+  Hyprland session through the ssh connection you already have: no port to
+  open, no account. In the box the session is off: it starts when a gliff
+  client connects, and then stays until you stop it.
+
+  1. On the host: the GPU
+     Hyprland does not start without one. Give /dev/dri to the box:
+       devbox help gpu
+
+  2. In the box: install it
+       devbox dev-env desktop
+       devbox dev-env browser    Chromium, when you want a browser in it
+     Nothing runs afterwards: devbox desktop says "off".
+
+  3. On your machine: connect
+     gliff is a client for Hyprland (Omarchy: omarchy pkg add gliff). With
+     the address you already use for ssh:
+       gliff --headless dev@dev-box
+     On a phone or a tablet, gliff-client: add the box as a machine, with a
+     private screen. The session starts, on a screen of its own sized to
+     your window, and opens Chromium when the box has it, a terminal
+     otherwise. A box reached on another port, or with a key of its own:
+     give it a Host entry in ~/.ssh/config and use that name.
+
+  4. In the session: the keys
+       SUPER + Return            a terminal (foot)
+       SUPER + B                 Chromium
+       SUPER + Q                 close the window
+       SUPER + F                 full screen
+       SUPER + arrows            move the focus
+       SUPER + 1 to 4            a workspace, with SHIFT to send a window
+
+  5. In the box: see it, stop it
+       devbox desktop            on or off, the clients connected
+       devbox desktop stop       stop it, with every window in it
+       devbox desktop browser    open Chromium in the session from a shell
+
+  Off until you connect, on until you stop it
+     Closing gliff, or losing the link, leaves the session as it is: the
+     windows are there at the next connection. Nothing stops it on its own,
+     so that nothing open in it is lost. It holds about 270 MB of memory,
+     more with a browser: devbox desktop stop when you are done. A restart
+     of the box stops it too. While it is on, the status line of tmux shows
+     "desktop on" and every login says so.
+     Your own Hyprland config, which replaces the one of the image:
+       ~/.config/dev-box/desktop/hyprland.conf
+
+  What was tried
+     The session and the stream, with the test client of gliff through a
+     real ssh connection, on an AMD GPU. Not tried: Tailscale SSH with the
+     key of a client, a box without a GPU (it does not start), arm64.
+
+  Sources
+     gliff, its mobile client, and the page of the repository:
+       https://github.com/omacom/gliff
+       https://github.com/c4software/gliff-client
+       https://github.com/c4software/dev-box/blob/main/docs/dev-envs.md

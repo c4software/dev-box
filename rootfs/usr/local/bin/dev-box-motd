@@ -4,8 +4,9 @@
 # devbox:summary.fr=La ligne d'accueil : une commande à essayer, les mises à jour, DEV_ENVS
 # devbox:args=
 # What you see when you land in the box: one line with a command of the box
-# drawn at random and what it does, one more when an update is waiting, and
-# one when the DEV_ENVS environments of .env are still installing or failed.
+# drawn at random and what it does, one more when an update is waiting, one
+# when the DEV_ENVS environments of .env are still installing or failed, and
+# one when the graphical session of devbox desktop was left running.
 # The first time after an update, the notes of the new release come first.
 # Interactive shells print it through /etc/devbox/updates-motd.sh, once per
 # tmux session.
@@ -23,7 +24,7 @@ DEV_ENVS_FLAG="$HOME/.cache/dev-box/dev-envs"
 RELEASES="$HOME/.cache/dev-box/releases.md"
 CHANGELOG_SEEN="$HOME/.config/dev-box/changelog-seen"
 
-usage() { sed -n '6,14p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '6,15p' "$0" | sed 's/^# \?//'; }
 case "${1:-}" in
   -h|--help) usage; exit 0 ;;
   "") ;;
@@ -69,6 +70,7 @@ TIPS=(
   'devbox dev-env node go|install these toolchains right away'
   'devbox dbs postgres redis|start these databases, data kept in a volume'
   'devbox dbs --list|the databases, their port and their state'
+  'devbox desktop|a graphical session of the box: started by a gliff client, stopped by hand'
   'devbox gpu|the GPU of the host: drivers, codecs, a hardware encoding test'
   'devbox pkg add htop|a pacman package that survives a rebuild'
   'devbox pkg install|fuzzy picker over the Arch repositories'
@@ -167,9 +169,23 @@ changelog_block() {
   dev-box-changelog --new || true
 }
 
+# The graphical session of devbox desktop stays on until it is stopped by
+# hand: say so at every login. Its pid file is read in bash, no fork while
+# it is off; when it is on, the mark of the tmux status line is put back, in
+# the background, in case a reload of the tmux config dropped it.
+desktop_line() {
+  local pidfile="${XDG_RUNTIME_DIR:-/run/user/$UID}/dev-box-desktop/pid" pid=""
+  [ -r "$pidfile" ] || return 0
+  IFS= read -r pid < "$pidfile" || true
+  [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null || return 0
+  printf '%s⚠️  Warning: a graphical session is running, stop it with devbox desktop stop%s\n' "$C_WARN" "$C_OFF"
+  (dev-box-desktop mark > /dev/null 2>&1 &)
+}
+
 printf '\n'
 changelog_block
 tip_line
 updates_line
 dev_envs_line
+desktop_line
 printf '\n'

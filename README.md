@@ -89,7 +89,7 @@ menu when called without arguments.
 | `devbox override` | what this box changes from the image defaults, and how to undo it; `--diff [path]` shows the changes in the files |
 | `devbox diagnostic ["problem"]` | starts your coding agent on the box's diagnostic guide: gathers facts with read-only commands, says what is wrong, asks before changing anything; `--report` prints the facts without an agent, to paste to someone |
 | `devbox tour` | a guided tour of the box, two minutes |
-| `devbox help` | step by step help for what a command cannot do alone, picked in a list: `ios` and `ios-usb` (iPhone and iPad apps), `gpu`, `podman`, `tailscale` (moving a box reached over SSH to the tailnet), `image` (a new image), `backup` |
+| `devbox help` | step by step help for what a command cannot do alone, picked in a list: `ios` and `ios-usb` (iPhone and iPad apps), `gpu`, `desktop` (a graphical session of the box on your screen), `podman`, `tailscale` (moving a box reached over SSH to the tailnet), `image` (a new image), `backup` |
 
 The full list is in [docs/commands.md](docs/commands.md).
 

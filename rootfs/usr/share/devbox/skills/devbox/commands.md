@@ -12,7 +12,7 @@ devbox                 # menu of commands (gum), then runs the one you pick
 devbox <cmd> [args]    # run a command
 devbox <cmd> --help    # summary, usage, then the command's own help
 devbox --help          # usage and the table of commands
-devbox help [topic]    # step by step help for the user: ios, ios-usb, gpu, podman, tailscale, image, backup
+devbox help [topic]    # step by step help for the user: ios, ios-usb, gpu, desktop, podman, tailscale, image, backup
 devbox commands        # bare list, one name per line, for completions
 ```
 
@@ -49,7 +49,8 @@ use in scripts and in a `docker exec` from the host: `devbox update` and
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates, `DEV_ENVS` still installing or failed. |
 | `changelog` | `dev-box-changelog` | the release notes of the repo (GitHub releases), newest first. The 3 latest up to this image, `-n N`, `--all`, `--upcoming` for the releases after it; `--new` and `--mark-seen` are for the login and the entrypoint. |
 | `tour` | `dev-box-tour` | a guided tour of the box in a dozen steps, each with the command to try. `--text` prints it at once, `--offer` is what the first login runs. |
-| `help` | `dev-box-help` | step by step help for the user, for what a command cannot do alone: `ios`, `ios-usb`, `gpu`, `podman`, `tailscale`, `image`, `backup`. No argument: a list to pick from on a terminal, the list printed otherwise. `--list`, `--check` (holds every topic to the layout of `/usr/share/devbox/lib/help.sh`). The user's own topics: `~/.config/dev-box/help/<topic>.txt`. Read only. |
+| `desktop` | `dev-box-desktop` | the graphical session of `devbox dev-env desktop`, shown by a gliff client over ssh. No argument: on or off, the clients connected, how to reach it. `start`, `stop`, `browser [url]`. The session starts when a client runs `gliff-server` (a launcher of the image) and stays on until `devbox desktop stop`: nothing stops it on its own. |
+| `help` | `dev-box-help` | step by step help for the user, for what a command cannot do alone: `ios`, `ios-usb`, `gpu`, `desktop`, `podman`, `tailscale`, `image`, `backup`. No argument: a list to pick from on a terminal, the list printed otherwise. `--list`, `--check` (holds every topic to the layout of `/usr/share/devbox/lib/help.sh`). The user's own topics: `~/.config/dev-box/help/<topic>.txt`. Read only. |
 | `migrate` | `dev-box-migrate` | runs the migrations shipped by the image, once each. `--run` with no menu, `--pending`, `--list`, `--mark-done <name>`. |
 | `mise-install` | `dev-box-mise-install` | writes a mise-backed wrapper into `~/.local/bin`. `--list`, `--remove <cmd>`. |
 | `pkg` | `dev-box-pkg` | pacman packages that survive a rebuild. `add`, `drop`, `list`, `install`, `restore`. |
@@ -119,6 +120,7 @@ through `devbox pkg add`, ncurses links inside the toolchain, version pinned,
 no lldb), and `ios` sits on it and on python: xtool and pymobiledevice3, to
 build and install iPhone and iPad apps without a Mac, on a real device, after
 one `xtool setup` by the user (Apple account, Xcode.xip); both x86_64 only.
+`desktop` is a graphical session reached with gliff over ssh (Hyprland nested in a headless labwc, `foot`, `libva` through `devbox pkg`; `gliff-server` as the mise tool `http:gliff`), off until a gliff client connects, then on until `devbox desktop stop`; it needs `/dev/dri`, x86_64 only; `devbox desktop [status|start|stop|browser]`, `devbox help desktop`.
 The steps left to the user are `devbox help ios`; a device plugged into the
 user's machine while the box runs elsewhere is `devbox help ios-usb` (the
 usbmuxd of that machine through `ssh -R 27015:/var/run/usbmuxd`, then

@@ -141,6 +141,38 @@ command on the PATH, the default python untouched) and starts `lldb` and
 `lldb-dap` through a launcher that sets `PYTHONHOME` for them alone. Both are
 x86_64 only.
 
+`desktop` gives the box a graphical session, for a browser or any window,
+shown on your machine by [gliff](https://github.com/omacom/gliff) through the
+ssh connection you already have. It is off by design, installed or not:
+nothing runs until a gliff client connects, and the session starts with it, on
+a private screen sized to the client's window. It then stays, with what is
+open in it, until `devbox desktop stop`: closing gliff or losing the link
+leaves it as it is, and nothing stops it on its own, so nothing open is lost.
+It holds about 270 MB of memory while it is on, so the box keeps it in sight:
+the status line of tmux shows `desktop on` and the login message warns about it
+until it is stopped.
+
+```bash
+devbox dev-env desktop            # in the box, once; needs the GPU (devbox help gpu)
+gliff --headless dev@dev-box      # from your machine: the session starts
+devbox desktop                    # in the box: on or off, the clients connected
+devbox desktop stop               # stop it, with every window in it
+```
+
+A gliff client runs `gliff-server` over ssh. In the box that name is a
+launcher of the image, which starts the session when it is not there, then
+hands over to the real `gliff-server`: a mise tool (`http:gliff`, the package
+of the Omarchy repository, pinned with its sha256, nothing on the PATH). The
+session is a Hyprland nested in a labwc that has no screen, since Hyprland
+does not start without one; both come through `devbox pkg`, with `foot` and
+`libva`. Hyprland needs the GPU of the host in the box (`/dev/dri`) and does
+not start without it. It reads `/etc/devbox/desktop/hyprland.conf`, bare on
+purpose, or your own `~/.config/dev-box/desktop/hyprland.conf`. The session
+opens Chromium when the box has it (`devbox dev-env browser`), a terminal
+otherwise. x86_64 only, the one it was tried on, with the test client of gliff
+through a real ssh connection; Tailscale SSH with the key of a client is not
+tried yet. `devbox help desktop` has the steps and the keys.
+
 ## The exceptions: PHP, browser, media, network
 
 PHP is the one exception. mise can only build PHP from source, which takes
@@ -210,7 +242,7 @@ and `uninstall`, plus `is_installed` when the mise config cannot tell and
 `is_supported` when it does not run everywhere, and `is_hidden` for an alias
 kept out of the menu and the list but still installed by name and by
 `DEV_ENVS` (`gpu`, now `devbox gpu install`). What this machine cannot take
-(`android`, `android-sdk`, `flutter`, `swift` and `ios` on arm64) is left out of the menu and
+(`android`, `android-sdk`, `flutter`, `swift`, `ios` and `desktop` on arm64, `desktop` in a box without a GPU) is left out of the menu and
 the list, and skipped by `DEV_ENVS`, so one `.env` serves both architectures.
 The image ships them in `/usr/share/devbox/dev-envs/`, and `devbox dev-env`
 finds every file there on its own.
