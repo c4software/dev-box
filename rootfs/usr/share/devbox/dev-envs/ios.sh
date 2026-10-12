@@ -77,6 +77,9 @@ next_steps() {
        https://github.com/xtool-org/xtool
        https://xtool.sh/documentation/xtool/installation-linux
        https://xtool.sh/tutorials/xtool/first-app
+  The same tools on Arch (Swift, xtool, pymobiledevice3, lldb), with what was
+  found along the way:
+       https://github.com/joshuaswarren/omarchy-apple-dev
 TXT
 }
 
