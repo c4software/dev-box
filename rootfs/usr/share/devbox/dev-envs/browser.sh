@@ -5,11 +5,12 @@ details() {
   cat <<'TXT'
 Headless Chromium + fonts + agent-browser, a browser a coding agent can drive
 
-chromium and noto-fonts go through `devbox pkg`, which puts them back after a
-rebuild: the builds Playwright and Puppeteer download target Debian and
+chromium, noto-fonts and noto-fonts-emoji go through `devbox pkg`, which
+puts them back after a rebuild: the builds Playwright and Puppeteer download target Debian and
 Ubuntu, the distribution package works as it is, on amd64 and on Arch Linux
-ARM. noto-fonts: without it every emoji, symbol or non Latin script renders
-as a square. agent-browser comes through mise (a single binary, updated by
+ARM. noto-fonts: without it every symbol or non Latin script renders as a
+square; noto-fonts-emoji: the same for every emoji, which noto-fonts does not
+have. agent-browser comes through mise (a single binary, updated by
 `devbox update tools`): a command line made for agents, open, snapshot,
 click, fill, screenshot, eval, with no script and no npm install.
 ~/.agent-browser/config.json points it at the system Chromium, so it never
@@ -48,7 +49,7 @@ point_at_chromium() {
 }
 
 install() {
-  dev-box-pkg add chromium noto-fonts
+  dev-box-pkg add chromium noto-fonts noto-fonts-emoji
   mise use -g agent-browser@latest
   point_at_chromium
   log "chromium and agent-browser are ready, headless (no display in the box):"
@@ -60,5 +61,7 @@ install() {
 uninstall() {
   unuse agent-browser
   dev-box-pkg drop chromium noto-fonts
+  # The graphical session draws its emojis with the same font: left to it.
+  command -v Hyprland >/dev/null 2>&1 || dev-box-pkg drop noto-fonts-emoji
   log "~/.config/chromium, ~/.cache/chromium and ~/.agent-browser are left in place."
 }

@@ -69,7 +69,7 @@ START_TIMEOUT=20
 # wants.
 APPS=(
   "code|code|C|code --no-sandbox --ozone-platform=wayland|VS Code (Code - OSS: its extensions come from Open VSX)|code-oss"
-  "chromium|chromium noto-fonts|B|chromium --no-sandbox --no-first-run --ozone-platform=wayland|Chromium, the browser of devbox dev-env browser|chromium"
+  "chromium|chromium noto-fonts noto-fonts-emoji|B|chromium --no-sandbox --no-first-run --ozone-platform=wayland|Chromium, the browser of devbox dev-env browser|chromium"
 )
 
 usage() { sed -n '8,40p' "$0" | sed 's/^# \?//'; }

@@ -166,7 +166,8 @@ The apps are not part of the environment. `devbox desktop apps` lists the ones
 on offer, `devbox desktop install <app>` and `remove <app>` go through
 `devbox pkg`, so an app comes back after a rebuild: `code` (VS Code as Arch
 packages it, Code - OSS, whose extensions come from Open VSX) and `chromium`
-(with `noto-fonts`, the same browser as `devbox dev-env browser`). Both start
+(with `noto-fonts` and `noto-fonts-emoji`, the same browser as
+`devbox dev-env browser`). Both start
 with `--no-sandbox`, since a container refuses the namespaces their sandbox
 wants. In the session `SUPER + C` and `SUPER + B` open them, and from a shell
 `devbox desktop open <app>`.
@@ -177,7 +178,8 @@ hands over to the real `gliff-server`: a mise tool (`http:gliff`, the package
 of the Omarchy repository, pinned with its sha256, nothing on the PATH). The
 session is a Hyprland nested in a labwc that has no screen, since Hyprland
 does not start without one; both come through `devbox pkg`, with `foot`,
-`swaybg` and `libva`. Hyprland needs the GPU of the host in the box
+`swaybg`, `noto-fonts-emoji` (no other font of the box has an emoji) and
+`libva`. Hyprland needs the GPU of the host in the box
 (`/dev/dri`) and does not start without it. The packages weigh about 350 MB
 once installed, in the box and not in the image, which only carries the
 config and the wallpaper (230 KB). It reads
@@ -210,12 +212,13 @@ Node and the Laravel installer through `composer global`, kept in
 `~/.config/composer`, which is in the PATH and in the persistent home.
 `symfony` adds `symfony-cli` through mise's github backend.
 
-`browser` is the other exception: a headless Chromium, with `noto-fonts` so
-that emojis and non Latin scripts do not render as squares, so that a coding
+`browser` is the other exception: a headless Chromium, with `noto-fonts` and
+`noto-fonts-emoji` so that non Latin scripts and emojis do not render as
+squares, so that a coding
 agent can look at a dev server and check the result. The builds Playwright and
 Puppeteer download target Debian and Ubuntu and still need a pile of pacman
 libraries, so the environment installs the distribution package through
-`devbox pkg add chromium noto-fonts` instead: it works as it is on amd64 and on
+`devbox pkg add chromium noto-fonts noto-fonts-emoji` instead: it works as it is on amd64 and on
 Arch Linux ARM, and `devbox pkg` reinstalls it after a rebuild. Chromium is not
 baked into the image because it weighs about half a gigabyte and most boxes
 never need it.

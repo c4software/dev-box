@@ -16,10 +16,12 @@ demand:
 devbox dev-env browser
 ```
 
-Behind it, `devbox pkg add chromium noto-fonts`: pacman packages that
-`devbox pkg` reinstalls after a rebuild, so the browser is there for good.
-`noto-fonts` matters: without it the only font in the box is Liberation, and
-pages with emojis, symbols or non Latin scripts render squares. Both packages
+Behind it, `devbox pkg add chromium noto-fonts noto-fonts-emoji`: pacman
+packages that `devbox pkg` reinstalls after a rebuild, so the browser is
+there for good. `noto-fonts` matters: without it the only font in the box is
+Liberation, and pages with symbols or non Latin scripts render squares.
+`noto-fonts-emoji` does the same for emojis, which `noto-fonts` does not
+have. These packages
 exist on amd64 and on Arch Linux ARM, so the same command works on a Raspberry
 Pi. The same environment adds `agent-browser` through mise, a single binary,
 and points it at that Chromium in `~/.agent-browser/config.json`.
@@ -155,6 +157,7 @@ is on.
 - a blank or half drawn screenshot: add `--virtual-time-budget=5000`, or wait
   for the server before capturing.
 - squares in place of characters: `noto-fonts` is missing, `fc-list | wc -l`
-  should be well above 20.
+  should be well above 20. Squares in place of emojis only:
+  `noto-fonts-emoji` is missing, `fc-list :charset=1f600` should name a font.
 - `ERR_CONNECTION_REFUSED` in the screenshot: nothing listens on that port
   inside the box; check the server is up and which port it took.

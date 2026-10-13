@@ -126,7 +126,7 @@ user's machine while the box runs elsewhere is `devbox help ios-usb` (the
 usbmuxd of that machine through `ssh -R 27015:/var/run/usbmuxd`, then
 `USBMUXD_SOCKET_ADDRESS=127.0.0.1:27015` in the box).
 `browser` is a headless Chromium plus
-`noto-fonts`, installed through `devbox pkg add` (pacman, reinstalled at start
+`noto-fonts` and `noto-fonts-emoji`, installed through `devbox pkg add` (pacman, reinstalled at start
 after a rebuild) because the mise registry has no browser that runs on Arch
 without those packages, and `agent-browser` through mise, pointed at that
 Chromium by `~/.agent-browser/config.json`; see `browser.md` for how an agent

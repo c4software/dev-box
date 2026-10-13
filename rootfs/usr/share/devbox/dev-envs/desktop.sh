@@ -9,8 +9,8 @@ For a browser, or any window, of the box on your screen. gliff shows a
 Hyprland session through the ssh connection you already have: no port, no
 account. The environment brings Hyprland, labwc (Hyprland does not start
 without a screen, so it runs inside a labwc that has none), foot as the
-terminal, swaybg for the background, fuzzel as the application launcher
-and libva, through `devbox pkg`, and
+terminal, swaybg for the background, fuzzel as the application launcher,
+noto-fonts-emoji so that emojis are drawn and libva, through `devbox pkg`, and
 gliff-server as a mise tool (http:gliff, the package of the Omarchy
 repository, pinned with its sha256, nothing on the PATH). Nothing runs once
 it is installed: the session starts when a gliff client connects, on a
@@ -32,7 +32,9 @@ GLIFF="http:gliff"
 GLIFF_VERSION="0.3.1"
 GLIFF_URL="https://pkgs.omarchy.org/edge/x86_64/gliff-0.3.1-1-x86_64.pkg.tar.zst"
 GLIFF_SHA256="73887d4f2e040e7c3a9524ca2aeeac3a5983aa27bbf825ff2027b9ec7bbe3782"
-PACKAGES=(hyprland labwc foot swaybg fuzzel libva)
+# noto-fonts-emoji: without it no font of the box has an emoji, and the
+# terminal and every app draw a square in its place.
+PACKAGES=(hyprland labwc foot swaybg fuzzel noto-fonts-emoji libva)
 
 is_installed() { declared "$GLIFF" && command -v Hyprland >/dev/null 2>&1 && command -v labwc >/dev/null 2>&1; }
 
