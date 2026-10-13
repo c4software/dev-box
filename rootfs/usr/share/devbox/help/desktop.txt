@@ -9,10 +9,12 @@ A graphical session of the box, shown by gliff on your machine
      Hyprland does not start without one. Give /dev/dri to the box:
        devbox help gpu
 
-  2. In the box: install it
-       devbox dev-env desktop
-     Nothing runs afterwards: devbox desktop says "off". The apps are not
-     part of it, pick the ones you want:
+  2. In the box: enable it
+       devbox desktop
+     The menu offers to enable it while nothing is installed, then the
+     rest. devbox desktop enable, or devbox dev-env desktop, do the same
+     without a menu. Nothing runs afterwards: the session is "off". The
+     apps are not part of it, pick the ones you want:
        devbox desktop install code       VS Code (Code - OSS)
        devbox desktop install chromium   a browser
        devbox desktop apps               the apps on offer

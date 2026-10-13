@@ -155,10 +155,10 @@ until it is stopped.
 ![The graphical session of a box: the dev-box wallpaper, a terminal showing devbox desktop status, the apps and the help topics on the left, VS Code on the right](screenshots/desktop.jpg)
 
 ```bash
-devbox dev-env desktop            # in the box, once; needs the GPU (devbox help gpu)
+devbox desktop                    # in the box: the menu, which first offers to enable it
+devbox desktop enable             # the same without a menu (or devbox dev-env desktop); needs the GPU
 devbox desktop install code       # VS Code in it; chromium for a browser
 gliff --headless dev@dev-box      # from your machine: the session starts
-devbox desktop                    # in the box: a menu, or its state without a terminal
 devbox desktop stop               # stop it, with every window in it
 ```
 
