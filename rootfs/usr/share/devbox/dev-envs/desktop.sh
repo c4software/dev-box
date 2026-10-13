@@ -9,7 +9,8 @@ For a browser, or any window, of the box on your screen. gliff shows a
 Hyprland session through the ssh connection you already have: no port, no
 account. The environment brings Hyprland, labwc (Hyprland does not start
 without a screen, so it runs inside a labwc that has none), foot as the
-terminal, swaybg for the background and libva, through `devbox pkg`, and
+terminal, swaybg for the background, fuzzel as the application launcher
+and libva, through `devbox pkg`, and
 gliff-server as a mise tool (http:gliff, the package of the Omarchy
 repository, pinned with its sha256, nothing on the PATH). Nothing runs once
 it is installed: the session starts when a gliff client connects, on a
@@ -19,7 +20,8 @@ until `devbox desktop stop`: nothing stops it on its own. Once installed,
 the graphical apps to install in it (VS Code, Chromium), which are not part
 of the environment. It needs
 the GPU of the host in the box (devbox help gpu): Hyprland refuses to start
-without one. linux x86_64 only, the one it was tried on. A removal takes out
+without one. About 350 MB of packages, and 290 MB of memory while the
+session is on. linux x86_64 only, the one it was tried on. A removal takes out
 gliff-server and the packages, and leaves the apps and
 ~/.config/dev-box/desktop in place. The steps on your machine: devbox help
 desktop.
@@ -30,7 +32,7 @@ GLIFF="http:gliff"
 GLIFF_VERSION="0.3.1"
 GLIFF_URL="https://pkgs.omarchy.org/edge/x86_64/gliff-0.3.1-1-x86_64.pkg.tar.zst"
 GLIFF_SHA256="73887d4f2e040e7c3a9524ca2aeeac3a5983aa27bbf825ff2027b9ec7bbe3782"
-PACKAGES=(hyprland labwc foot swaybg libva)
+PACKAGES=(hyprland labwc foot swaybg fuzzel libva)
 
 is_installed() { declared "$GLIFF" && command -v Hyprland >/dev/null 2>&1 && command -v labwc >/dev/null 2>&1; }
 

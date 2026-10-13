@@ -25,11 +25,17 @@ A graphical session of the box, shown by gliff on your machine
        gliff --headless dev@dev-box
      On a phone or a tablet, gliff-client: add the box as a machine, with a
      private screen. The session starts, on a screen of its own sized to
-     your window, and opens Chromium when the box has it, a terminal
-     otherwise. A box reached on another port, or with a key of its own:
-     give it a Host entry in ~/.ssh/config and use that name.
+     your window, with nothing open but the launcher. A box reached on
+     another port, or with a key of its own: give it a Host entry in
+     ~/.ssh/config and use that name.
 
-  4. In the session: the keys
+  4. In the session: the launcher, the keys
+     The launcher lists the apps of the box, the terminal ones included:
+     type a few letters, Enter opens the app, Escape closes it. It shows
+     itself on a screen with no window, when you connect to an empty
+     session and when the last window closes, and SUPER + Space asks for
+     it at any time.
+       SUPER + Space             the launcher
        SUPER + Return            a terminal (foot)
        SUPER + B                 Chromium
        SUPER + C                 VS Code
@@ -47,7 +53,7 @@ A graphical session of the box, shown by gliff on your machine
   Off until you connect, on until you stop it
      Closing gliff, or losing the link, leaves the session as it is: the
      windows are there at the next connection. Nothing stops it on its own,
-     so that nothing open in it is lost. It holds about 270 MB of memory,
+     so that nothing open in it is lost. It holds about 290 MB of memory,
      more with a browser: devbox desktop stop when you are done. A restart
      of the box stops it too. While it is on, the status line of tmux shows
      "desktop on" and every login says so.
@@ -55,6 +61,9 @@ A graphical session of the box, shown by gliff on your machine
      your own background:
        ~/.config/dev-box/desktop/hyprland.lua
        ~/.config/dev-box/desktop/wallpaper.jpg
+     The launcher is fuzzel, which runs only while it is on screen. Your
+     own config replaces the one of the image as a whole:
+       ~/.config/dev-box/desktop/fuzzel.ini
 
   What was tried
      The session and the stream, with the test client of gliff through a

@@ -148,7 +148,7 @@ nothing runs until a gliff client connects, and the session starts with it, on
 a private screen sized to the client's window. It then stays, with what is
 open in it, until `devbox desktop stop`: closing gliff or losing the link
 leaves it as it is, and nothing stops it on its own, so nothing open is lost.
-It holds about 270 MB of memory while it is on, so the box keeps it in sight:
+It holds about 290 MB of memory while it is on, before any app, so the box keeps it in sight:
 the status line of tmux shows `desktop on` and the login message warns about it
 until it is stopped.
 
@@ -178,12 +178,24 @@ of the Omarchy repository, pinned with its sha256, nothing on the PATH). The
 session is a Hyprland nested in a labwc that has no screen, since Hyprland
 does not start without one; both come through `devbox pkg`, with `foot`,
 `swaybg` and `libva`. Hyprland needs the GPU of the host in the box
-(`/dev/dri`) and does not start without it. It reads
+(`/dev/dri`) and does not start without it. The packages weigh about 350 MB
+once installed, in the box and not in the image, which only carries the
+config and the wallpaper (230 KB). It reads
 `/etc/devbox/desktop/hyprland.lua`, bare on purpose and in the Lua format
 Hyprland is moving to, or your own `~/.config/dev-box/desktop/hyprland.lua`.
 The background is `/usr/share/devbox/desktop/wallpaper.jpg`, or your own
-`~/.config/dev-box/desktop/wallpaper.jpg` (or `.png`). The session opens
-Chromium when the box has it, a terminal otherwise. x86_64 only, the one it was tried on, with the test client of gliff
+`~/.config/dev-box/desktop/wallpaper.jpg` (or `.png`).
+
+The session opens no app on its own. An application launcher lists the apps
+of the box, the terminal ones included, filtered as you type: Enter opens one,
+Escape closes it. It shows itself on a screen with no window, when you connect
+to an empty session and when the last window closes, and `SUPER + Space` asks
+for it at any time. It is [fuzzel](https://codeberg.org/dnkl/fuzzel), a small
+package of the environment that runs only while it is on screen, with
+`/etc/devbox/desktop/fuzzel.ini` or your own
+`~/.config/dev-box/desktop/fuzzel.ini`. It starts every app through
+`devbox desktop run`, which gives the apps of `devbox desktop install` the
+options a container needs. x86_64 only, the one it was tried on, with the test client of gliff
 through a real ssh connection; Tailscale SSH with the key of a client is not
 tried yet. `devbox help desktop` has the steps and the keys.
 

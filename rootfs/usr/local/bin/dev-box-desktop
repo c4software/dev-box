@@ -31,7 +31,10 @@
 # Hyprland reads /etc/devbox/desktop/hyprland.lua, or your own
 # ~/.config/dev-box/desktop/hyprland.lua when there is one. The background
 # is /usr/share/devbox/desktop/wallpaper.jpg, or your own
-# ~/.config/dev-box/desktop/wallpaper.jpg (or .png).
+# ~/.config/dev-box/desktop/wallpaper.jpg (or .png). The application
+# launcher (SUPER + Space, or a screen with no window) is fuzzel, with
+# /etc/devbox/desktop/fuzzel.ini or your own
+# ~/.config/dev-box/desktop/fuzzel.ini.
 #
 # A session left on is easy to forget: while it runs, the status line of tmux
 # says so, and so does the login message.
@@ -47,20 +50,29 @@ HYPR_USER="$HOME/.config/dev-box/desktop/hyprland.lua"
 HYPR_USER_LEGACY="$HOME/.config/dev-box/desktop/hyprland.conf"
 HYPR_IMAGE="/etc/devbox/desktop/hyprland.lua"
 WALLPAPER_IMAGE="/usr/share/devbox/desktop/wallpaper.jpg"
+FUZZEL_USER="$HOME/.config/dev-box/desktop/fuzzel.ini"
+FUZZEL_IMAGE="/etc/devbox/desktop/fuzzel.ini"
+# Desktop entries that hide the ones of the image that are not apps one opens
+# from a launcher (the avahi browsers, lstopo, the client and server of foot).
+HIDDEN_APPS="/usr/share/devbox/desktop"
 GLIFF_TOOL="http:gliff"
 START_TIMEOUT=20
 
-# The graphical apps on offer: <name>|<packages>|<key>|<command>|<description>
+# The graphical apps on offer:
+#   <name>|<packages>|<key>|<command>|<description>|<desktop id>
+# The desktop id is the name of the .desktop file of the app, and the command
+# its entry runs: the launcher starts every app through `run`, which
+# recognises these and opens them with the command of this list.
 # The packages go through `devbox pkg`, so an app comes back after a rebuild.
 # The key opens it in the session, with SUPER (hyprland.conf). --no-sandbox:
 # a container refuses the namespaces the sandbox of Chromium and of Electron
 # wants.
 APPS=(
-  "code|code|C|code --no-sandbox --ozone-platform=wayland|VS Code (Code - OSS: its extensions come from Open VSX)"
-  "chromium|chromium noto-fonts|B|chromium --no-sandbox --no-first-run --ozone-platform=wayland|Chromium, the browser of devbox dev-env browser"
+  "code|code|C|code --no-sandbox --ozone-platform=wayland|VS Code (Code - OSS: its extensions come from Open VSX)|code-oss"
+  "chromium|chromium noto-fonts|B|chromium --no-sandbox --no-first-run --ozone-platform=wayland|Chromium, the browser of devbox dev-env browser|chromium"
 )
 
-usage() { sed -n '8,37p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '8,40p' "$0" | sed 's/^# \?//'; }
 err() { echo "dev-box-desktop: $*" >&2; }
 
 # The real gliff-server, from the mise tool of the desktop environment. It is
@@ -80,7 +92,7 @@ app_names() {
 }
 
 # app_field <name> <n>: field n of the app, 2 packages, 3 key, 4 command,
-# 5 description. Exits 1 on a name that is not in the catalogue.
+# 5 description, 6 desktop id. Exits 1 on a name that is not in the catalogue.
 app_field() {
   local a
   for a in "${APPS[@]}"; do
@@ -343,24 +355,6 @@ open_app() {
   setsid "${cmd[@]}" "$@" > /dev/null 2>&1 < /dev/null &
 }
 
-# What the session opens: the browser when there is one, a terminal
-# otherwise. The session has no screen until a client brings its own, and a
-# window cannot open without one: wait for it.
-autostart() {
-  local waited=0
-  until hyprctl monitors 2>/dev/null | grep -q '^Monitor '; do
-    sleep 0.5
-    waited=$((waited + 1))
-    [ "$waited" -lt 120 ] || exit 0
-  done
-  local cmd
-  if app_installed chromium; then
-    read -r -a cmd <<< "$(app_field chromium 4)"
-    exec "${cmd[@]}"
-  fi
-  exec foot
-}
-
 # The background of the session: yours when there is one, the one of the
 # image otherwise. swaybg draws it on every screen a client brings. A box
 # that installed the environment before it had a background has no swaybg:
@@ -376,6 +370,65 @@ wallpaper() {
   command -v swaybg >/dev/null 2>&1 || exit 0
   [ -r "$file" ] || exit 0
   exec swaybg -i "$file" -m fill
+}
+
+# The launcher is fuzzel: not a daemon, it runs for as long as it is on
+# screen and costs nothing the rest of the time.
+#   launcher             SUPER + Space: open it, or close the one that is open
+#   launcher open        open it when it is not
+#   launcher if-empty    open it when the screen has no window: what a client
+#                        finds when it connects, and after the last window
+#                        closed, where a phone has no SUPER key to ask for it
+# A box that installed the environment before it had a launcher has no
+# fuzzel: nothing to do then, devbox dev-env desktop adds it.
+launcher() {
+  local conf="$FUZZEL_IMAGE" pids
+  command -v fuzzel >/dev/null 2>&1 || exit 0
+  [ -r "$FUZZEL_USER" ] && conf="$FUZZEL_USER"
+  pids="$(pgrep -u "$(id -u)" -x fuzzel 2>/dev/null || true)"
+  case "${1:-toggle}" in
+    toggle)
+      if [ -n "$pids" ]; then
+        # shellcheck disable=SC2086 # one pid per word
+        kill $pids 2>/dev/null || true
+        exit 0
+      fi
+      ;;
+    open)
+      [ -z "$pids" ] || exit 0
+      ;;
+    if-empty)
+      [ -z "$pids" ] || exit 0
+      # The event comes before the window is gone, or the screen there.
+      sleep 0.4
+      hyprctl monitors 2>/dev/null | grep -q '^Monitor ' || exit 0
+      [ "$(hyprctl clients 2>/dev/null | grep -c '^Window ')" -eq 0 ] || exit 0
+      ;;
+    *)
+      err "launcher takes open or if-empty"
+      exit 2
+      ;;
+  esac
+  XDG_DATA_DIRS="$HIDDEN_APPS:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}" \
+    exec fuzzel --config "$conf"
+}
+
+# What the launcher starts every app through (launch-prefix of fuzzel.ini):
+# an app of the catalogue, named by its command or by the one its desktop
+# entry runs, opens with the command of the catalogue, and its options. Any
+# other app runs as it is.
+run() {
+  local a first cmd
+  [ $# -gt 0 ] || exit 2
+  first="${1##*/}"
+  for a in "${APPS[@]}"; do
+    read -r -a cmd <<< "$(printf '%s\n' "$a" | cut -d'|' -f4)"
+    if [ "$first" = "${cmd[0]}" ] || [ "$first" = "${a##*|}" ]; then
+      shift
+      exec "${cmd[@]}" "$@"
+    fi
+  done
+  exec "$@"
 }
 
 status() {
@@ -502,8 +555,15 @@ case "${1:-}" in
     shift
     serve "$@"
     ;;
-  autostart) autostart ;;
   wallpaper) wallpaper ;;
+  launcher)
+    shift
+    launcher "$@"
+    ;;
+  run)
+    shift
+    run "$@"
+    ;;
   mark)
     # What the login message runs: the mark follows the state of the session.
     if session_pid >/dev/null; then tmux_mark on; else tmux_mark off; fi

@@ -120,7 +120,7 @@ through `devbox pkg add`, ncurses links inside the toolchain, version pinned,
 no lldb), and `ios` sits on it and on python: xtool and pymobiledevice3, to
 build and install iPhone and iPad apps without a Mac, on a real device, after
 one `xtool setup` by the user (Apple account, Xcode.xip); both x86_64 only.
-`desktop` is a graphical session reached with gliff over ssh (Hyprland nested in a headless labwc, `foot`, `swaybg`, `libva` through `devbox pkg`; config `/etc/devbox/desktop/hyprland.lua`, the user's in `~/.config/dev-box/desktop/`; `gliff-server` as the mise tool `http:gliff`), off until a gliff client connects, then on until `devbox desktop stop`; it needs `/dev/dri`, x86_64 only; `devbox desktop [status|start|stop|browser]`, `devbox help desktop`.
+`desktop` is a graphical session reached with gliff over ssh (Hyprland nested in a headless labwc, `foot`, `swaybg`, `fuzzel` as the application launcher (`SUPER + Space`, or a screen with no window; it runs only while shown, and starts apps through `dev-box-desktop run`), `libva`, through `devbox pkg`; config `/etc/devbox/desktop/hyprland.lua`, the user's in `~/.config/dev-box/desktop/`; `gliff-server` as the mise tool `http:gliff`), off until a gliff client connects, then on until `devbox desktop stop`; it needs `/dev/dri`, x86_64 only; `devbox desktop [status|start|stop|browser]`, `devbox help desktop`.
 The steps left to the user are `devbox help ios`; a device plugged into the
 user's machine while the box runs elsewhere is `devbox help ios-usb` (the
 usbmuxd of that machine through `ssh -R 27015:/var/run/usbmuxd`, then

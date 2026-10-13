@@ -1,5 +1,5 @@
 -- dev-box: the Hyprland of `devbox desktop`, a session with no screen of its
--- own, shown by gliff on a private one. Kept bare: no bar, no launcher, no
+-- own, shown by gliff on a private one. Kept bare: a launcher, no bar, no
 -- animation. Your own goes in ~/.config/dev-box/desktop/hyprland.lua and
 -- replaces this file as a whole.
 
@@ -37,16 +37,26 @@ hl.config({
     },
 })
 
--- The background (/usr/share/devbox/desktop/wallpaper.jpg, or your own
--- ~/.config/dev-box/desktop/wallpaper.jpg or .png), then the browser when
--- the box has one (devbox desktop install chromium), a terminal otherwise.
+-- The background: /usr/share/devbox/desktop/wallpaper.jpg, or your own
+-- ~/.config/dev-box/desktop/wallpaper.jpg or .png. No app is opened.
 hl.on("hyprland.start", function()
     hl.exec_cmd("dev-box-desktop wallpaper")
-    hl.exec_cmd("dev-box-desktop autostart")
+end)
+
+-- The application launcher (fuzzel, with /etc/devbox/desktop/fuzzel.ini or
+-- your own ~/.config/dev-box/desktop/fuzzel.ini) shows itself on a screen
+-- with no window: when a client connects to an empty session, and when the
+-- last window closes. It runs only while it is shown.
+hl.on("monitor.added", function()
+    hl.exec_cmd("dev-box-desktop launcher if-empty")
+end)
+hl.on("window.destroy", function()
+    hl.exec_cmd("dev-box-desktop launcher if-empty")
 end)
 
 local mod = "SUPER"
 
+hl.bind(mod .. " + Space", hl.dsp.exec_cmd("dev-box-desktop launcher"))
 hl.bind(mod .. " + Return", hl.dsp.exec_cmd("foot"))
 -- The apps of `devbox desktop install`: a key says so when one is missing.
 hl.bind(mod .. " + B", hl.dsp.exec_cmd("dev-box-desktop open chromium"))
