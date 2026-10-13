@@ -34,7 +34,7 @@ devbox commands        # bare list, one name per line, for completions
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates |
 | `changelog` | `dev-box-changelog` | what changed in the box, newest first; the 3 latest, `-n N`, `--all`, `--upcoming` for what the next image brings |
 | `tour` | `dev-box-tour` | a guided tour of the box, two minutes, commands run under your eyes |
-| `desktop` | `dev-box-desktop` | the graphical session of `devbox dev-env desktop`, reached with gliff, started at connection and stopped by hand: a menu without an argument, which first offers to enable it, `enable`, `disable`, `status`, `start`, `stop`, and its graphical apps (VS Code, Chromium): `apps`, `install`, `remove`, `open` |
+| `desktop` | `dev-box-desktop` | the graphical session of `devbox dev-env desktop`, reached with gliff, started at connection and stopped by hand: in the menu and the list once `devbox dev-env desktop` is installed; a menu without an argument, `status`, `start`, `stop`, and its graphical apps (VS Code, Chromium): `apps`, `install`, `remove`, `open` |
 | `help` | `dev-box-help` | step by step help for what a command cannot do alone: without a topic, a list to pick from; `--list`, `--check` |
 | `migrate` | `dev-box-migrate` | run the migrations shipped by the image, once each |
 | `mise-install` | `dev-box-mise-install` | write a mise-backed wrapper into `~/.local/bin` |
@@ -69,7 +69,7 @@ and reads a comment header at the top of each one:
 # devbox:summary.fr=Mettre à jour les dotfiles, les outils mise et la config livrée
 # devbox:args=[dotfiles|tools|seed|all]
 # devbox:hidden=true    # optional: out of the menu and the list, still routable
-# devbox:requires=tailscale   # optional: hidden too while that feature is off
+# devbox:requires=tailscale   # optional: hidden too while that feature is off (tailscale, podman, desktop)
 ```
 
 Adding a command therefore means dropping a `dev-box-<name>` script in
@@ -81,7 +81,9 @@ entrypoint call the binaries directly. `dev-box-podman` carries `hidden=true`:
 it is the wrapper behind the `docker` and `podman` symlinks, not a command you
 call. `dev-box-tailscale` and `dev-box-serve` carry `requires=tailscale`: with
 `TS_DISABLE=true` they leave the menu and the list, but `devbox tailscale` and
-`devbox serve` still answer, with the reason.
+`devbox serve` still answer, with the reason. `dev-box-desktop` carries
+`requires=desktop`: it joins the menu and the list once
+`devbox dev-env desktop` is installed.
 
 The `summary.fr` line is the French summary, shown instead of the English one
 when `LANG` is French (`LANG=fr_FR.UTF-8` in `.env`); a command without one

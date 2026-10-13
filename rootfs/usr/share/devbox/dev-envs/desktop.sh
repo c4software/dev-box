@@ -14,9 +14,10 @@ gliff-server as a mise tool (http:gliff, the package of the Omarchy
 repository, pinned with its sha256, nothing on the PATH). Nothing runs once
 it is installed: the session starts when a gliff client connects, on a
 private screen sized to its window, and then stays, with what is open in it,
-until `devbox desktop stop`: nothing stops it on its own. `devbox desktop`
-is its menu: the state, start and stop, and the graphical apps to install
-in it (VS Code, Chromium), which are not part of the environment. It needs
+until `devbox desktop stop`: nothing stops it on its own. Once installed,
+`devbox desktop` joins the menu of devbox: the state, start and stop, and
+the graphical apps to install in it (VS Code, Chromium), which are not part
+of the environment. It needs
 the GPU of the host in the box (devbox help gpu): Hyprland refuses to start
 without one. linux x86_64 only, the one it was tried on. A removal takes out
 gliff-server and the packages, and leaves the apps and
@@ -52,7 +53,7 @@ install() {
   log "$("$(mise where "$GLIFF")/usr/bin/gliff-server" --version 2>&1 | head -n 1), $(Hyprland --version 2>&1 | head -n 1 | cut -d' ' -f1-2)"
   log "desktop is ready and off: it starts when a gliff client connects, and stops with devbox desktop stop."
   log "from your machine: gliff --headless $(id -un)@$(uname -n)"
-  log "VS Code or Chromium in it: devbox desktop install code chromium"
+  log "devbox desktop is now in the menu of devbox: start, stop, and the apps (VS Code, Chromium)"
   log "the steps, the keys and the mobile client: devbox help desktop"
 }
 

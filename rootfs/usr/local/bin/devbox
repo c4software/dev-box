@@ -40,9 +40,10 @@ SCAN_LINES=30
 NAMES=()
 declare -A CMD_BIN CMD_SUMMARY CMD_ARGS CMD_HIDDEN
 
-# A command can depend on a feature of the box. When that feature is off, the
-# command leaves the menu and the list, but stays callable by name: it then
-# prints its own explanation. TS_DISABLE is not in the environment of an SSH
+# A command can depend on a feature of the box, or on a dev environment being
+# installed (desktop). When that feature is off, the command leaves the menu
+# and the list, but stays callable by name: it then prints its own
+# explanation. TS_DISABLE is not in the environment of an SSH
 # session, the entrypoint writes it to /etc/devbox/env.
 feature_available() {
   case "$1" in
@@ -54,6 +55,10 @@ feature_available() {
       [ "${ts:-false}" != "true" ]
       ;;
     podman) [ -S "/run/user/$(id -u)/podman/podman.sock" ] ;;
+    # devbox dev-env desktop: its compositor, and gliff-server in the mise config.
+    desktop)
+      [ -x /usr/bin/Hyprland ] && grep -qs '^"http:gliff"' "$HOME/.config/mise/config.toml"
+      ;;
     *) return 0 ;;
   esac
 }

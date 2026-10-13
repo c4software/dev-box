@@ -2,7 +2,8 @@
 # devbox:name=desktop
 # devbox:summary=A graphical session of the box, reached with gliff, started at connection, stopped by hand
 # devbox:summary.fr=Une session graphique de la box, jointe avec gliff, démarrée à la connexion, arrêtée à la main
-# devbox:args=[enable|disable|status|start|stop|apps|install app...|remove app...|open app]
+# devbox:args=[start|stop|apps|install]
+# devbox:requires=desktop
 #
 # A graphical session in the box, for a browser or any window, shown on your
 # machine by gliff (https://github.com/omacom/gliff) through the ssh
@@ -10,10 +11,7 @@
 # the session starts with it, and then stays, with what is open in it, until
 # you stop it. Nothing stops it behind your back, a restart of the box aside.
 #
-#   dev-box-desktop                 a menu on a terminal, the state otherwise;
-#                                   while nothing is installed it offers to enable
-#   dev-box-desktop enable          install it: the same as devbox dev-env desktop
-#   dev-box-desktop disable         stop the session and remove it
+#   dev-box-desktop                 a menu on a terminal, the state otherwise
 #   dev-box-desktop status          the state of the session, how to reach it
 #   dev-box-desktop start           start the session without waiting for a client
 #   dev-box-desktop stop            stop it now, with every window in it
@@ -22,8 +20,9 @@
 #   dev-box-desktop remove code     remove them
 #   dev-box-desktop open code       open an app in the session, from a shell
 #
-# It comes with `devbox dev-env desktop`, which needs the GPU of the host in
-# the box (devbox help gpu). A gliff client runs `gliff-server` over ssh: in
+# It comes with `devbox dev-env desktop`, like every environment of the box,
+# and this command only joins the menu of devbox once that is installed. It
+# needs the GPU of the host in the box (devbox help gpu). A gliff client runs `gliff-server` over ssh: in
 # the box that name is a launcher (dev-box-desktop serve) that starts the
 # session when it is not there, then hands over to the real gliff-server, on
 # a private screen sized to your window. The session is a Hyprland nested in
@@ -61,7 +60,7 @@ APPS=(
   "chromium|chromium noto-fonts|B|chromium --no-sandbox --no-first-run --ozone-platform=wayland|Chromium, the browser of devbox dev-env browser"
 )
 
-usage() { sed -n '7,38p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '8,37p' "$0" | sed 's/^# \?//'; }
 err() { echo "dev-box-desktop: $*" >&2; }
 
 # The real gliff-server, from the mise tool of the desktop environment. It is
@@ -153,7 +152,7 @@ installed() {
 
 need_installed() {
   installed && return 0
-  err "the desktop is not enabled: devbox desktop enable"
+  err "the desktop is not installed: devbox dev-env desktop"
   exit 1
 }
 
@@ -305,7 +304,7 @@ session_env() {
 serve() {
   local real args=() headless=false
   real="$(real_server)" || {
-    err "the desktop is not enabled in this box: devbox desktop enable"
+    err "the desktop is not installed in this box: devbox dev-env desktop"
     exit 1
   }
   while [ $# -gt 0 ]; do
@@ -381,7 +380,7 @@ wallpaper() {
 
 status() {
   if ! installed; then
-    echo "desktop: not enabled (devbox desktop enable; it needs the GPU of the host, devbox help gpu)"
+    echo "desktop: not installed (devbox dev-env desktop; it needs the GPU of the host, devbox help gpu)"
     return 0
   fi
   if session_pid >/dev/null && instance >/dev/null; then
@@ -394,58 +393,16 @@ status() {
   echo "  the apps: devbox desktop apps. The steps: devbox help desktop"
 }
 
-# The environment itself, through devbox dev-env: one place installs it, with
-# its checks (the GPU, the architecture) and its packages.
-enable() {
-  if installed; then
-    echo "desktop: already enabled"
-    return 0
-  fi
-  dev-box-dev-env desktop
-}
-
-disable() {
-  if ! installed; then
-    echo "desktop: not enabled"
-    return 0
-  fi
-  dev-box-dev-env --remove desktop
-}
-
-# While nothing is installed there is one thing to offer: enabling it. The
-# rest of the menu comes once it is there.
-menu_enable() {
-  local choice
-  echo "desktop: not enabled"
-  echo "  A graphical session of the box, for VS Code, a browser or any window,"
-  echo "  shown on your machine by gliff through ssh. Off until you connect."
-  if ! ls /dev/dri/renderD* >/dev/null 2>&1; then
-    echo "  It needs the GPU of the host in the box first, and the box has none:"
-    echo "  devbox help gpu"
-    exit 0
-  fi
-  echo
-  choice="$(gum choose --header "devbox desktop: what do you want to do?" \
-    "Enable the desktop (installs Hyprland, labwc, foot, swaybg, gliff-server)" "Nothing")" || exit 0
-  case "$choice" in
-    Enable*) enable ;;
-    *) exit 0 ;;
-  esac
-  installed || exit 1
-  echo
-}
-
 # One question, then what it needs: the same shape as the other menus.
 menu() {
   local choice names=() n picked
-  installed || menu_enable
   status
+  installed || exit 0
   echo
   choice="$(gum choose --header "devbox desktop: what do you want to do?" \
     "Install apps (VS Code, Chromium)" "Open an app" "Start the session" "Stop the session" \
-    "Remove apps" "Disable the desktop" "Nothing")" || exit 0
+    "Remove apps" "Nothing")" || exit 0
   case "$choice" in
-    Disable*) disable ;;
     Start*)
       need_installed
       start_session
@@ -509,8 +466,6 @@ case "${1:-}" in
       status
     fi
     ;;
-  enable) enable ;;
-  disable) disable ;;
   status) status ;;
   apps) show_apps ;;
   install)
