@@ -56,7 +56,6 @@ RELEASES=(
   "slk|gammons/slk"
 )
 LOCAL_BIN="$HOME/.local/bin"
-SLK_TOKENS="${XDG_DATA_HOME:-$HOME/.local/share}/slk/tokens"
 
 log() { printf '\033[1m[dev-box-tui]\033[0m %s\n' "$*"; }
 err() { echo "dev-box-tui: $*" >&2; }
@@ -251,14 +250,10 @@ menu() {
 
 # --- slk login ---------------------------------------------------------------
 
-# slk only signs in through the Slack desktop app, which the box does not have.
-# At launch it simply loads ~/.local/share/slk/tokens/<team id>.json, and keeps
-# that token when it cannot refresh it from the desktop app. So the token file
-# is written here from a browser session: the d cookie and the xoxc token,
-# checked with auth.test. The d cookie is HttpOnly, no console script can read
-# it, but a "Copy as cURL" of any Slack API request carries both, so that is
-# what gets pasted. The secrets never go on a command line, curl reads its
-# headers from stdin.
+# slk signs in through the Slack desktop app, which the box does not have. Since
+# v0.25.0 it can sign in from a browser session instead: a "Copy as cURL" of a
+# Slack API request carries the xoxc token and the HttpOnly d cookie, and
+# slk --add-workspace --browser reads it, checks it and saves the workspace.
 slk_steps() {
   cat <<'TXT'
 slk signs in through the Slack desktop app, which the box does not have. From
@@ -271,86 +266,23 @@ TXT
 }
 
 slk_login() {
-  local cookie="" token="" line paste answer team_id team url domain file tty
   if [ ! -t 0 ]; then
-    err "no terminal, the cookie and the token are asked for interactively."
+    err "no terminal, the browser session is asked for interactively."
     exit 2
   fi
-  command -v slk >/dev/null 2>&1 || log "slk is not installed yet: devbox tui slk"
+  if ! command -v slk >/dev/null 2>&1; then
+    err "slk is not installed: devbox tui slk"
+    exit 1
+  fi
+  # The browser sign in came with slk v0.25.0; an older binary stays in the
+  # home until devbox tui slk fetches the latest release.
+  if ! slk --help 2>&1 | grep -q -- '--browser'; then
+    err "this slk is too old to sign in from a browser, update it: devbox tui slk"
+    exit 1
+  fi
   slk_steps
   echo
-  echo "Nothing is shown while you paste."
-  # Echo off, and canonical mode off: in canonical mode Linux drops anything
-  # past 4095 bytes on a line, and a copied curl line with its cookies can get
-  # there. Enter still ends a line, Ctrl-C still stops.
-  tty="$(stty -g)"
-  trap 'stty "$tty"' EXIT
-  stty -echo -icanon min 1 time 0
-  # A copied curl command spans several lines ending with a backslash: read
-  # until the last one. Anything else is taken as the bare xoxc token, and the
-  # d cookie is asked for next.
-  IFS= read -rp "cURL command (or the xoxc token): " line
-  paste="$line"
-  if [[ "$line" == curl* ]]; then
-    while [[ "$line" =~ \\[[:space:]]*$ ]] && IFS= read -r line; do
-      paste+=$'\n'"$line"
-    done
-    echo
-    token="$(grep -oE 'xoxc-[A-Za-z0-9-]+' <<<"$paste" | head -n1)" || true
-    cookie="$(grep -oE '(^|[^A-Za-z0-9_-])d=xoxd-[^;[:space:]"'"'"']+' <<<"$paste" |
-      head -n1 | sed 's/^.*d=//')" || true
-    [ -n "$token" ] || err "no xoxc- token in that command: copy a request to /api/, not the page itself."
-    [ -n "$cookie" ] || err "no d cookie in that command: copy it from a browser signed in to app.slack.com."
-    [ -n "$token" ] && [ -n "$cookie" ] || exit 1
-  else
-    echo
-    token="$line"
-    IFS= read -rp "d cookie (DevTools, Application, Cookies, value of d): " cookie
-    echo
-  fi
-  stty "$tty"
-  trap - EXIT
-  cookie="${cookie//[[:space:]]/}"
-  token="${token//[[:space:]]/}"
-  case "$cookie" in xoxd-*) ;; *)
-    err "the d cookie starts with xoxd-, nothing written."
-    exit 1
-    ;;
-  esac
-  case "$token" in xoxc-*) ;; *)
-    err "the token starts with xoxc-, nothing written."
-    exit 1
-    ;;
-  esac
-
-  answer="$(printf 'header = "Authorization: Bearer %s"\nheader = "Cookie: d=%s"\n' "$token" "$cookie" |
-    curl -fsS -K - -X POST https://slack.com/api/auth.test)" || {
-    err "could not reach slack.com, nothing written."
-    exit 1
-  }
-  if [ "$(jq -r '.ok' <<<"$answer")" != "true" ]; then
-    err "Slack refused them ($(jq -r '.error // "unknown error"' <<<"$answer")), nothing written."
-    err "Copy both again from a browser that is signed in, then retry."
-    exit 1
-  fi
-  team_id="$(jq -r '.team_id' <<<"$answer")"
-  team="$(jq -r '.team' <<<"$answer")"
-  url="$(jq -r '.url' <<<"$answer")"
-  domain="${url#https://}"
-  domain="${domain%%.slack.com*}"
-
-  mkdir -p "$SLK_TOKENS"
-  chmod 700 "$SLK_TOKENS"
-  file="$SLK_TOKENS/$team_id.json"
-  (
-    umask 077
-    jq -n --arg t "$token" --arg c "$cookie" --arg d "$domain" \
-      --arg id "$team_id" --arg n "$team" \
-      '{access_token: $t, cookie: $c, domain: $d, team_id: $id, team_name: $n}' >"$file.tmp"
-  )
-  mv "$file.tmp" "$file"
-  log "slk: signed in to $team ($domain.slack.com), token in $file"
-  log "Run slk. When Slack ends that browser session, run devbox tui slk --login again."
+  exec slk --add-workspace --browser
 }
 
 if [ "$ACTION" = "login" ]; then

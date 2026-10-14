@@ -41,12 +41,13 @@ slk signs in through the Slack desktop app, which the box does not have, so
    one of the requests, Copy, Copy as cURL (bash).
 3. Run `devbox tui slk --login` and paste it.
 
-The copied command carries both halves of the session: the `xoxc-` token and
-the `d` cookie, which no console script can read since it is HttpOnly. The
-bare `xoxc-` token can be pasted instead, the `d` cookie is then asked for.
-The pair is checked with Slack, then written to
-`~/.local/share/slk/tokens/<team id>.json`. Nothing refreshes it without the
-desktop app: when Slack ends that browser session, run `--login` again.
+It runs `slk --add-workspace --browser`, which slk ships since v0.25.0: the
+copied command carries both halves of the session, the `xoxc-` token and the
+`d` cookie, which no console script can read since it is HttpOnly. The bare
+`xoxc-` token can be pasted instead, the `d` cookie is then asked for. slk
+checks the pair with Slack and saves the workspace. Nothing refreshes it
+without the desktop app: when Slack ends that browser session, run `--login`
+again. An slk installed before v0.25.0 is updated by `devbox tui slk` first.
 
 ```bash
 devbox tui --list            # the catalogue, installed ones marked

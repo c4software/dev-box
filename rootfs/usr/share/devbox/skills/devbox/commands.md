@@ -161,12 +161,12 @@ goes through `devbox pkg add`, so the app is written to
 not packaged by Arch: its latest GitHub release, sha256 checked, goes into
 `~/.local/bin/slk`, kept by the home; running `devbox tui slk` again updates
 it, `--remove` deletes the binary. slk only signs in through the Slack desktop
-app, absent from the box: `devbox tui slk --login` takes a "Copy as cURL (bash)" of any
-app.slack.com request to `/api/` (DevTools, Network), pulls the xoxc token and
-the HttpOnly `d` cookie out of it (or asks for both when a bare token is
-pasted), checks them with auth.test and writes
-`~/.local/share/slk/tokens/<team id>.json`. Run it again when Slack ends the
-browser session.
+app, absent from the box: `devbox tui slk --login` runs
+`slk --add-workspace --browser` (slk v0.25.0 and later; an older binary is
+updated by `devbox tui slk`), which takes a "Copy as cURL (bash)" of any
+app.slack.com request to `/api/` (DevTools, Network), or a bare xoxc token
+then the `d` cookie, checks them and saves the workspace. Run it again when
+Slack ends the browser session.
 
 ```
 devbox tui --list
