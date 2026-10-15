@@ -69,6 +69,19 @@ iPhone and iPad apps: what is left after devbox dev-env ios
        swift sdk remove darwin
        XCODE_XIP=~/Xcode_28.xip install-toolchain.sh
 
+  A box that had ios before omarchy-apple-dev
+     It still runs the xtool AppImage of mise, without the macros and the
+     tools above. Move it over, once:
+       devbox dev-env ios            builds xtool, a few minutes
+       swift sdk list                darwin: the SDK of xtool setup is kept
+     With darwin listed, install-toolchain.sh has already added the macros
+     and the tools to it. Its cache is empty though, so --repair has nothing
+     to register after a change of Swift: give the .xip once to fill it.
+       swift sdk remove darwin
+       XCODE_XIP=~/Xcode_27.xip install-toolchain.sh
+     The Apple sign-in and the pairing records stay: no xtool auth, no
+     Trust again.
+
   A newer omarchy-apple-dev
      The image pins its release. After an image update, devbox dev-env ios
      moves the clone to the new one and runs install-toolchain.sh again.
