@@ -167,8 +167,6 @@ version is only reported.
 | --- | --- |
 | `~/.claude/settings.json` | `rootfs/etc/devbox/claude/settings.json` |
 | `~/.claude/agents/{pi,omp}.md` | `rootfs/etc/devbox/claude/agents/` |
-| `~/.pi/agent/extensions/llm-proxy.ts` | `rootfs/etc/devbox/llm-proxy.ts` |
-| `~/.omp/agent/extensions/llm-proxy.ts` | same file |
 | `~/.config/mise/config.toml` | `rootfs/etc/devbox/mise-config.toml` |
 | `~/.config/yazi/keymap.toml` | `rootfs/etc/devbox/yazi/keymap.toml` |
 | `~/.config/yazi/vfs.toml` | `rootfs/etc/devbox/yazi/vfs.toml` |
@@ -182,9 +180,15 @@ version is only reported.
   expected. A new shipped version is reported, never forced.
 - `pi.md` and `omp.md`: Claude Code sub-agents that delegate a task to the `pi`
   and `omp` CLIs. They only run when asked for explicitly.
-- `llm-proxy.ts` registers the Albert (DINUM) provider in pi and omp. It reads
-  `LLM_PROXY_URL` and `LLM_PROXY_API_KEY` from `.env`. If the endpoint is
-  unreachable it registers nothing rather than blocking startup.
+- The pi and omp files are not seeded: they come from dotarchy
+  (`config/pi/` of the clone), laid down by `dotarchy-sync` in
+  `~/.pi/agent` and `~/.omp/agent`. `extensions/llm-proxy.ts` registers the
+  Albert (DINUM) provider; it reads `LLM_PROXY_URL` and `LLM_PROXY_API_KEY`
+  from `.env`, and registers nothing rather than blocking startup when the
+  endpoint is unreachable. It follows the repo on every sync, like the rest of
+  the dotarchy config. `mcp.json` connects them to the MCP server of the proxy
+  (web search, web pages and PDFs, search inside a page); it is only laid down
+  when missing, since pi writes to it (`pi mcp add`, `/mcp`).
 - `config.toml` is the mise config, the dev tools of the box (see
   [tools.md](tools.md#dev-tools-mise)). `mise use -g` adds a line to its
   `[tools]` for every new tool, and so do `devbox dev-env`, the wrappers of

@@ -38,10 +38,27 @@ else
   log "repo cloned ($(git -C "$SRC" rev-parse --short HEAD))"
 fi
 
-# --- 2. config/ into ~/.config (except nvim, handled apart) ---
+# --- 2. config/ into ~/.config (except nvim and pi, handled apart) ---
 mkdir -p "$HOME/.config"
-rsync -a --exclude nvim "$CFG/" "$HOME/.config/"
+rsync -a --exclude nvim --exclude pi "$CFG/" "$HOME/.config/"
 log "config/ copied into ~/.config"
+
+# --- 2b. pi and omp: config/pi is not for ~/.config, it goes to the agent
+#         directories of both. llm-proxy.ts (the provider of the proxy's
+#         models) follows the repo like the rest of config/; mcp.json (the
+#         proxy's MCP server: web search, pages, PDFs) is only laid down when
+#         missing, since pi writes to it (`pi mcp add`, /mcp) ---
+if [ -d "$CFG/pi" ]; then
+  for agent in "$HOME/.pi/agent" "$HOME/.omp/agent"; do
+    mkdir -p "$agent/extensions"
+    [ -f "$CFG/pi/llm-proxy.ts" ] && cp "$CFG/pi/llm-proxy.ts" "$agent/extensions/llm-proxy.ts"
+    if [ -f "$CFG/pi/mcp.json" ] && [ ! -e "$agent/mcp.json" ]; then
+      cp "$CFG/pi/mcp.json" "$agent/mcp.json"
+      log "${agent/#$HOME/\~}/mcp.json laid down (MCP server of the proxy)"
+    fi
+  done
+  log "pi / omp: llm-proxy.ts up to date in ~/.pi/agent and ~/.omp/agent"
+fi
 
 # --- 3. default/ into the home dotfiles ---
 for f in zshrc bashrc profile; do

@@ -93,9 +93,10 @@ does not answer, the section says so in one line and nothing else.
 ## Agent configuration files
 
 The files the agents read (`~/.claude/settings.json`, the `pi` and `omp`
-sub-agents of Claude Code, the `llm-proxy.ts` extension of pi and omp) are
-shipped by the image and laid down by the seed, which never overwrites a file
-you changed. The table and what each file holds are in
+sub-agents of Claude Code) are shipped by the image and laid down by the seed,
+which never overwrites a file you changed. The `llm-proxy.ts` extension and
+the `mcp.json` of pi and omp come from dotarchy, through `dotarchy-sync`. The
+table and what each file holds are in
 [customization.md](customization.md#seeded-files-and-devbox-seed).
 
 ## Agent skill

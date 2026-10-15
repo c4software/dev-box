@@ -13,7 +13,7 @@ host, then vanishes without warning.
 | Path | Holds |
 |---|---|
 | `/usr/local/bin/` | `devbox`, the `dev-box-*` commands, `dotarchy-sync`, the tool wrappers (`claude`, `pi`, `omp`, `codex`, `opencode`), the `wl-copy`/`wl-paste`/`xdg-open`/`notify-send` shims |
-| `/etc/devbox/` | the config shipped to the home (`mise-config.toml`, the Claude agents, `llm-proxy.ts`, the yazi keymap), plus `zshenv`, `zshrc`, `sshd_config`, `updates-motd.sh` |
+| `/etc/devbox/` | the config shipped to the home (`mise-config.toml`, the Claude agents, the yazi keymap; the pi/omp files come from dotarchy), plus `zshenv`, `zshrc`, `sshd_config`, `updates-motd.sh` |
 | `/usr/share/devbox/skills/` | this skill and its guides |
 | `/usr/share/devbox/migrations/` | the one-off repairs run at start, once each |
 | `/etc/devbox/release` | `DEVBOX_COMMIT`, `DEVBOX_REPO`, `DEVBOX_BRANCH`, `DEVBOX_VERSION` (the tag), `DEVBOX_SOURCE` (`release` or `local`), burned in at build time; read through `/usr/share/devbox/lib/release.sh` |
