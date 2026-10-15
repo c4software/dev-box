@@ -117,9 +117,15 @@ build-tools through sdkmanager, JDK 21 when no java is declared), and
 `flutter` sits on it, Android and web targets; both x86_64 only, no emulator.
 `swift` is the swift.org toolchain made to run on Arch (`libxml2-legacy`
 through `devbox pkg add`, ncurses links inside the toolchain, version pinned,
-no lldb), and `ios` sits on it and on python: xtool and pymobiledevice3, to
-build and install iPhone and iPad apps without a Mac, on a real device, after
-one `xtool setup` by the user (Apple account, Xcode.xip); both x86_64 only.
+no lldb), and `ios` sits on it and on python: omarchy-apple-dev, cloned at a
+pinned release into `~/.local/share/omarchy-apple-dev`, whose
+`install-toolchain.sh --user-only` builds xtool from source and installs
+pymobiledevice3 (`~/pymobile3-venv`), rcodesign and ipsw; `install-toolchain.sh`,
+`device-run.sh` and `ship.sh` are on the PATH through wrappers in
+`~/.local/bin` that run them under `mise x swift python`. It builds and installs
+iPhone and iPad apps without a Mac, on a real device, and ships them to
+TestFlight, after `XCODE_XIP=<xip> install-toolchain.sh` and `xtool auth` by the
+user (Apple account, Xcode.xip); both x86_64 only.
 `desktop` is a graphical session reached with gliff over ssh (Hyprland nested in a headless labwc, `foot`, `swaybg`, `fuzzel` as the application launcher (`SUPER + Space`, or a screen with no window; it runs only while shown, and starts apps through `dev-box-desktop run`), `libva`, through `devbox pkg`; config `/etc/devbox/desktop/hyprland.lua`, the user's in `~/.config/dev-box/desktop/`; `gliff-server` as the mise tool `http:gliff`), off until a gliff client connects, then on until `devbox desktop stop`; it needs `/dev/dri`, x86_64 only; `devbox desktop [status|start|stop|browser]`, `devbox help desktop`.
 The steps left to the user are `devbox help ios`; a device plugged into the
 user's machine while the box runs elsewhere is `devbox help ios-usb` (the

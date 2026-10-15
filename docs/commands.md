@@ -136,7 +136,7 @@ devbox help --check    # hold every topic to the layout
 
 | Topic | Steps for |
 | --- | --- |
-| `ios` | what is left to you after `devbox dev-env ios`: Xcode and `xtool setup`, the device, a first app, a newer Swift |
+| `ios` | what is left to you after `devbox dev-env ios`: Xcode and the SDK, `xtool auth`, the device, a first app, debugging and TestFlight, a newer Swift |
 | `ios-usb` | an iPhone or iPad plugged into your machine while the box runs on another |
 | `gpu` | giving `/dev/dri` to the box on the host, then the drivers and the test |
 | `desktop` | a graphical session of the box shown by gliff: the GPU, `devbox dev-env desktop`, connecting, the keys, stopping it |

@@ -40,9 +40,9 @@ An iPhone or iPad plugged into your machine, the box on another
   The other ways
      The device can go to the machine running the box: plug it there, then
      step 2 of `devbox help ios`.
-     Without a cable, over Tailscale, once paired over USB: not something the
-     box sets up (iOS 27, a TUN device, a Python the box does not have), and
-     xtool does not go through it. The route is written down in
+     Without a cable, over Tailscale, once paired over USB: iOS 27 only, not
+     something the box sets up, and xtool does not go through it;
+     device-run.sh --over-tailnet does. The route is written down in
        https://github.com/joshuaswarren/omarchy-apple-dev/blob/main/docs/OVER-TAILNET.md
 
   Sources

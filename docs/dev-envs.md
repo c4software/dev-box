@@ -108,18 +108,35 @@ and install it again to move to a newer Swift. `lldb` does not start: it wants
 the Python 3.9 of UBI 9.
 
 `ios` builds iPhone and iPad apps without a Mac. It sits on `swift` and
-`python` and adds [xtool](https://github.com/xtool-org/xtool), which builds,
-signs and installs a SwiftPM app, and `pymobiledevice3`, which talks to the
-device. xtool is an AppImage and the box has no FUSE to mount one, so
-`APPIMAGE_EXTRACT_AND_RUN=1` goes into the mise config with it. One step is
-left to you, since it takes your Apple account: `xtool setup` signs in and
-builds the iOS SDK from an `Xcode.xip` downloaded from developer.apple.com.
+`python` and takes its tools from
+[omarchy-apple-dev](https://github.com/joshuaswarren/omarchy-apple-dev), the
+same tools on Arch with what was found along the way. The box clones it at
+the release it pins, into `~/.local/share/omarchy-apple-dev`, and runs its
+`install-toolchain.sh --user-only` on the Swift of mise: it builds
+[xtool](https://github.com/xtool-org/xtool) from source, with fixes not
+released upstream yet (a few minutes, the first time), and installs
+`pymobiledevice3` (in `~/pymobile3-venv`), `rcodesign` and `ipsw`. Once the
+SDK is in, it adds what the SDK of xtool lacks: the SwiftData and
+`#Predicate` macros, and Linux stand-ins for `actool`, `ibtool`,
+`xcstringstool` and `momc`. Its scripts are on the PATH, run under `mise x` so
+they find the Swift of mise: `install-toolchain.sh` (always `--user-only`),
+`device-run.sh` (build, install, launch, logs, `--lldb`, `--console`,
+`--symbolicate`) and `ship.sh` (an App Store `.ipa`, `--upload` to
+TestFlight). Flutter apps and the experimental mode without an Xcode download
+are in the clone. `libimobiledevice`, which the xtool build links, comes
+through `devbox pkg`. One step is left to you, since it takes your Apple account:
+`XCODE_XIP=~/Xcode.xip install-toolchain.sh` builds the iOS SDK from an
+`Xcode.xip` downloaded from developer.apple.com, and `xtool auth` signs in.
 There is no simulator: an app runs on a real device, plugged into the host
 and given to the box by the USB block of `compose.override.example.yaml`, with
 `devbox pkg add usbmuxd` and `sudo usbmuxd` in the box. The install ends on
-those steps, one by one (the Xcode download and `xtool setup`, the device,
-`xtool new` and `xtool dev` for a first app, what to answer on the device,
-moving to a newer Swift), and `devbox help ios` shows them again.
+those steps, one by one (the Xcode download and the SDK, the device,
+`xtool new` and `xtool dev` or `device-run.sh` for a first app, what to answer
+on the device, debugging, TestFlight, moving to a newer Swift), and
+`devbox help ios` shows them again. A box that had `ios` before
+omarchy-apple-dev keeps its xtool AppImage until `devbox dev-env ios` runs
+again, which moves it over; the same command moves the clone to the release a
+newer image pins.
 
 When the box runs on a remote machine and the device is on your desk, the USB
 block is of no use: the usbmuxd of your own machine does the USB part, and the
