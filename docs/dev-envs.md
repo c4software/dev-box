@@ -126,7 +126,8 @@ TestFlight). Flutter apps and the experimental mode without an Xcode download
 are in the clone. `libimobiledevice`, which the xtool build links, comes
 through `devbox pkg`. One step is left to you, since it takes your Apple account:
 `XCODE_XIP=~/Xcode.xip install-toolchain.sh` builds the iOS SDK from an
-`Xcode.xip` downloaded from developer.apple.com, and `xtool auth` signs in.
+`Xcode.xip` downloaded from developer.apple.com, and `xtool auth` signs in;
+`devbox ios` chains both, the `.xip` picked in a list.
 There is no simulator: an app runs on a real device, plugged into the host
 and given to the box by the USB block of `compose.override.example.yaml`, with
 `devbox pkg add usbmuxd` and `sudo usbmuxd` in the box. The install ends on

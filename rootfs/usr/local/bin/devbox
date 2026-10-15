@@ -59,6 +59,8 @@ feature_available() {
     desktop)
       [ -x /usr/bin/Hyprland ] && grep -qs '^"http:gliff"' "$HOME/.config/mise/config.toml"
       ;;
+    # devbox dev-env ios: the clone of omarchy-apple-dev it installs.
+    ios) [ -d "$HOME/.local/share/omarchy-apple-dev/.git" ] ;;
     *) return 0 ;;
   esac
 }

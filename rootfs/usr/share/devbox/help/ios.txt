@@ -6,7 +6,9 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      file weighs several GB). Take the Xcode that carries the Swift of the
      box (`swift --version`): Xcode 27 for Swift 6.4, Xcode 26 for Swift 6.3.
      Put the .xip in the home of the box: ./data/home on the host, or scp.
-     Then, in the box:
+     Then, in the box, either all of this step in one go:
+       devbox ios            pick the .xip, build the SDK, sign in
+     or by hand:
        XCODE_XIP=~/Xcode_27.xip install-toolchain.sh
        swift sdk list        must answer darwin
        xtool auth
@@ -77,8 +79,7 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      With darwin listed, install-toolchain.sh has already added the macros
      and the tools to it. Its cache is empty though, so --repair has nothing
      to register after a change of Swift: give the .xip once to fill it.
-       swift sdk remove darwin
-       XCODE_XIP=~/Xcode_27.xip install-toolchain.sh
+       devbox ios                    picks the .xip, fills the cache
      The Apple sign-in and the pairing records stay: no xtool auth, no
      Trust again.
 

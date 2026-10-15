@@ -35,6 +35,7 @@ devbox commands        # bare list, one name per line, for completions
 | `changelog` | `dev-box-changelog` | what changed in the box, newest first; the 3 latest, `-n N`, `--all`, `--upcoming` for what the next image brings |
 | `tour` | `dev-box-tour` | a guided tour of the box, two minutes, commands run under your eyes |
 | `desktop` | `dev-box-desktop` | the graphical session of `devbox dev-env desktop`, reached with gliff, started at connection and stopped by hand: in the menu and the list once `devbox dev-env desktop` is installed; a menu without an argument, `status`, `start`, `stop`, and its graphical apps (VS Code, Chromium): `apps`, `install`, `remove`, `open` |
+| `ios` | `dev-box-ios` | the iOS SDK of `devbox dev-env ios` in one go: a `.xip` of Xcode picked with gum among the ones of the home, `install-toolchain.sh` run on it in the right form, the SDK checked, the `.xip` deleted if you say so, then `xtool auth`; `sdk <xip>` without the list, `status`. In the menu and the list once `devbox dev-env ios` is installed |
 | `help` | `dev-box-help` | step by step help for what a command cannot do alone: without a topic, a list to pick from; `--list`, `--check` |
 | `migrate` | `dev-box-migrate` | run the migrations shipped by the image, once each |
 | `mise-install` | `dev-box-mise-install` | write a mise-backed wrapper into `~/.local/bin` |
@@ -69,7 +70,7 @@ and reads a comment header at the top of each one:
 # devbox:summary.fr=Mettre à jour les dotfiles, les outils mise et la config livrée
 # devbox:args=[dotfiles|tools|seed|all]
 # devbox:hidden=true    # optional: out of the menu and the list, still routable
-# devbox:requires=tailscale   # optional: hidden too while that feature is off (tailscale, podman, desktop)
+# devbox:requires=tailscale   # optional: hidden too while that feature is off (tailscale, podman, desktop, ios)
 ```
 
 Adding a command therefore means dropping a `dev-box-<name>` script in
@@ -83,7 +84,8 @@ call. `dev-box-tailscale` and `dev-box-serve` carry `requires=tailscale`: with
 `TS_DISABLE=true` they leave the menu and the list, but `devbox tailscale` and
 `devbox serve` still answer, with the reason. `dev-box-desktop` carries
 `requires=desktop`: it joins the menu and the list once
-`devbox dev-env desktop` is installed.
+`devbox dev-env desktop` is installed, and `dev-box-ios` carries
+`requires=ios`, for `devbox dev-env ios`.
 
 The `summary.fr` line is the French summary, shown instead of the English one
 when `LANG` is French (`LANG=fr_FR.UTF-8` in `.env`); a command without one

@@ -1,0 +1,243 @@
+#!/usr/bin/env bash
+# devbox:name=ios
+# devbox:summary=The iOS SDK from an Xcode .xip picked in a list, then the Apple sign-in, in one go
+# devbox:summary.fr=Le SDK iOS depuis un .xip de Xcode choisi dans une liste, puis la connexion Apple, d'une traite
+# devbox:args=[sdk [xip]|status]
+# devbox:requires=ios
+#
+# Step 1 of `devbox help ios`, chained: the .xip picked among the ones found
+# in the home, install-toolchain.sh run on it in the right form, the SDK
+# checked, the .xip deleted if you say so, then xtool auth when xtool is not
+# signed in yet.
+#
+#   dev-box-ios               the same as sdk on a terminal, status otherwise
+#   dev-box-ios sdk           pick a .xip, build and register the SDK, sign in
+#   dev-box-ios sdk <xip>     the same with that .xip, nothing to pick
+#   dev-box-ios status        the SDK, its cache, the sign-in, the pairing
+#
+# The SDK registered and its cache there: nothing to build. The cache there
+# and the SDK gone (a new Swift): registered again from the cache, no .xip.
+# The SDK of an older xtool setup, with no cache: built again from the .xip
+# into the cache, which install-toolchain.sh --repair reads later. It comes
+# with `devbox dev-env ios` and joins the menu of devbox once that is
+# installed.
+set -euo pipefail
+
+OAD_DIR="$HOME/.local/share/omarchy-apple-dev"
+INSTALL="$HOME/.local/bin/install-toolchain.sh"
+SDK_CACHE="$HOME/.cache/xtool"
+XTOOL_AUTH="$HOME/.local/share/xtool"
+PAIRING="$HOME/.pymobiledevice3"
+# Where a .xip is looked for: the home and the projects, a few levels down.
+SEARCH_DEPTH=3
+
+usage() { sed -n '8,24p' "$0" | sed 's/^# \?//'; }
+log() { printf '\033[1m[dev-box-ios]\033[0m %s\n' "$*"; }
+err() { echo "dev-box-ios: $*" >&2; }
+
+# Read once, at the start: pick_xip runs inside $(...), where stdout is never
+# a terminal.
+INTERACTIVE=false
+if [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1; then INTERACTIVE=true; fi
+interactive() { [ "$INTERACTIVE" = true ]; }
+
+need_ios() {
+  [ -d "$OAD_DIR/.git" ] && [ -x "$INSTALL" ] && return 0
+  err "the ios environment is not installed: devbox dev-env ios first"
+  exit 1
+}
+
+swift_version() { mise x swift -- swift --version 2>/dev/null | sed -n 's/.*Swift version \([0-9]*\.[0-9]*\).*/\1/p' | head -n 1; }
+
+# The Xcode whose Swift matches the box's, as install-toolchain.sh knows it.
+xcode_for() {
+  case "$1" in
+  6.4) echo 27 ;;
+  6.3) echo 26 ;;
+  *) echo "" ;;
+  esac
+}
+
+sdk_registered() { mise x swift -- swift sdk list 2>/dev/null | grep -qx darwin; }
+
+# The newest SDK kept by install-toolchain.sh, empty when there is none.
+sdk_cached() { find "$SDK_CACHE" -maxdepth 1 -name 'darwin-*.xtoolsdk' -type d 2>/dev/null | sort | tail -n 1; }
+
+signed_in() { [ -n "$(ls -A "$XTOOL_AUTH" 2>/dev/null)" ]; }
+
+status() {
+  local version xcode cached
+  version="$(swift_version)"
+  xcode="$(xcode_for "$version")"
+  echo "  swift        ${version:-not found}${xcode:+ (Xcode $xcode)}"
+  if sdk_registered; then echo "  SDK          registered (darwin)"; else echo "  SDK          not registered"; fi
+  cached="$(sdk_cached)"
+  echo "  SDK cache    ${cached:-empty, --repair has nothing to register}"
+  if signed_in; then echo "  Apple        signed in ($XTOOL_AUTH)"; else echo "  Apple        not signed in: xtool auth"; fi
+  if ls "$PAIRING"/*.plist >/dev/null 2>&1; then echo "  pairing      $PAIRING"; else echo "  pairing      none yet: devbox help ios, step 2"; fi
+}
+
+# The .xip files of the home and the projects, newest first, one path a line.
+find_xips() {
+  find "$HOME" -maxdepth "$SEARCH_DEPTH" \
+    \( -path "$HOME/.cache" -o -path "$HOME/.local" -o -path "$HOME/.swiftpm" \) -prune -o \
+    -type f -iname '*.xip' -printf '%T@ %p\n' 2>/dev/null | sort -rn | cut -d' ' -f2-
+}
+
+no_xip() {
+  local xcode="$1" found="${2:-}"
+  [ -n "$found" ] || echo "  No .xip found in the home (searched $SEARCH_DEPTH levels down, ~/projets included)."
+  cat <<EOF
+  Download Xcode${xcode:+ $xcode}, the one that carries the Swift of the box, from
+    https://developer.apple.com/download/all/?q=Xcode
+  in a browser (a free Apple ID will do, several GB), put it in the home of the
+  box (./data/home on the host, or scp), then run devbox ios again.
+EOF
+}
+
+# The .xip to use: the argument, or one picked with gum. Empty: none.
+pick_xip() {
+  local xcode="$1" given="${2:-}" xips choice other="Another path" none="None, where to get one"
+  if [ -n "$given" ]; then
+    [ -f "$given" ] || {
+      err "$given: no such file"
+      return 1
+    }
+    readlink -f "$given"
+    return 0
+  fi
+  interactive || {
+    err "no terminal to pick a .xip on: devbox ios sdk <path of the .xip>"
+    return 1
+  }
+  mapfile -t xips < <(find_xips)
+  if [ "${#xips[@]}" -eq 0 ]; then
+    no_xip "$xcode" >&2
+    return 0
+  fi
+  choice="$(printf '%s\n' "${xips[@]}" "$other" "$none" |
+    gum choose --header "The Xcode .xip to build the SDK from${xcode:+ (Xcode $xcode for this Swift)}")" || return 0
+  case "$choice" in
+  "$none")
+    no_xip "$xcode" found >&2
+    return 0
+    ;;
+  "$other")
+    choice="$(gum input --header "Path of the .xip" --placeholder "$HOME/Xcode.xip")" || return 0
+    choice="${choice/#\~/$HOME}"
+    [ -f "$choice" ] || {
+      err "$choice: no such file"
+      return 1
+    }
+    ;;
+  esac
+  readlink -f "$choice"
+}
+
+# A name that says another Xcode than the one of this Swift: ask before
+# spending several minutes on an SDK the build will refuse.
+check_name() {
+  local xip="$1" xcode="$2" named
+  named="$(basename "$xip" | sed -n 's/^Xcode[_ -]\{0,1\}\([0-9][0-9]*\).*/\1/p')"
+  [ -n "$named" ] && [ -n "$xcode" ] && [ "$named" != "$xcode" ] || return 0
+  log "$(basename "$xip") looks like Xcode $named, and this Swift goes with Xcode $xcode"
+  if interactive; then
+    gum confirm --default=false "Build the SDK from it anyway?" || exit 0
+  else
+    err "give the .xip of Xcode $xcode, or rename it if it is one"
+    exit 1
+  fi
+}
+
+offer_delete() {
+  local xip="$1" size
+  interactive || return 0
+  [ -n "$(sdk_cached)" ] || return 0
+  size="$(du -h "$xip" 2>/dev/null | cut -f1)"
+  if gum confirm --default=false "The SDK is kept in $SDK_CACHE. Delete $(basename "$xip") (${size:-?})?"; then
+    rm -f -- "$xip"
+    log "$xip deleted"
+  else
+    log "$xip kept"
+  fi
+}
+
+sign_in() {
+  if signed_in; then
+    log "xtool is signed in already ($XTOOL_AUTH)"
+    return 0
+  fi
+  if ! interactive; then
+    log "left to you, on a terminal: xtool auth"
+    return 0
+  fi
+  cat <<'EOF'
+
+  xtool signs in to Apple to sign the apps it installs. Two modes:
+    0  an API key, with a paid Apple Developer Program membership
+    1  the password, with any Apple ID (email, password, the two-factor
+       code), through private Apple APIs: xtool suggests a throwaway Apple ID
+EOF
+  if gum confirm "Sign in now (xtool auth)?"; then
+    xtool auth
+  else
+    log "later: xtool auth"
+  fi
+}
+
+sdk() {
+  need_ios
+  local version xcode cached xip=""
+  version="$(swift_version)"
+  xcode="$(xcode_for "$version")"
+  cached="$(sdk_cached)"
+  if sdk_registered && [ -n "$cached" ]; then
+    log "the SDK is registered, and kept in $cached: nothing to build"
+  elif [ -n "$cached" ]; then
+    log "the SDK is not registered, its cache is there: registering it again, no .xip needed"
+    "$INSTALL" --mode full --repair
+  else
+    if sdk_registered; then
+      log "the SDK of an older xtool setup is registered, with no cache: building it once"
+      log "more from the .xip fills the cache install-toolchain.sh --repair reads later"
+    fi
+    xip="$(pick_xip "$xcode" "${1:-}")"
+    [ -n "$xip" ] || exit 0
+    check_name "$xip" "$xcode"
+    log "building the SDK from $xip (several minutes)"
+    if sdk_registered; then
+      XCODE_XIP="$xip" "$INSTALL" --mode full --repair
+    else
+      XCODE_XIP="$xip" "$INSTALL" --mode full
+    fi
+  fi
+  if ! sdk_registered; then
+    err "swift sdk list does not show darwin: see the output of install-toolchain.sh above"
+    exit 1
+  fi
+  log "swift sdk list: darwin"
+  [ -z "$xip" ] || offer_delete "$xip"
+  sign_in
+  echo
+  log "next: the device, devbox help ios step 2 (or devbox help ios-usb), then xtool new"
+}
+
+case "${1:-}" in
+"")
+  if interactive; then sdk; else need_ios; status; fi
+  ;;
+sdk)
+  shift
+  sdk "${1:-}"
+  ;;
+status)
+  need_ios
+  status
+  ;;
+-h | --help) usage ;;
+*)
+  err "unknown argument '$1'"
+  usage >&2
+  exit 2
+  ;;
+esac
