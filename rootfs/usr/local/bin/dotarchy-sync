@@ -38,7 +38,9 @@ else
   log "repo cloned ($(git -C "$SRC" rev-parse --short HEAD))"
 fi
 
-# --- 2. config/ into ~/.config (except nvim, pi and codex, handled apart) ---
+# --- 2. config/ into ~/.config (except nvim, pi and codex, handled apart).
+#        config/opencode/plugins/llm-proxy.ts lands in ~/.config/opencode/
+#        plugins/, where opencode 2.x loads it: the proxy's models and MCP ---
 mkdir -p "$HOME/.config"
 rsync -a --exclude nvim --exclude pi --exclude codex "$CFG/" "$HOME/.config/"
 log "config/ copied into ~/.config"

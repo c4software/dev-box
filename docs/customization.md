@@ -191,6 +191,13 @@ version is only reported.
   when missing, since pi writes to it (`pi mcp add`, `/mcp`). omp takes
   `config/pi/mcp.omp.json` when dotarchy has one: pi counts the MCP
   `timeout` in seconds, omp in milliseconds.
+- opencode (2.x) gets the proxy through a plugin of dotarchy,
+  `config/opencode/plugins/llm-proxy.ts`, copied into
+  `~/.config/opencode/plugins/` with the rest of `config/`: a `llmproxy`
+  provider whose chat models are read from `/v1/models` of the proxy at
+  every start (and every 5 minutes), the proxy's MCP server, and opencode's
+  built-in `websearch` / `webfetch` removed in favour of the proxy's. Pick a
+  model with `/models` (`llmproxy/<backend>/<model>`).
 - Codex gets the same MCP server: `dotarchy-sync` appends
   `config/codex/mcp-llmproxy.toml` of dotarchy to `~/.codex/config.toml`
   when it has no `[mcp_servers.llmproxy]` yet. The file is never replaced,
