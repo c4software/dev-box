@@ -38,9 +38,9 @@ else
   log "repo cloned ($(git -C "$SRC" rev-parse --short HEAD))"
 fi
 
-# --- 2. config/ into ~/.config (except nvim and pi, handled apart) ---
+# --- 2. config/ into ~/.config (except nvim, pi and codex, handled apart) ---
 mkdir -p "$HOME/.config"
-rsync -a --exclude nvim --exclude pi "$CFG/" "$HOME/.config/"
+rsync -a --exclude nvim --exclude pi --exclude codex "$CFG/" "$HOME/.config/"
 log "config/ copied into ~/.config"
 
 # --- 2b. pi and omp: config/pi is not for ~/.config, it goes to the agent
@@ -58,6 +58,18 @@ if [ -d "$CFG/pi" ]; then
     fi
   done
   log "pi / omp: llm-proxy.ts up to date in ~/.pi/agent and ~/.omp/agent"
+fi
+
+# --- 2c. Codex: config/codex/mcp-llmproxy.toml (the proxy's MCP server) is
+#         a block for ~/.codex/config.toml, appended when that file has no
+#         [mcp_servers.llmproxy] yet. The file itself is never replaced:
+#         Codex writes to it (trusted projects, approvals, interface) ---
+if [ -f "$CFG/codex/mcp-llmproxy.toml" ]; then
+  mkdir -p "$HOME/.codex"
+  if ! grep -qs '^\[mcp_servers\.llmproxy\]' "$HOME/.codex/config.toml"; then
+    cat "$CFG/codex/mcp-llmproxy.toml" >> "$HOME/.codex/config.toml"
+    log "~/.codex/config.toml: MCP server of the proxy added"
+  fi
 fi
 
 # --- 3. default/ into the home dotfiles ---

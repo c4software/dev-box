@@ -189,6 +189,10 @@ version is only reported.
   the dotarchy config. `mcp.json` connects them to the MCP server of the proxy
   (web search, web pages and PDFs, search inside a page); it is only laid down
   when missing, since pi writes to it (`pi mcp add`, `/mcp`).
+- Codex gets the same MCP server: `dotarchy-sync` appends
+  `config/codex/mcp-llmproxy.toml` of dotarchy to `~/.codex/config.toml`
+  when it has no `[mcp_servers.llmproxy]` yet. The file is never replaced,
+  since Codex writes to it; the key comes from `LLM_PROXY_API_KEY`.
 - `config.toml` is the mise config, the dev tools of the box (see
   [tools.md](tools.md#dev-tools-mise)). `mise use -g` adds a line to its
   `[tools]` for every new tool, and so do `devbox dev-env`, the wrappers of
