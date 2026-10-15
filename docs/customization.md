@@ -188,7 +188,9 @@ version is only reported.
   endpoint is unreachable. It follows the repo on every sync, like the rest of
   the dotarchy config. `mcp.json` connects them to the MCP server of the proxy
   (web search, web pages and PDFs, search inside a page); it is only laid down
-  when missing, since pi writes to it (`pi mcp add`, `/mcp`).
+  when missing, since pi writes to it (`pi mcp add`, `/mcp`). omp takes
+  `config/pi/mcp.omp.json` when dotarchy has one: pi counts the MCP
+  `timeout` in seconds, omp in milliseconds.
 - Codex gets the same MCP server: `dotarchy-sync` appends
   `config/codex/mcp-llmproxy.toml` of dotarchy to `~/.codex/config.toml`
   when it has no `[mcp_servers.llmproxy]` yet. The file is never replaced,

@@ -47,13 +47,17 @@ log "config/ copied into ~/.config"
 #         directories of both. llm-proxy.ts (the provider of the proxy's
 #         models) follows the repo like the rest of config/; mcp.json (the
 #         proxy's MCP server: web search, pages, PDFs) is only laid down when
-#         missing, since pi writes to it (`pi mcp add`, /mcp) ---
+#         missing, since pi writes to it (`pi mcp add`, /mcp). One file per
+#         agent: pi counts its `timeout` in seconds, omp in milliseconds —
+#         omp takes mcp.omp.json when dotarchy has one ---
 if [ -d "$CFG/pi" ]; then
   for agent in "$HOME/.pi/agent" "$HOME/.omp/agent"; do
     mkdir -p "$agent/extensions"
     [ -f "$CFG/pi/llm-proxy.ts" ] && cp "$CFG/pi/llm-proxy.ts" "$agent/extensions/llm-proxy.ts"
-    if [ -f "$CFG/pi/mcp.json" ] && [ ! -e "$agent/mcp.json" ]; then
-      cp "$CFG/pi/mcp.json" "$agent/mcp.json"
+    src="$CFG/pi/mcp.json"
+    case "$agent" in */.omp/agent) [ -f "$CFG/pi/mcp.omp.json" ] && src="$CFG/pi/mcp.omp.json" ;; esac
+    if [ -f "$src" ] && [ ! -e "$agent/mcp.json" ]; then
+      cp "$src" "$agent/mcp.json"
       log "${agent/#$HOME/\~}/mcp.json laid down (MCP server of the proxy)"
     fi
   done
