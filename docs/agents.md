@@ -90,6 +90,18 @@ cached tokens are the part of the input that was served from a cache, in every
 account, so they are counted inside the input and never twice. When the proxy
 does not answer, the section says so in one line and nothing else.
 
+## Codex's sandbox
+
+Codex runs every command of the model inside its own sandbox, built with
+bubblewrap. The default isolation of the container refuses what bubblewrap
+needs (a user namespace, a fresh `/proc`), so every command fails, read-only
+mode included, and the model answers without having run anything. On the
+host, uncomment the Codex block of `compose.override.example.yaml` (copied to
+`compose.override.yaml`: `seccomp`, `systempaths` and `apparmor` set to
+`unconfined`), then `docker compose up -d`. A box that already has the podman
+block needs nothing more. Like podman, it loosens the isolation of the box
+itself; the reason for each line is written in the file.
+
 ## Agent configuration files
 
 The files the agents read (`~/.claude/settings.json`, the `pi` and `omp`
