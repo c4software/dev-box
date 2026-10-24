@@ -202,6 +202,9 @@ version is only reported.
   `config/codex/mcp-llmproxy.toml` of dotarchy to `~/.codex/config.toml`
   when it has no `[mcp_servers.llmproxy]` yet. The file is never replaced,
   since Codex writes to it; the key comes from `LLM_PROXY_API_KEY`.
+  `config/codex/catalogue-local.json`, the catalog of the proxy's models
+  and their reasoning levels, is copied to `~/.codex` on every sync; a
+  `model_catalog_json` line in `config.toml` loads it.
 - `config.toml` is the mise config, the dev tools of the box (see
   [tools.md](tools.md#dev-tools-mise)). `mise use -g` adds a line to its
   `[tools]` for every new tool, and so do `devbox dev-env`, the wrappers of

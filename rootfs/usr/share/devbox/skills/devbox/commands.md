@@ -40,7 +40,7 @@ use in scripts and in a `docker exec` from the host: `devbox update` and
 | `update` | `dev-box-update` | `[dotfiles\|tools\|seed\|all]`, default `all`. The only command that installs. |
 | `seed` | `dev-box-seed` | lays down the config shipped by the image. `--apply` with no menu, `--check` to look, `--force [path]` to take a new version. |
 | `override` | `dev-box-override` | lists where this box departs from what the image ships, and the command that goes back to the default for each. `--diff [path]` prints the changes in the files. Read only. |
-| `sync` | `dotarchy-sync` | clones or updates the dotfiles repo and applies the config (`config/pi` into `~/.pi/agent` and `~/.omp/agent`, the MCP block of `config/codex` into `~/.codex/config.toml` when missing). Never runs its install scripts. |
+| `sync` | `dotarchy-sync` | clones or updates the dotfiles repo and applies the config (`config/pi` into `~/.pi/agent` and `~/.omp/agent`, the MCP block of `config/codex` into `~/.codex/config.toml` when missing, its model catalog into `~/.codex`). Never runs its install scripts. |
 | `dev-env` | `dev-box-dev-env` | installs or removes a dev environment with mise. `--list`, `--info <env>`, names as arguments (`--remove` to remove, `--if-missing` to skip what is there), or a menu. |
 | `tui` | `dev-box-tui` | installs or removes terminal apps from a catalogue (btop, lazydocker, atac, rainfrog, ...), through `devbox pkg`. `--list`, names as arguments (`--remove` to remove), or a menu. |
 | `dbs` | `dev-box-dbs` | starts a development database in a podman container. `--list`, `--start`, `--stop`, `--remove [--purge]`, or names, or a menu. |
