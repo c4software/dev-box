@@ -12,7 +12,8 @@ without a screen, so it runs inside a labwc that has none), foot as the
 terminal, swaybg for the background, fuzzel as the application launcher,
 noto-fonts-emoji so that emojis are drawn and libva, through `devbox pkg`, and
 gliff-server as a mise tool (http:gliff, the package of the Omarchy
-repository, pinned with its sha256, nothing on the PATH). Nothing runs once
+repository at the latest release of gliff, kept up to date by `devbox update
+tools` like the other tools, nothing on the PATH). Nothing runs once
 it is installed: the session starts when a gliff client connects, on a
 private screen sized to its window, and then stays, with what is open in it,
 until `devbox desktop stop`: nothing stops it on its own. Once installed,
@@ -29,9 +30,12 @@ TXT
 }
 
 GLIFF="http:gliff"
-GLIFF_VERSION="0.3.1"
-GLIFF_URL="https://pkgs.omarchy.org/edge/x86_64/gliff-0.3.1-1-x86_64.pkg.tar.zst"
-GLIFF_SHA256="73887d4f2e040e7c3a9524ca2aeeac3a5983aa27bbf825ff2027b9ec7bbe3782"
+# An ordinary mise tool at latest: the versions are the releases of gliff on
+# GitHub (they carry no binary), the download the package of the Omarchy
+# repository for that version. `mise outdated` and `mise upgrade` see it, so
+# devbox update tools brings each new release. The migration
+# 20261025120000-gliff-follows-releases.sh writes the same spec.
+GLIFF_SPEC="${GLIFF}[url=https://pkgs.omarchy.org/edge/x86_64/gliff-{{ version }}-1-x86_64.pkg.tar.zst,version_list_url=https://api.github.com/repos/omacom/gliff/releases,version_order=semver,bin_path=share]@latest"
 # noto-fonts-emoji: without it no font of the box has an emoji, and the
 # terminal and every app draw a square in its place.
 PACKAGES=(hyprland labwc foot swaybg fuzzel noto-fonts-emoji libva)
@@ -53,7 +57,7 @@ install() {
   # bin_path names a directory without a command: gliff-server stays the
   # launcher of the image (/usr/local/bin/gliff-server), which starts the
   # session before it hands over to this one.
-  mise use -g "${GLIFF}[url=$GLIFF_URL,checksum=sha256:$GLIFF_SHA256,bin_path=share]@$GLIFF_VERSION"
+  mise use -g "$GLIFF_SPEC"
   log "$("$(mise where "$GLIFF")/usr/bin/gliff-server" --version 2>&1 | head -n 1), $(Hyprland --version 2>&1 | head -n 1 | cut -d' ' -f1-2)"
   log "desktop is ready and off: it starts when a gliff client connects, and stops with devbox desktop stop."
   log "from your machine: gliff --headless $(id -un)@$(uname -n)"

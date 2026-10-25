@@ -193,7 +193,8 @@ wants. In the session `SUPER + C` and `SUPER + B` open them, and from a shell
 A gliff client runs `gliff-server` over ssh. In the box that name is a
 launcher of the image, which starts the session when it is not there, then
 hands over to the real `gliff-server`: a mise tool (`http:gliff`, the package
-of the Omarchy repository, pinned with its sha256, nothing on the PATH). The
+of the Omarchy repository at the latest release of gliff, nothing on the
+PATH), brought up to date by `devbox update tools` like the other tools. The
 session is a Hyprland nested in a labwc that has no screen, since Hyprland
 does not start without one; both come through `devbox pkg`, with `foot`,
 `swaybg`, `noto-fonts-emoji` (no other font of the box has an emoji) and
