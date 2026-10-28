@@ -139,6 +139,24 @@ omarchy-apple-dev keeps its xtool AppImage until `devbox dev-env ios` runs
 again, which moves it over; the same command moves the clone to the release a
 newer image pins.
 
+A Kotlin Multiplatform app needs one more piece: Gradle builds its klibs on
+Linux but skips the iOS framework, since Kotlin/Native turns Apple targets
+down when the host is not a Mac. `devbox ios kmp [dir]` links it anyway,
+with `java` installed (`devbox dev-env java`). A Gradle init script reads the
+framework the project declares (`binaries.framework`: base name, exported
+modules, options, Compose resources) and builds its klibs; the compiler then
+runs as on a Mac, its Apple parts swapped: the iOS runtime of its macOS
+distribution (from Maven Central, once, kept in `~/.cache/devbox-ios-kmp`
+next to a hard-linked copy of the Linux one), LLVM for Linux, the
+`ld64.lld` of the SDK's toolset, the SDK and the clang runtime built by
+`devbox ios sdk`. The output is `<module>/build/devbox-ios/<target>`
+(`ios_arm64`, or `ios_simulator_arm64` with `--target`), optimized and
+without debug info: the Linux LLVM asserts on the debug info of Apple
+targets. Checked with a framework that exports a second module, on both
+targets, and a Swift program linked against it; the same steps, run by hand,
+built the framework of a Compose Multiplatform app (52 MB, its Swift app and
+`.ipa` assembled with `swift build`). Not yet run on a device.
+
 When the box runs on a remote machine and the device is on your desk, the USB
 block is of no use: the usbmuxd of your own machine does the USB part, and the
 box reaches it through SSH. Nothing goes into the compose file and no usbmuxd

@@ -2,7 +2,7 @@
 # devbox:name=ios
 # devbox:summary=The iOS SDK from an Xcode .xip picked in a list, then the Apple sign-in, in one go
 # devbox:summary.fr=Le SDK iOS depuis un .xip de Xcode choisi dans une liste, puis la connexion Apple, d'une traite
-# devbox:args=[sdk [xip]|status]
+# devbox:args=[sdk [xip]|status|kmp [dir]]
 # devbox:requires=ios
 #
 # Step 1 of `devbox help ios`, chained: the .xip picked among the ones found
@@ -14,6 +14,8 @@
 #   dev-box-ios sdk           pick a .xip, build and register the SDK, sign in
 #   dev-box-ios sdk <xip>     the same with that .xip, nothing to pick
 #   dev-box-ios status        the SDK, its cache, the sign-in, the pairing
+#   dev-box-ios kmp [dir]     the iOS framework of a Kotlin Multiplatform
+#                             project, linked on Linux (kmp --help)
 #
 # The SDK registered and its cache there: nothing to build. The cache there
 # and the SDK gone (a new Swift): registered again from the cache, no .xip.
@@ -31,7 +33,7 @@ PAIRING="$HOME/.pymobiledevice3"
 # Where a .xip is looked for: the home and the projects, a few levels down.
 SEARCH_DEPTH=3
 
-usage() { sed -n '8,24p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '8,25p' "$0" | sed 's/^# \?//'; }
 log() { printf '\033[1m[dev-box-ios]\033[0m %s\n' "$*"; }
 err() { echo "dev-box-ios: $*" >&2; }
 
@@ -233,6 +235,18 @@ sdk)
 status)
   need_ios
   status
+  ;;
+kmp)
+  shift
+  # shellcheck source=/usr/share/devbox/lib/ios-kmp.sh
+  . /usr/share/devbox/lib/ios-kmp.sh
+  case " $* " in
+  *" -h "* | *" --help "*) ios_kmp_usage ;;
+  *)
+    need_ios
+    ios_kmp "$@"
+    ;;
+  esac
   ;;
 -h | --help) usage ;;
 *)

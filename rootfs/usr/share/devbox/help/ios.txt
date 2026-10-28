@@ -89,6 +89,22 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      pymobiledevice3 that no longer starts after python moved:
        install-toolchain.sh --repair
 
+  A Kotlin Multiplatform app
+     Gradle skips the iOS framework of a Kotlin Multiplatform project on
+     Linux. devbox ios kmp links it from the klibs Gradle builds: the
+     framework the project declares (binaries.framework), its exports and
+     options, in <module>/build/devbox-ios/<target>. It needs a JDK and the
+     SDK of step 1. The first run takes about 300 MB from Maven Central.
+       devbox dev-env java
+       devbox ios kmp ~/projets/<app>             for a device (ios_arm64)
+       devbox ios kmp --target ios_simulator_arm64
+       devbox ios kmp --help
+     The build is optimized, without debug info. Compose Multiplatform
+     resources land in compose-resources/ next to it, to copy into the .app
+     under that name. The Swift side then builds with swift build, the
+     framework passed with -F and -framework. Checked as far as a
+     framework a Swift program links against, not yet run on a device.
+
   Sources
      The tools and steps 1, 4 and 5 come from omarchy-apple-dev, the same
      tools on Arch, with what was found along the way (FINDINGS.md):
