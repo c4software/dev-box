@@ -102,8 +102,15 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      The build is optimized, without debug info. Compose Multiplatform
      resources land in compose-resources/ next to it, to copy into the .app
      under that name. The Swift side then builds with swift build, the
-     framework passed with -F and -framework. Checked as far as a
-     framework a Swift program links against, not yet run on a device.
+     framework passed with -F and -framework; --dynamic when the project
+     declares a static one, which swift build cannot link here (-all_load).
+     A project mounted from the host with rootless Docker is written by
+     root only: run it as root from the host, it takes the tools of the
+     box's user. Android targets in the project: Gradle needs the Android
+     SDK, mounted read-only where sdk.dir of local.properties points.
+       docker exec -u 0:0 -w /home/dev/projets/<app> dev-box \
+         devbox ios kmp . --dynamic                on the host
+     Checked as far as an .ipa built from it, not yet run on a device.
 
   Sources
      The tools and steps 1, 4 and 5 come from omarchy-apple-dev, the same

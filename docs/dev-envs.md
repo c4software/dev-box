@@ -148,14 +148,46 @@ modules, options, Compose resources) and builds its klibs; the compiler then
 runs as on a Mac, its Apple parts swapped: the iOS runtime of its macOS
 distribution (from Maven Central, once, kept in `~/.cache/devbox-ios-kmp`
 next to a hard-linked copy of the Linux one), LLVM for Linux, the
-`ld64.lld` of the SDK's toolset, the SDK and the clang runtime built by
+`ld64.lld` of the SDK's toolset (and its `llvm-lib`, a `llvm-libtool-darwin`,
+for a static framework), the SDK and the clang runtime built by
 `devbox ios sdk`. The output is `<module>/build/devbox-ios/<target>`
 (`ios_arm64`, or `ios_simulator_arm64` with `--target`), optimized and
 without debug info: the Linux LLVM asserts on the debug info of Apple
-targets. Checked with a framework that exports a second module, on both
-targets, and a Swift program linked against it; the same steps, run by hand,
-built the framework of a Compose Multiplatform app (52 MB, its Swift app and
-`.ipa` assembled with `swift build`). Not yet run on a device.
+targets. A framework the project declares static (`isStatic = true`) is
+linked static, unless `--dynamic`: `swift build` in the box loads every
+member of a static archive (`-all_load`, from the toolset), and the static
+framework of a Compose Multiplatform app carries some Skia objects twice,
+which then fail as duplicate symbols. A dynamic one, copied into the
+`Frameworks/` of the `.app`, links fine.
+
+With rootless Docker, a project mounted from the host belongs to the user of
+the host, which is root in the box: only root can write its `build/`. Run the
+command as root from the host then; it takes the mise, `java`, `swift`, the
+`ios` environment and the SDK of the box's user, and keeps Gradle,
+Kotlin/Native and its own cache in root's home, writing nothing in the user's.
+A project that also has Android targets needs the Android SDK even for its
+iOS framework, since Gradle configures every target: mount the host's
+read-only at the path `sdk.dir` of the project's `local.properties` names,
+in `compose.override.yaml`.
+
+```yaml
+services:
+  dev-box:
+    volumes:
+      - /home/<user>/Android/Sdk:/home/<user>/Android/Sdk:ro   # sdk.dir of local.properties
+```
+
+```bash
+# from the host, the project mounted at ~/projets/<app>
+docker exec -u 0:0 -w /home/dev/projets/<app> dev-box \
+  devbox ios kmp . --module :shared --out build/ios --dynamic
+```
+
+Checked with a framework that exports a second module, on both targets, and
+a Swift program linked against it, and, run as root from the host, on a
+Compose Multiplatform app with Android targets: its static framework, and the
+dynamic one its Swift app and `.ipa` were then built against with
+`swift build`. Not yet run on a device.
 
 When the box runs on a remote machine and the device is on your desk, the USB
 block is of no use: the usbmuxd of your own machine does the USB part, and the

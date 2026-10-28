@@ -243,6 +243,7 @@ kmp)
   case " $* " in
   *" -h "* | *" --help "*) ios_kmp_usage ;;
   *)
+    ios_kmp_root_env
     need_ios
     ios_kmp "$@"
     ;;

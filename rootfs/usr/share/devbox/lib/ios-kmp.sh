@@ -14,6 +14,8 @@
 #   - the linker of Xcode: the ld64.lld of the SDK's toolset, the one swift
 #     build uses for iOS (the Swift toolchain's has no iOS platform), behind a
 #     wrapper named ld (lld picks its mode from the name it is called by);
+#     and its libtool, for a static framework: llvm-libtool-darwin, which the
+#     toolset ships as llvm-lib;
 #   - the iOS SDK and the clang runtime: the ones the ios environment built
 #     from the Xcode .xip (devbox ios sdk).
 # KONAN_USE_INTERNAL_SERVER makes the compiler read the toolchain and the
@@ -25,23 +27,51 @@
 #
 # What the framework is made of comes from the project itself, through the
 # Gradle init script ios-kmp.init.gradle next to this file.
+#
+# It also runs as root (docker exec -u 0 from the host): with rootless Docker,
+# root in the box is the user of the host, the only one that may write into a
+# project mounted from it. It then takes the tools of the box's user (mise,
+# java, swift, the ios environment and its SDK) and writes nothing in their
+# home: Gradle, Kotlin/Native and this cache stay in root's.
 
 IOS_KMP_INIT="${IOS_KMP_INIT:-/usr/share/devbox/lib/ios-kmp.init.gradle}"
 IOS_KMP_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/devbox-ios-kmp"
 IOS_KMP_SDKS="${XDG_CONFIG_HOME:+$XDG_CONFIG_HOME/swiftpm/swift-sdks}"
 IOS_KMP_SDKS="${IOS_KMP_SDKS:-$HOME/.swiftpm/swift-sdks}"
 
+# Run as root: the mise, the ios environment and the SDK of the box's user
+# (USER_NAME of the container). Sets OAD_DIR and INSTALL of dev-box-ios.
+ios_kmp_root_env() {
+  [ "$(id -u)" = 0 ] || return 0
+  local home
+  home="$(getent passwd "${USER_NAME:-dev}" | cut -d: -f6)"
+  [ -n "$home" ] && [ "$home" != "$HOME" ] || return 0
+  export MISE_DATA_DIR="${MISE_DATA_DIR:-$home/.local/share/mise}"
+  export MISE_CONFIG_DIR="${MISE_CONFIG_DIR:-$home/.config/mise}"
+  export MISE_GLOBAL_CONFIG_FILE="${MISE_GLOBAL_CONFIG_FILE:-$home/.config/mise/config.toml}"
+  export PATH="$home/.local/share/mise/shims:$home/.local/bin:$PATH"
+  IOS_KMP_SDKS="$home/.swiftpm/swift-sdks"
+  # shellcheck disable=SC2034 # read by need_ios of dev-box-ios
+  OAD_DIR="$home/.local/share/omarchy-apple-dev"
+  # shellcheck disable=SC2034 # read by need_ios of dev-box-ios
+  INSTALL="$home/.local/bin/install-toolchain.sh"
+}
+
 ios_kmp_usage() {
   cat <<'EOF'
-Usage: devbox ios kmp [project dir] [--module :path] [--target ios_arm64|ios_simulator_arm64] [--out dir]
+Usage: devbox ios kmp [project dir] [--module :path] [--target ios_arm64|ios_simulator_arm64] [--out dir] [--dynamic]
 
 Links the iOS framework a Kotlin Multiplatform project declares
 (binaries.framework), on Linux, from the klibs Gradle builds. The project
 dir defaults to the current one; --module picks one project of the build
 (every one that declares a framework otherwise); --target defaults to
-ios_arm64, a device; --out defaults to <module>/build/devbox-ios/<target>.
+ios_arm64, a device; --out defaults to <module>/build/devbox-ios/<target>;
+--dynamic links a dynamic framework even when the project declares a static
+one: swift build in the box loads every member of a static archive
+(-all_load, from the toolset), which the static framework of a Compose
+Multiplatform app does not survive (Skia objects twice).
 Needs the ios environment with its SDK (devbox ios sdk) and java (devbox
-dev-env java).
+dev-env java). As root, it takes the tools of the box's user.
 EOF
 }
 
@@ -96,6 +126,10 @@ ios_kmp_data() {
   printf '#!/bin/sh\n# lld in its Mach-O mode (ld64): it picks the mode from the name it is called by\nexec %s "$@"\n' \
     "$bundle/toolset/bin/ld64.lld" >"$toolchain/usr/bin/ld"
   chmod +x "$toolchain/usr/bin/ld"
+  # A static framework is archived by libtool: llvm-libtool-darwin, the llvm-lib of the toolset
+  printf '#!/bin/sh\n# libtool of Xcode: llvm-libtool-darwin of the SDK toolset\nexec %s "$@"\n' \
+    "$bundle/toolset/bin/llvm-lib" >"$toolchain/usr/bin/libtool"
+  chmod +x "$toolchain/usr/bin/libtool"
   ln -sfn "$bundle/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib" "$toolchain/usr/lib"
   data="$IOS_KMP_CACHE/data"
   mkdir -p "$data/dependencies"
@@ -110,7 +144,7 @@ ios_kmp_data() {
 
 # Links one framework. $1: the dump of devboxIosFrameworks for one project.
 ios_kmp_link() {
-  local block="$1" target="$2" out="$3" version path build name static dist data sdk bundle props llvm ffi
+  local block="$1" target="$2" out="$3" dynamic="$4" version path build name static dist data sdk bundle props llvm ffi
   version="$(awk -F'\t' '$1 == "VERSION" { print $2 }' <<<"$block")"
   IFS=$'\t' read -r _ path build name static < <(grep $'^FRAMEWORK\t' <<<"$block")
   out="${out:-$build/devbox-ios/$target}"
@@ -147,7 +181,7 @@ ios_kmp_link() {
     LINKER) args+=(-linker-option "$value") ;;
     esac
   done <<<"$block"
-  [ "$static" = true ] && args+=(-Xstatic-framework)
+  [ "$static" = true ] && [ "$dynamic" != true ] && args+=(-Xstatic-framework)
 
   log "$path: $name.framework for $target (Kotlin/Native $version, $(basename "$sdk"), several minutes)"
   mkdir -p "$out"
@@ -169,12 +203,13 @@ ios_kmp_link() {
 }
 
 ios_kmp() {
-  local dir="." module="" target="ios_arm64" out="" gradle_target task dump block
+  local dir="." module="" target="ios_arm64" out="" dynamic=false gradle_target task dump block
   while [ "$#" -gt 0 ]; do
     case "$1" in
     --module) module="${2:?--module needs a project path, like :shared}"; shift 2 ;;
     --target) target="${2:?--target needs ios_arm64 or ios_simulator_arm64}"; shift 2 ;;
     --out) out="${2:?--out needs a directory}"; shift 2 ;;
+    --dynamic) dynamic=true; shift ;;
     -h | --help) ios_kmp_usage; return 0 ;;
     -*) err "unknown option $1"; ios_kmp_usage >&2; return 2 ;;
     *) dir="$1"; shift ;;
@@ -206,7 +241,7 @@ ios_kmp() {
   blocks="$(mktemp -d)"
   awk -v dir="$blocks" '/^VERSION\t/ { n++ } n { print > (dir "/" n) }' <<<"$dump"
   for block in "$blocks"/*; do
-    ios_kmp_link "$(cat "$block")" "$target" "$out" || { status=1; break; }
+    ios_kmp_link "$(cat "$block")" "$target" "$out" "$dynamic" || { status=1; break; }
   done
   rm -rf "$blocks"
   return "$status"
