@@ -299,20 +299,20 @@ ios_xcode_install() {
   ios_xcode_py set-plist "$stage/Payload/$product.app/Info.plist" CFBundleIdentifier "$id"
   ios_xcode_log "signed (rcodesign)"
   "$tools/sign-dev.sh" "$stage/Payload/$product.app" "$stage/$product.ipa" "$dev" | tail -n 1
+  ios_xcode_stop "$udid" "$product"
   ios_xcode_log "installed on $udid"
   pymobiledevice3 apps install --udid "$udid" "$stage/$product.ipa"
   echo "$id" >"$IOS_XCODE_OUT/signed-id"
 }
 
-ios_xcode_launch() {
-  local product udid id pid
-  product="$(ios_xcode_product)"
-  udid="$(ios_xcode_device)"
-  id="$(cat "$IOS_XCODE_OUT/signed-id" 2>/dev/null)" || ios_xcode_die "not installed yet: devbox ios xcode install"
-  # The developer disk image, once per start of the device.
+# The app stopped when it runs (process named after the executable): installing
+# over an open app, or launching it, otherwise leaves the old one stuck on the
+# device until it is closed by hand. The developer disk image dvt needs is
+# mounted first, once per start of the device.
+ios_xcode_stop() {
+  local udid="$1" product="$2" pid
   pymobiledevice3 mounter list --udid "$udid" 2>/dev/null | grep -qi personalized ||
     pymobiledevice3 mounter auto-mount --udid "$udid"
-  # Launching an app already open brings the old one back: stopped first.
   for pid in $(pymobiledevice3 developer dvt proclist --userspace --udid "$udid" 2>/dev/null | python3 -c '
 import json, sys
 for p in json.load(sys.stdin):
@@ -321,6 +321,14 @@ for p in json.load(sys.stdin):
     ios_xcode_log "running one stopped (pid $pid)"
     pymobiledevice3 developer dvt kill "$pid" --userspace --udid "$udid"
   done
+}
+
+ios_xcode_launch() {
+  local product udid id
+  product="$(ios_xcode_product)"
+  udid="$(ios_xcode_device)"
+  id="$(cat "$IOS_XCODE_OUT/signed-id" 2>/dev/null)" || ios_xcode_die "not installed yet: devbox ios xcode install"
+  ios_xcode_stop "$udid" "$product"
   ios_xcode_log "launching $id"
   pymobiledevice3 developer dvt launch "$id" --userspace --udid "$udid"
 }

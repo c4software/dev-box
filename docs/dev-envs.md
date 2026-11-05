@@ -243,8 +243,10 @@ iPhone 11 Pro under iOS 27:
   `xtool auth`), `tools/sign-dev.sh` (`rcodesign`) and
   `pymobiledevice3 apps install`, under `XTL-<team key>.<identifier>` like
   xtool, so it never replaces the App Store or TestFlight one
-  (`--signed-id` picks another). `launch` stops the running app first, and
-  mounts the developer disk image when needed.
+  (`--signed-id` picks another). `install` and `launch` stop the running
+  app first, since one installed or launched over the open app stays stuck
+  until it is closed by hand; the developer disk image is mounted when
+  needed.
 - **A newer compiler.** The Swift of the box can be newer than the one the
   project was last built with: Swift 6.4 refuses `self.flag = value` on an
   `@State` before the other properties of an `init` are set;

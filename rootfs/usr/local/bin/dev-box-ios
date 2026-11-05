@@ -31,7 +31,10 @@ set -euo pipefail
 OAD_DIR="$HOME/.local/share/omarchy-apple-dev"
 INSTALL="$HOME/.local/bin/install-toolchain.sh"
 SDK_CACHE="$HOME/.cache/xtool"
-XTOOL_AUTH="$HOME/.local/share/xtool"
+# Where xtool keeps its sign-in: ~/.config/xtool/data for the xtool omarchy-apple-dev
+# builds, ~/.local/share/xtool for the AppImage the environment took before.
+XTOOL_AUTH="$HOME/.config/xtool/data"
+[ -n "$(ls -A "$XTOOL_AUTH" 2>/dev/null)" ] || XTOOL_AUTH="$HOME/.local/share/xtool"
 PAIRING="$HOME/.pymobiledevice3"
 # Where a .xip is looked for: the home and the projects, a few levels down.
 SEARCH_DEPTH=3
