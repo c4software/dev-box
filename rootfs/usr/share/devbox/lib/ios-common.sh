@@ -101,17 +101,18 @@ ios_usbmuxd() {
 
 # The UDID of the device plugged in. usbmuxd started when it is not running,
 # restarted once when it no longer sees a device that was plugged again.
+# xtool devices waits for a device forever: 15 seconds at most, each time.
 ios_device() {
   local udid
   pgrep -x usbmuxd >/dev/null || ios_usbmuxd
-  udid="$(ios_piped xtool devices 2>&1 | sed -n 's/.*\[usb\]: *//p' | head -n 1)"
+  udid="$(ios_piped timeout 15 xtool devices 2>&1 | sed -n 's/.*\[usb\]: *//p' | head -n 1)"
   if [ -z "$udid" ]; then
     log "no device seen: usbmuxd restarted" >&2
     if [ "$(id -u)" = 0 ]; then pkill -x usbmuxd || true; else sudo pkill -x usbmuxd || true; fi
     sleep 2
     ios_usbmuxd
     sleep 3
-    udid="$(ios_piped xtool devices 2>&1 | sed -n 's/.*\[usb\]: *//p' | head -n 1)"
+    udid="$(ios_piped timeout 15 xtool devices 2>&1 | sed -n 's/.*\[usb\]: *//p' | head -n 1)"
   fi
   [ -n "$udid" ] || ios_die "no device over USB: plugged in, unlocked, trusted (devbox help ios, step 2)"
   echo "$udid"
