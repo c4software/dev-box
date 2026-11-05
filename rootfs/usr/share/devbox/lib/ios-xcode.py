@@ -8,8 +8,8 @@
     ios-xcode.py patch-manifests <package dir>
     ios-xcode.py symbols <out.swift> <catalog> [<catalog> ...]
     ios-xcode.py catalogs <Package.swift>
-    ios-xcode.py merge-plist <app Info.plist> <bundle Info.plist>
-    ios-xcode.py set-plist <Info.plist> <key> <value>
+    ios-xcode.py xcframework <Name.framework> <Name.xcframework>
+    ios-xcode.py binary-target <Package.swift> <name> <path in the package>
 
 convert runs xcodeproj2xtool.py of omarchy-apple-dev (OAD_TOOLS) with the
 settings of the given configuration instead of Release, the only one it
@@ -229,21 +229,37 @@ def cmd_catalogs(path):
         print(name)
 
 
-def cmd_merge_plist(app, bundle):
-    with open(app, "rb") as f:
-        info = plistlib.load(f)
-    with open(bundle, "rb") as f:
-        own = plistlib.load(f)
-    with open(bundle, "wb") as f:
-        plistlib.dump({**info, **own}, f, fmt=plistlib.FMT_BINARY)
+def cmd_xcframework(framework, out):
+    """A device framework wrapped as the .xcframework a SwiftPM binary target takes."""
+    import shutil
+
+    name = os.path.basename(framework)
+    shutil.rmtree(out, ignore_errors=True)
+    os.makedirs(os.path.join(out, "ios-arm64"))
+    shutil.copytree(framework, os.path.join(out, "ios-arm64", name), symlinks=True)
+    with open(os.path.join(out, "Info.plist"), "wb") as f:
+        plistlib.dump({
+            "AvailableLibraries": [{
+                "LibraryIdentifier": "ios-arm64",
+                "LibraryPath": name,
+                "BinaryPath": f"{name}/{os.path.splitext(name)[0]}",
+                "SupportedArchitectures": ["arm64"],
+                "SupportedPlatform": "ios",
+            }],
+            "CFBundlePackageType": "XFWK",
+            "XCFrameworkFormatVersion": "1.0",
+        }, f)
 
 
-def cmd_set_plist(path, key, value):
-    with open(path, "rb") as f:
-        info = plistlib.load(f)
-    info[key] = value
-    with open(path, "wb") as f:
-        plistlib.dump(info, f)
+def cmd_binary_target(path, name, relative):
+    """The app target of the generated package depends on a binary target."""
+    text = open(path).read()
+    target = re.search(r'\.target\(\s*name: "([^"]+)",\s*dependencies: \[', text)
+    if not target:
+        sys.exit("no app target with dependencies in Package.swift")
+    text = text[:target.end()] + f'\n                "{name}",' + text[target.end():]
+    text = re.sub(r"(\n    targets: \[\n)", lambda m: f'{m.group(1)}        .binaryTarget(name: "{name}", path: "{relative}"),\n', text, count=1)
+    open(path, "w").write(text)
 
 
 COMMANDS = {
@@ -254,8 +270,8 @@ COMMANDS = {
     "patch-manifests": cmd_patch_manifests,
     "symbols": cmd_symbols,
     "catalogs": cmd_catalogs,
-    "merge-plist": cmd_merge_plist,
-    "set-plist": cmd_set_plist,
+    "xcframework": cmd_xcframework,
+    "binary-target": cmd_binary_target,
 }
 
 if __name__ == "__main__":

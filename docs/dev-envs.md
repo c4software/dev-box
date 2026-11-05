@@ -187,13 +187,19 @@ Checked with a framework that exports a second module, on both targets, and
 a Swift program linked against it, and, run as root from the host, on a
 Compose Multiplatform app with Android targets: its static framework, and the
 dynamic one its Swift app and `.ipa` were then built against with
-`swift build`. Not yet run on a device.
+`swift build`. The app around it builds with `devbox ios xcode --kmp`, below,
+which links the framework through this command first.
 
 An app that lives in an Xcode project, not in an xtool package, builds with
 `devbox ios xcode [dir] [step]`: `run` (the default) builds it, signs it for
 the device plugged in, installs and launches it; `project`, `build`,
-`install`, `launch` and `logs` take one step. It runs `xcodeproj2xtool.py` of
-the clone, which turns the app target into a SwiftPM package under
+`install`, `launch` and `logs` take one step. The project is the
+`.xcodeproj` of the dir, or its `project.yml`: XcodeGen (built once from its
+sources into the cache, `IOS_XCODEGEN_VERSION`) generates the `.xcodeproj`
+under `build/devbox-ios/xcodegen`, and the files it writes next to the
+sources (a generated `Info.plist`) are removed once read. It runs
+`xcodeproj2xtool.py` of the clone, which turns the app target into a SwiftPM
+package under
 `build/devbox-ios/xtool` with one `warning:` line for each thing it cannot
 carry over (run-script phases among them: SwiftGen, SwiftLint, the dSYM upload
 of Crashlytics, so code they generate has to be committed), then makes up for
@@ -245,7 +251,8 @@ iPhone 11 Pro under iOS 27:
   `xtool auth`), `tools/sign-dev.sh` (`rcodesign`) and
   `pymobiledevice3 apps install`, under `XTL-<team key>.<identifier>` like
   xtool, so it never replaces the App Store or TestFlight one
-  (`--signed-id` picks another). `install` and `launch` stop the running
+  (`--signed-id` picks another, `--signed-suffix .kmp` sets two apps of one
+  identifier side by side). `install` and `launch` stop the running
   app first, since one installed or launched over the open app stays stuck
   until it is closed by hand; the developer disk image is mounted when
   needed.
@@ -254,6 +261,20 @@ iPhone 11 Pro under iOS 27:
   `@State` before the other properties of an `init` are set;
   `_flag = State(initialValue: value)` means the same and builds everywhere.
   That one is a change to the project.
+
+- **A Kotlin Multiplatform app.** `--kmp :module` links the framework of
+  that Gradle project first (`devbox ios kmp`, from the nearest dir above
+  with a `gradlew`, dynamic), since the generator drops `OTHER_LDFLAGS` and
+  `FRAMEWORK_SEARCH_PATHS` and the run-script phase that calls Gradle. The
+  framework is wrapped as an `.xcframework` the package takes as a binary
+  target, embedded into the `.app`, and its Compose resources put in
+  `compose-resources/` there. It needs `java` and, for a build with Android
+  targets, the Android SDK mounted where `sdk.dir` points (above).
+
+The parts both commands share live in `ios-common.sh` (running as root,
+xtool, the build through `ship.sh --device`, signing, install, launch, the
+device), `devbox ios kmp` keeps the link of the framework in `ios-kmp.sh`,
+`devbox ios xcode` the project in `ios-xcode.sh`.
 
 `--package name=path[@ref]` takes a dependency from a local git copy, at the
 commit of `ref`, in place of the one the project names: a private repository
@@ -270,6 +291,9 @@ the older xtool is refused.
 # from the host, the project mounted at ~/projets/<app>
 docker exec -u 0:0 -w /home/dev/projets/<app> dev-box devbox ios xcode . \
   --configuration Debug --package mylib=/home/dev/projets/mylib@main
+# a Kotlin Multiplatform app: the iOS app in iosApp/, the framework in :shared
+docker exec -u 0:0 -w /home/dev/projets/<app>/iosApp dev-box devbox ios xcode . \
+  --kmp :shared --signed-suffix .kmp
 ```
 
 When the box runs on a remote machine and the device is on your desk, the USB

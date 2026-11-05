@@ -28,34 +28,16 @@
 # What the framework is made of comes from the project itself, through the
 # Gradle init script ios-kmp.init.gradle next to this file.
 #
-# It also runs as root (docker exec -u 0 from the host): with rootless Docker,
-# root in the box is the user of the host, the only one that may write into a
-# project mounted from it. It then takes the tools of the box's user (mise,
-# java, swift, the ios environment and its SDK) and writes nothing in their
-# home: Gradle, Kotlin/Native and this cache stay in root's.
+# It also runs as root (docker exec -u 0 from the host), with the tools of
+# the box's user (ios_root_env of ios-common.sh); Gradle, Kotlin/Native and
+# this cache stay in root's home. devbox ios xcode --kmp links the framework
+# through here, then builds the app around it.
+
+# shellcheck source=/usr/share/devbox/lib/ios-common.sh
+. /usr/share/devbox/lib/ios-common.sh
 
 IOS_KMP_INIT="${IOS_KMP_INIT:-/usr/share/devbox/lib/ios-kmp.init.gradle}"
 IOS_KMP_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/devbox-ios-kmp"
-IOS_KMP_SDKS="${XDG_CONFIG_HOME:+$XDG_CONFIG_HOME/swiftpm/swift-sdks}"
-IOS_KMP_SDKS="${IOS_KMP_SDKS:-$HOME/.swiftpm/swift-sdks}"
-
-# Run as root: the mise, the ios environment and the SDK of the box's user
-# (USER_NAME of the container). Sets OAD_DIR and INSTALL of dev-box-ios.
-ios_kmp_root_env() {
-  [ "$(id -u)" = 0 ] || return 0
-  local home
-  home="$(getent passwd "${USER_NAME:-dev}" | cut -d: -f6)"
-  [ -n "$home" ] && [ "$home" != "$HOME" ] || return 0
-  export MISE_DATA_DIR="${MISE_DATA_DIR:-$home/.local/share/mise}"
-  export MISE_CONFIG_DIR="${MISE_CONFIG_DIR:-$home/.config/mise}"
-  export MISE_GLOBAL_CONFIG_FILE="${MISE_GLOBAL_CONFIG_FILE:-$home/.config/mise/config.toml}"
-  export PATH="$home/.local/share/mise/shims:$home/.local/bin:$PATH"
-  IOS_KMP_SDKS="$home/.swiftpm/swift-sdks"
-  # shellcheck disable=SC2034 # read by need_ios of dev-box-ios
-  OAD_DIR="$home/.local/share/omarchy-apple-dev"
-  # shellcheck disable=SC2034 # read by need_ios of dev-box-ios
-  INSTALL="$home/.local/bin/install-toolchain.sh"
-}
 
 ios_kmp_usage() {
   cat <<'EOF'
@@ -71,7 +53,8 @@ one: swift build in the box loads every member of a static archive
 (-all_load, from the toolset), which the static framework of a Compose
 Multiplatform app does not survive (Skia objects twice).
 Needs the ios environment with its SDK (devbox ios sdk) and java (devbox
-dev-env java). As root, it takes the tools of the box's user.
+dev-env java). As root, it takes the tools of the box's user. The app around
+the framework: devbox ios xcode --kmp (devbox ios xcode --help).
 EOF
 }
 
@@ -148,7 +131,7 @@ ios_kmp_link() {
   version="$(awk -F'\t' '$1 == "VERSION" { print $2 }' <<<"$block")"
   IFS=$'\t' read -r _ path build name static < <(grep $'^FRAMEWORK\t' <<<"$block")
   out="${out:-$build/devbox-ios/$target}"
-  bundle="$IOS_KMP_SDKS/darwin.artifactbundle"
+  bundle="$IOS_SDKS/darwin.artifactbundle"
   sdk="$(find "$bundle/Developer/Platforms/$(ios_kmp_platform "$target").platform/Developer/SDKs" \
     -maxdepth 1 -name "$(ios_kmp_platform "$target")[0-9]*.sdk" 2>/dev/null | sort -V | tail -n 1)"
   if [ -z "$sdk" ]; then
