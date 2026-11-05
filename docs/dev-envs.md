@@ -189,6 +189,85 @@ Compose Multiplatform app with Android targets: its static framework, and the
 dynamic one its Swift app and `.ipa` were then built against with
 `swift build`. Not yet run on a device.
 
+An app that lives in an Xcode project, not in an xtool package, builds with
+`devbox ios xcode [dir] [step]`: `run` (the default) builds it, signs it for
+the device plugged in, installs and launches it; `project`, `build`,
+`install`, `launch` and `logs` take one step. It runs `xcodeproj2xtool.py` of
+the clone, which turns the app target into a SwiftPM package under
+`build/devbox-ios/xtool` with one `warning:` line for each thing it cannot
+carry over (run-script phases among them: SwiftGen, SwiftLint, the dSYM upload
+of Crashlytics, so code they generate has to be committed), then makes up for
+what that package lacks next to Xcode. Each part was found on a real app
+(SwiftUI, Firebase, RxSwift, a private package), built, installed and run on an
+iPhone 11 Pro under iOS 27:
+
+- **A configuration.** The generator reads the Release settings only; the
+  command has it read `--configuration` (Debug by default): identifier, name,
+  version and the values of the `Info.plist`. A Release configuration also
+  builds with `-c release`.
+- **Root.** Run as root from the host (the rootless Docker case above),
+  `swift` and `xtool` look for the SDK and the Apple sign-in in `/root` and
+  ignore `HOME`: links there point at those of the box's user, inside the
+  container only. xtool (SwiftNIO) also aborts on `epoll_ctl: Operation not
+  permitted` when its standard input is a file or `/dev/null`: it gets a pipe.
+- **Manifests read on Linux.** SwiftPM evaluates `Package.swift` on the build
+  machine. Some test it: RxSwift 6.9 and later leave RxCocoa out when that
+  machine is not a Mac (`#if canImport(Darwin)`), though it builds for iOS.
+  The packages whose manifest tests `canImport(Darwin)`, `os(Linux)` or
+  `os(macOS)` are copied under `build/devbox-ios/deps`, those tests answered
+  as on a Mac, and declared by path in their place (`--no-darwin-manifests`
+  keeps them as they are).
+- **Asset symbols.** The `actool` of the box writes `ColorResource` and
+  `ImageResource`, marked iOS 17, without the fallback types Xcode writes for
+  an older deployment target and without the SwiftUI and UIKit shortcuts
+  (`Color.text`, `UIColor(.text)`, `Image.logo`) it writes when
+  `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS` is on. The
+  package targets iOS 17 at least (`--min-ios`) and the shortcuts are
+  generated next to the sources, under the names actool gives the symbols
+  (`--no-asset-extensions` leaves them out).
+- **Resources.** SwiftPM puts the resources of the target in
+  `<Product>_<Product>.bundle` inside the `.app`. Code that reads
+  `Bundle.main` (the fonts of `UIAppFonts`, `GoogleService-Info.plist`) finds
+  them at the root of the `.app`, where they are copied. Code built as a
+  package (`SWIFT_PACKAGE`, the files SwiftGen generates) reads
+  `Bundle.module` instead, so `PlistFiles` reads the `Info.plist` of that
+  bundle: the keys of the app's are added to it, without them its
+  `fatalError` stops the app.
+- **Signing.** The profile `xtool install` creates holds the first 20 devices
+  of the team only (one page of the API): a device past them is refused at
+  install time (`0xe8008015`, no valid provisioning profile). Two apps with
+  the same bundle identifier also share the name of that profile
+  (`XTL profile <id>`), and creating it again then fails with `409 Multiple
+  profiles found`. The command signs through `tools/provision-dev.py` (a
+  development profile for the device plugged in alone, with the API key of
+  `xtool auth`), `tools/sign-dev.sh` (`rcodesign`) and
+  `pymobiledevice3 apps install`, under `XTL-<team key>.<identifier>` like
+  xtool, so it never replaces the App Store or TestFlight one
+  (`--signed-id` picks another). `launch` stops the running app first, and
+  mounts the developer disk image when needed.
+- **A newer compiler.** The Swift of the box can be newer than the one the
+  project was last built with: Swift 6.4 refuses `self.flag = value` on an
+  `@State` before the other properties of an `init` are set;
+  `_flag = State(initialValue: value)` means the same and builds everywhere.
+  That one is a change to the project.
+
+`--package name=path[@ref]` takes a dependency from a local git copy, at the
+commit of `ref`, in place of the one the project names: a private repository
+the box has no key for, a branch not pushed yet. Anything else a project
+needs: run the steps one by one and change the package between `project` and
+`build`, or wrap the command in a script of the project; `devbox ios xcode
+--help` lists the options. omarchy-apple-dev 0.4.0 also wrote PNGs whose width
+is not a multiple of 4 pixels sheared into `Assets.car` (a stride declared
+padded, rows written unpadded); 0.4.4, which the box pins, writes
+them right. Moving to it rebuilds the SDK from the `.xip` once: the SDK of
+the older xtool is refused.
+
+```bash
+# from the host, the project mounted at ~/projets/<app>
+docker exec -u 0:0 -w /home/dev/projets/<app> dev-box devbox ios xcode . \
+  --configuration Debug --package mylib=/home/dev/projets/mylib@main
+```
+
 When the box runs on a remote machine and the device is on your desk, the USB
 block is of no use: the usbmuxd of your own machine does the USB part, and the
 box reaches it through SSH. Nothing goes into the compose file and no usbmuxd

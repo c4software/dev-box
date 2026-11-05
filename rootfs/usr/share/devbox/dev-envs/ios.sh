@@ -53,7 +53,7 @@ next_steps() {
 # omarchy-apple-dev, pinned: a newer release is a change of this line, tried
 # in a throwaway box first.
 OAD_REPO="https://github.com/joshuaswarren/omarchy-apple-dev"
-OAD_TAG="v0.4.0"
+OAD_TAG="v0.4.4"
 OAD_DIR="$HOME/.local/share/omarchy-apple-dev"
 OAD_BIN="$HOME/.local/bin"
 # The scripts of the clone put on the PATH, through a wrapper each.

@@ -112,6 +112,31 @@ iPhone and iPad apps: what is left after devbox dev-env ios
          devbox ios kmp . --dynamic                on the host
      Checked as far as an .ipa built from it, not yet run on a device.
 
+  An Xcode project
+     devbox ios xcode builds the app of an .xcodeproj on Linux, then signs
+     it for the device plugged in, installs and launches it. It needs the
+     SDK of step 1, xtool signed in with an App Store Connect API key and
+     the device of step 2.
+       cd ~/projets/<app>
+       devbox ios xcode                  build, install, launch
+       devbox ios xcode build            or project, install, launch, logs
+       devbox ios xcode --configuration Release
+       devbox ios xcode --package mylib=~/projets/mylib@main
+       devbox ios xcode --help           the options, what they change
+     It reads the settings of one configuration (Debug by default),
+     answers as on a Mac the manifests of direct dependencies that test the
+     build machine (RxSwift drops RxCocoa on Linux), targets iOS 17 at least
+     (the asset symbols of the box need it), writes the Color.name and
+     UIColor(.name) shortcuts Xcode writes, puts the resources where code
+     reads them (Bundle.main, Bundle.module), and signs through
+     provision-dev.py: the profile of xtool install holds the first 20
+     devices of the team only. Run-script phases are not run: commit what
+     they generate. A project mounted from the host with rootless Docker:
+       docker exec -u 0:0 -w /home/dev/projets/<app> dev-box \
+         devbox ios xcode .                        on the host
+     After moving to omarchy-apple-dev 0.4.4, the SDK is built once more
+     from the .xip (step 1): the SDK of the older xtool is refused.
+
   Sources
      The tools and steps 1, 4 and 5 come from omarchy-apple-dev, the same
      tools on Arch, with what was found along the way (FINDINGS.md):
