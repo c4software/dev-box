@@ -127,10 +127,10 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      answers as on a Mac the manifests of direct dependencies that test the
      build machine (RxSwift drops RxCocoa on Linux), targets iOS 17 at least
      (the asset symbols of the box need it), writes the Color.name and
-     UIColor(.name) shortcuts Xcode writes, puts the resources where code
-     reads them (Bundle.main, Bundle.module), and signs through
-     provision-dev.py: the profile of xtool install holds the first 20
-     devices of the team only. Run-script phases are not run: commit what
+     UIColor(.name) shortcuts Xcode writes, builds through ship.sh
+     --device (app icon, resources at the root of the .app), and signs
+     through provision-dev.py: the profile of xtool install holds the first
+     20 devices of the team only. Run-script phases are not run: commit what
      they generate. A project mounted from the host with rootless Docker:
        docker exec -u 0:0 -w /home/dev/projets/<app> dev-box \
          devbox ios xcode .                        on the host

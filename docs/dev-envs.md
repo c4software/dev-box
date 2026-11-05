@@ -225,11 +225,13 @@ iPhone 11 Pro under iOS 27:
   package targets iOS 17 at least (`--min-ios`) and the shortcuts are
   generated next to the sources, under the names actool gives the symbols
   (`--no-asset-extensions` leaves them out).
-- **Resources.** SwiftPM puts the resources of the target in
-  `<Product>_<Product>.bundle` inside the `.app`. Code that reads
-  `Bundle.main` (the fonts of `UIAppFonts`, `GoogleService-Info.plist`) finds
-  them at the root of the `.app`, where they are copied. Code built as a
-  package (`SWIFT_PACKAGE`, the files SwiftGen generates) reads
+- **The build and the resources.** `xtool dev build` stops short of what
+  Xcode does next: no app icon (the `.app` has none on the home screen), and
+  the resources of the target left in `<Product>_<Product>.bundle`, where
+  code that reads `Bundle.main` (the fonts of `UIAppFonts`,
+  `GoogleService-Info.plist`) finds nothing. `ship.sh --device` of
+  omarchy-apple-dev does both, and the command builds through it. Code built
+  as a package (`SWIFT_PACKAGE`, the files SwiftGen generates) reads
   `Bundle.module` instead, so `PlistFiles` reads the `Info.plist` of that
   bundle: the keys of the app's are added to it, without them its
   `fatalError` stops the app.
