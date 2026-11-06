@@ -1,8 +1,10 @@
 # iOS sans Mac : contributions en amont et nettoyage de dev-box
 
-État au 6/11/2026, midi. dev-box v1.54 épingle omarchy-apple-dev `v0.4.4` (`OAD_TAG` dans
-`rootfs/usr/share/devbox/dev-envs/ios.sh`) ; omarchy y épingle son fork xtool `bfa69bf` (1.23.0 plus ses
-correctifs).
+État au 6/11/2026, 12 h 15. **dev-box v1.55 est publiée** : `devbox ios xcode` / `kmp` appellent les outils
+d'omarchy-apple-dev, épinglé par commit (`OAD_REF` = `031155f`, main après #139, pas encore de version
+publiée), et `ios_piped` est retiré. La box locale est à jour (`devbox dev-env ios` fait, caches
+`devbox-ios-kmp` supprimés), Aero et l'app KMP construites, installées et lancées depuis elle sur l'iPhone 11 Pro.
+Application-ios : exemple `--no-asset-extensions` retiré (`777245f`).
 
 Des contournements ont été ajoutés dans `devbox ios xcode` / `devbox ios kmp` pour construire Aero
 (application-ios) et l'app KMP (application-android/iosApp). Chacun a été proposé en amont. Une fois les
