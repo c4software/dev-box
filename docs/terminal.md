@@ -103,15 +103,23 @@ the box: add the box as a machine and herdr-app installs `herdr-core` in
 closes. herdr-app has no mobile version, but the terminals are on the box, so
 any SSH client reaches them, a phone included.
 
-`/etc/tmux.conf` binds prefix + `a` to a tmux menu of those terminals, one
-line per agent: its name, where it sits in herdr-app and its state, with ● when
-it already has a window and ○ when it has none. Picking a line (its number, the
-arrows or a tap) opens the agent in a tmux window of its own, named after it
-(`claude-code-t7`); picking it again closes that window. Closing the window, or
-Ctrl+\ inside it, only detaches tmux: the agent keeps running in herdr-core and
-herdr-app still shows it. tmux reads `/etc/tmux.conf` before
-`~/.config/tmux/tmux.conf`, so `devbox sync` and a reload of the dotfiles keep
-the binding; a binding of `a` in your own config wins over it.
+The dotarchy dotfiles put them in tmux windows, on the box as on the other
+machines they configure: `~/.config/tmux/herdr.conf`, sourced by the tmux
+config, and its script `~/.config/tmux/herdr`. The status line, at the top,
+gets two buttons for a click or a tap (the terminal you connect from has to
+pass the mouse on, as Termius, Blink and the desktop terminals do):
+
+- `agents`, on the right, with the number of live agents (`agents 2`), hidden
+  when none runs, opens a menu of the agents. prefix + `a` opens it too;
+- `+`, on the left in place of the session name, opens a new window in the
+  directory of the current pane.
+
+Each line of the menu is an agent, with ● when it already has a window and ○
+when it has none. Picking it (its number, the arrows or a tap) opens the agent
+in a tmux window of its own, named after it (`claude-code-t7`); picking it
+again closes that window. Closing the window, or Ctrl+\ inside it, only
+detaches tmux: the agent keeps running in herdr-core and herdr-app still
+shows it.
 
 ```bash
 devbox herdr           # the same menu (outside tmux: the picker of herdr-core)
@@ -119,6 +127,5 @@ devbox herdr list      # the live terminals, and which ones have a window
 devbox herdr toggle t7 # open or close the window of terminal t7
 ```
 
-The menu is read when it opens, so a terminal started from herdr-app shows up
-the next time. `devbox herdr` is out of the menu and the list until
-`herdr-core` is installed.
+`devbox herdr` runs `~/.config/tmux/herdr`, and is out of the menu and the
+list until `herdr-core` is installed.
