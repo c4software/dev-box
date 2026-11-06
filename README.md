@@ -157,7 +157,7 @@ belong to root: on Linux, `sudo rm -rf ~/dev-box`.
 - [Access](docs/access.md): Tailscale, Headscale, SSH without Tailscale,
   `devbox serve`, Taildrop, Taildrive
 - [Terminal](docs/terminal.md): clipboard, `xdg-open`, the yazi file manager,
-  notifications
+  notifications, the Herdr agents in tmux windows
 - [Tools and packages](docs/tools.md): pacman, `devbox tui`, `devbox pkg`, mise
 - [Dev environments](docs/dev-envs.md): `devbox dev-env` and `DEV_ENVS`
 - [GPU acceleration](docs/gpu.md): `/dev/dri`, `devbox gpu`, the drivers

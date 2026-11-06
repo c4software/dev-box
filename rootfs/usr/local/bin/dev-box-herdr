@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# devbox:name=herdr
+# devbox:summary=Herdr agents of this box in tmux windows, from a menu
+# devbox:summary.fr=Les agents Herdr de la box dans des fenêtres tmux, depuis un menu
+# devbox:args=[menu|toggle|list]
+# devbox:requires=herdr
+# The terminals that herdr-app (the Herdr desktop app) runs on this box live
+# in herdr-core, which herdr-app installs in ~/.local/bin when the box is
+# added as a machine. They outlive the app, so they can be reached from any
+# SSH client, a phone included. This command puts them in tmux windows.
+#
+#   dev-box-herdr                 in tmux: the menu; outside: the picker of herdr-core
+#   dev-box-herdr menu [client]   the tmux menu of the agents, one line each:
+#                                 picking a line opens the agent in a window of
+#                                 its own, picking it again closes that window
+#                                 (prefix + a, bound in /etc/tmux.conf)
+#   dev-box-herdr toggle <t>      open or close the window of terminal <t> (t7)
+#   dev-box-herdr list            the live terminals, and whether a window is open
+#
+# Closing a window only detaches tmux from the terminal: the agent keeps
+# running in herdr-core, and herdr-app still shows it. Ctrl+\ inside the
+# window detaches too.
+set -euo pipefail
+
+HC=""
+if [ -x "$HOME/.local/bin/herdr-core" ]; then
+  HC="$HOME/.local/bin/herdr-core"
+elif command -v herdr-core >/dev/null 2>&1; then
+  HC="$(command -v herdr-core)"
+fi
+
+need_hc() {
+  [ -n "$HC" ] && return 0
+  echo "herdr-core is not installed on this box." >&2
+  echo "  herdr-app installs it when you add this box as a machine (herdr-core machine add)." >&2
+  exit 1
+}
+
+# Live terminals of herdr-core, one per line: address, agent, where, status.
+terminals() {
+  "$HC" ls | jq -r '.terminals[]
+    | [.address, (.agent // "shell"), (.where // .cwd // ""), (.status // .state // "")]
+    | @tsv'
+}
+
+# The tmux window that shows terminal $1, tagged with the window option @hc.
+find_window() {
+  tmux list-windows -a -F '#{window_id} #{@hc}' 2>/dev/null \
+    | awk -v t="$1" '$2 == t { print $1; exit }' || true
+}
+
+toggle() {
+  local t="$1" name win
+  [[ "$t" =~ ^[A-Za-z0-9_/-]+$ ]] || { echo "not a terminal address: $t" >&2; exit 2; }
+  win="$(find_window "$t")"
+  if [ -n "$win" ]; then
+    tmux kill-window -t "$win"
+    return 0
+  fi
+  name="$("$HC" ls | jq -r --arg t "$t" '.terminals[] | select(.address == $t) | (.agent // "shell")')"
+  [ -n "$name" ] || { tmux display-message "No live Herdr terminal $t"; exit 1; }
+  name="$(printf '%s-%s' "$name" "$t" | tr -c 'A-Za-z0-9._-' '-')"
+  win="$(tmux new-window -P -F '#{window_id}' -n "$name" "$HC attach $t")"
+  tmux set-option -w -t "$win" @hc "$t"
+}
+
+menu() {
+  local client="${1:-}" n=0 key mark label addr agent where status
+  local -a items=() target=()
+  [ -n "$client" ] && target=(-c "$client")
+  while IFS=$'\t' read -r addr agent where status; do
+    [ -n "$addr" ] || continue
+    n=$((n + 1))
+    key=""
+    [ "$n" -le 9 ] && key="$n"
+    mark="○"
+    [ -n "$(find_window "$addr")" ] && mark="●"
+    # A # in a label would be read as a tmux format
+    label="$mark $agent · $where ($status)"
+    items+=("${label//#/##}" "$key" "run-shell 'dev-box-herdr toggle $addr'")
+  done < <(terminals)
+  if [ "$n" -eq 0 ]; then
+    tmux display-message "${target[@]}" "No live Herdr terminal on this box"
+    return 0
+  fi
+  tmux display-menu "${target[@]}" -T '#[align=centre] Herdr agents (● open) ' -x C -y C "${items[@]}"
+}
+
+list() {
+  local addr agent where status open
+  while IFS=$'\t' read -r addr agent where status; do
+    [ -n "$addr" ] || continue
+    open=""
+    [ -n "$(find_window "$addr")" ] && open="  [window open]"
+    printf '%-5s %-12s %s (%s)%s\n' "$addr" "$agent" "$where" "$status" "$open"
+  done < <(terminals)
+}
+
+case "${1:-}" in
+  "")
+    need_hc
+    if [ -n "${TMUX:-}" ]; then menu; else exec "$HC"; fi
+    ;;
+  menu) need_hc; menu "${2:-}" ;;
+  toggle)
+    need_hc
+    [ -n "${2:-}" ] || { echo "usage: dev-box-herdr toggle <terminal>" >&2; exit 2; }
+    toggle "$2"
+    ;;
+  list) need_hc; list ;;
+  -h|--help) sed -n '7,22p' "$0" | sed 's/^# \?//' ;;
+  *) echo "unknown command: $1 (menu, toggle, list)" >&2; exit 2 ;;
+esac

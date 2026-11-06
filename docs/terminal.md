@@ -1,4 +1,4 @@
-# The terminal: clipboard, opening files, file manager, notifications
+# The terminal: clipboard, opening files, file manager, notifications, Herdr agents
 
 There is no display, no Wayland and no D-Bus in the box. A few shims in
 `/usr/local/bin` make the usual desktop commands work through the terminal you
@@ -94,3 +94,31 @@ not visible needs `allow-passthrough all` in the tmux config rather than `on`.
 ```bash
 notify-send "Build finished" "42 tests passed"
 ```
+
+## Herdr agents in tmux
+
+[Herdr](https://herdr.dev)'s desktop app, herdr-app, can run its terminals on
+the box: add the box as a machine and herdr-app installs `herdr-core` in
+`~/.local/bin`, which runs the terminals and keeps them alive when the app
+closes. herdr-app has no mobile version, but the terminals are on the box, so
+any SSH client reaches them, a phone included.
+
+`/etc/tmux.conf` binds prefix + `a` to a tmux menu of those terminals, one
+line per agent: its name, where it sits in herdr-app and its state, with ● when
+it already has a window and ○ when it has none. Picking a line (its number, the
+arrows or a tap) opens the agent in a tmux window of its own, named after it
+(`claude-code-t7`); picking it again closes that window. Closing the window, or
+Ctrl+\ inside it, only detaches tmux: the agent keeps running in herdr-core and
+herdr-app still shows it. tmux reads `/etc/tmux.conf` before
+`~/.config/tmux/tmux.conf`, so `devbox sync` and a reload of the dotfiles keep
+the binding; a binding of `a` in your own config wins over it.
+
+```bash
+devbox herdr           # the same menu (outside tmux: the picker of herdr-core)
+devbox herdr list      # the live terminals, and which ones have a window
+devbox herdr toggle t7 # open or close the window of terminal t7
+```
+
+The menu is read when it opens, so a terminal started from herdr-app shows up
+the next time. `devbox herdr` is out of the menu and the list until
+`herdr-core` is installed.

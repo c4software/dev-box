@@ -61,6 +61,8 @@ feature_available() {
       ;;
     # devbox dev-env ios: the clone of omarchy-apple-dev it installs.
     ios) [ -d "$HOME/.local/share/omarchy-apple-dev/.git" ] ;;
+    # herdr-core, laid down in the home by herdr-app when the box is added.
+    herdr) [ -x "$HOME/.local/bin/herdr-core" ] || command -v herdr-core >/dev/null 2>&1 ;;
     *) return 0 ;;
   esac
 }

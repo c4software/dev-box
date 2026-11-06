@@ -31,6 +31,7 @@ devbox commands        # bare list, one name per line, for completions
 | `dbs` | `dev-box-dbs` | start a development database in a podman container |
 | `diagnostic` | `dev-box-diagnostic` | starts your coding agent on the box's diagnostic guide: gathers facts with read-only commands, says what is wrong, asks before changing anything; `--report` prints the facts without an agent, to paste to someone |
 | `agent` | `dev-box-agent` | the default coding agent: run it, pick it, read its usage |
+| `herdr` | `dev-box-herdr` | the terminals herdr-app runs on the box, each opened or closed in a tmux window from a menu, also on prefix + `a`; `list`, `toggle <t>`; see [terminal.md](terminal.md#herdr-agents-in-tmux). In the menu and the list once `herdr-core` is installed |
 | `motd` | `dev-box-motd` | the login line: one command drawn at random, pending updates |
 | `changelog` | `dev-box-changelog` | what changed in the box, newest first; the 3 latest, `-n N`, `--all`, `--upcoming` for what the next image brings |
 | `tour` | `dev-box-tour` | a guided tour of the box, two minutes, commands run under your eyes |
