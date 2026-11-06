@@ -50,10 +50,15 @@ next_steps() {
   fi
 }
 
-# omarchy-apple-dev, pinned: a newer release is a change of this line, tried
-# in a throwaway box first.
+# omarchy-apple-dev, pinned to a release tag or to the full SHA of a commit of
+# its main: a newer one is a change of this line, tried in a throwaway box
+# first. devbox ios xcode / kmp need what came after v0.4.4
+# (--configuration of xcodeproj2xtool.py, its asset symbol shortcuts, the
+# resource bundle Info.plist of ship.sh, tools/host-manifests.py,
+# kmp/build-framework.sh) and its xtool pin with xtool-org/xtool#375 (stdin
+# that is a file or /dev/null). No release has them yet: main at #139.
 OAD_REPO="https://github.com/joshuaswarren/omarchy-apple-dev"
-OAD_TAG="v0.4.4"
+OAD_REF="031155f18f28687486e141a925253ec5e8884020"
 OAD_DIR="$HOME/.local/share/omarchy-apple-dev"
 OAD_BIN="$HOME/.local/bin"
 # The scripts of the clone put on the PATH, through a wrapper each.
@@ -122,16 +127,23 @@ take_lldb_python() {
   mise reshim
 }
 
-# The clone at OAD_TAG: cloned the first time, moved to the tag afterwards.
-# A file of the clone changed by hand stops the move, git says which.
+# The clone at OAD_REF: cloned the first time, moved to it afterwards. A tag
+# is fetched as a tag, so that the clone names it; a commit by its SHA, which
+# GitHub serves even when no branch or tag points at it any more. A file of
+# the clone changed by hand stops the move, git says which.
 fetch_oad() {
-  if [ -d "$OAD_DIR/.git" ]; then
-    git -C "$OAD_DIR" fetch -q --depth 1 origin "refs/tags/$OAD_TAG:refs/tags/$OAD_TAG"
-    git -C "$OAD_DIR" -c advice.detachedHead=false checkout -q "$OAD_TAG"
-  else
-    mkdir -p "$(dirname "$OAD_DIR")"
-    git clone -q --depth 1 --branch "$OAD_TAG" -c advice.detachedHead=false "$OAD_REPO" "$OAD_DIR"
+  local ref="$OAD_REF"
+  if [ ! -d "$OAD_DIR/.git" ]; then
+    mkdir -p "$OAD_DIR"
+    git -C "$OAD_DIR" init -q
+    git -C "$OAD_DIR" remote add origin "$OAD_REPO"
   fi
+  if [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then
+    git -C "$OAD_DIR" fetch -q --depth 1 origin "$ref"
+  else
+    git -C "$OAD_DIR" fetch -q --depth 1 origin "refs/tags/$ref:refs/tags/$ref"
+  fi
+  git -C "$OAD_DIR" -c advice.detachedHead=false checkout -q "$ref"
 }
 
 # The scripts read the toolchain from the real path of the swift on the PATH,
@@ -191,7 +203,7 @@ install() {
   # the PATH.
   mise use -g "${LLDB_PYTHON}[url=$LLDB_PYTHON_URL,checksum=sha256:$LLDB_PYTHON_SHA256,bin_path=share]@$LLDB_PYTHON_VERSION"
   give_lldb_python
-  log "omarchy-apple-dev $OAD_TAG in $OAD_DIR"
+  log "omarchy-apple-dev $OAD_REF in $OAD_DIR"
   fetch_oad
   write_wrappers
   # Without an SDK, install-toolchain.sh stops at it with exit 1, after

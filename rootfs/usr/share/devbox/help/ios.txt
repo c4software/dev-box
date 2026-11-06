@@ -85,16 +85,20 @@ iPhone and iPad apps: what is left after devbox dev-env ios
 
   A newer omarchy-apple-dev
      The image pins its release. After an image update, devbox dev-env ios
-     moves the clone to the new one and runs install-toolchain.sh again.
+     moves the clone to the new one and runs install-toolchain.sh again;
+     devbox ios kmp and devbox ios xcode stop and ask for it until then
+     (devbox ios status shows the release of the clone).
      pymobiledevice3 that no longer starts after python moved:
        install-toolchain.sh --repair
 
   A Kotlin Multiplatform app
      Gradle skips the iOS framework of a Kotlin Multiplatform project on
-     Linux. devbox ios kmp links it from the klibs Gradle builds: the
-     framework the project declares (binaries.framework), its exports and
-     options, in <module>/build/devbox-ios/<target>. It needs a JDK and the
-     SDK of step 1. The first run takes about 300 MB from Maven Central.
+     Linux. devbox ios kmp links it from the klibs Gradle builds, through
+     kmp/build-framework.sh of omarchy-apple-dev: the framework the project
+     declares (binaries.framework), its exports and options, in
+     <module>/build/omarchy-kmp/<target> (--xcframework wraps it too). It
+     needs a JDK and the SDK of step 1. The first run takes about 300 MB
+     from Maven Central.
        devbox dev-env java
        devbox ios kmp ~/projets/<app>             for a device (ios_arm64)
        devbox ios kmp --target ios_simulator_arm64
@@ -126,15 +130,17 @@ iPhone and iPad apps: what is left after devbox dev-env ios
        devbox ios xcode --kmp :shared    around a Kotlin Multiplatform
                                          framework (the app in iosApp/)
        devbox ios xcode --help           the options, what they change
-     It reads the settings of one configuration (Debug by default),
-     answers as on a Mac the manifests of direct dependencies that test the
-     build machine (RxSwift drops RxCocoa on Linux), targets iOS 17 at least
-     (the asset symbols of the box need it), writes the Color.name and
-     UIColor(.name) shortcuts Xcode writes, builds through ship.sh
-     --device (app icon, resources at the root of the .app), and signs
-     through provision-dev.py: the profile of xtool install holds the first
-     20 devices of the team only. Run-script phases are not run: commit what
-     they generate. A project mounted from the host with rootless Docker:
+     It leans on omarchy-apple-dev: xcodeproj2xtool.py reads the settings of
+     one configuration (Debug by default) and writes the Color.name and
+     UIColor(.name) shortcuts Xcode writes, host-manifests.py answers as on a
+     Mac the manifests of direct dependencies that test the build machine
+     (RxSwift drops RxCocoa on Linux), ship.sh --device builds (app icon,
+     resources at the root of the .app, the app's Info.plist keys in its
+     resource bundle). On its own it targets iOS 17 at least (the asset
+     symbols of the box need it) and signs through provision-dev.py: the
+     profile of xtool install holds the first 20 devices of the team only.
+     Run-script phases are not run: commit what they generate. A project
+     mounted from the host with rootless Docker:
        docker exec -u 0:0 -w /home/dev/projets/<app> dev-box \
          devbox ios xcode .                        on the host
      After moving to omarchy-apple-dev 0.4.4, the SDK is built once more

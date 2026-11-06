@@ -142,23 +142,30 @@ newer image pins.
 A Kotlin Multiplatform app needs one more piece: Gradle builds its klibs on
 Linux but skips the iOS framework, since Kotlin/Native turns Apple targets
 down when the host is not a Mac. `devbox ios kmp [dir]` links it anyway,
-with `java` installed (`devbox dev-env java`). A Gradle init script reads the
-framework the project declares (`binaries.framework`: base name, exported
-modules, options, Compose resources) and builds its klibs; the compiler then
-runs as on a Mac, its Apple parts swapped: the iOS runtime of its macOS
-distribution (from Maven Central, once, kept in `~/.cache/devbox-ios-kmp`
-next to a hard-linked copy of the Linux one), LLVM for Linux, the
-`ld64.lld` of the SDK's toolset (and its `llvm-lib`, a `llvm-libtool-darwin`,
-for a static framework), the SDK and the clang runtime built by
-`devbox ios sdk`. The output is `<module>/build/devbox-ios/<target>`
-(`ios_arm64`, or `ios_simulator_arm64` with `--target`), optimized and
-without debug info: the Linux LLVM asserts on the debug info of Apple
-targets. A framework the project declares static (`isStatic = true`) is
-linked static, unless `--dynamic`: `swift build` in the box loads every
-member of a static archive (`-all_load`, from the toolset), and the static
-framework of a Compose Multiplatform app carries some Skia objects twice,
-which then fail as duplicate symbols. A dynamic one, copied into the
-`Frameworks/` of the `.app`, links fine.
+with `java` installed (`devbox dev-env java`), through
+`kmp/build-framework.sh` of omarchy-apple-dev (its `kmp/README.md` has the
+details). The script reads the framework the project declares
+(`binaries.framework`: base name, exported modules, options, Compose
+resources) through a Gradle init script and builds its klibs. The compiler
+then runs as on a Mac, with its Apple parts swapped:
+- the iOS runtime of its macOS distribution, from Maven Central once, kept
+  in `~/.cache/omarchy-apple-dev/kmp`;
+- LLVM for Linux;
+- the `ld64.lld` of the SDK's toolset;
+- the SDK built by `devbox ios sdk`.
+
+The output is `<module>/build/omarchy-kmp/<target>` (`ios_arm64`, or
+`ios_simulator_arm64` with `--target`), with `<Name>.xcframework` next to it
+with `--xcframework`. It is optimized and has no debug info: the Linux LLVM
+asserts on the debug info of Apple targets. `--dynamic` links a dynamic
+framework even when the project declares a static one. `swift build` in the
+box loads every member of a static archive (`-all_load`, from the toolset),
+and the static framework of a Compose Multiplatform app carries some Skia
+objects twice, which then fail as duplicate symbols. A dynamic one, copied
+into the `Frameworks/` of the `.app`, links fine. The command only checks
+for the JDK first and handles the root case below. dev-box releases up to
+1.54 linked the framework themselves, with their cache in
+`~/.cache/devbox-ios-kmp`, which can be deleted.
 
 With rootless Docker, a project mounted from the host belongs to the user of
 the host, which is root in the box: only root can write its `build/`. Run the
@@ -180,7 +187,7 @@ services:
 ```bash
 # from the host, the project mounted at ~/projets/<app>
 docker exec -u 0:0 -w /home/dev/projets/<app> dev-box \
-  devbox ios kmp . --module :shared --out build/ios --dynamic
+  devbox ios kmp . --module :shared --out build/ios --dynamic --xcframework
 ```
 
 Checked with a framework that exports a second module, on both targets, and
@@ -199,48 +206,50 @@ sources into the cache, `IOS_XCODEGEN_VERSION`) generates the `.xcodeproj`
 under `build/devbox-ios/xcodegen`, and the files it writes next to the
 sources (a generated `Info.plist`) are removed once read. It runs
 `xcodeproj2xtool.py` of the clone, which turns the app target into a SwiftPM
-package under
+package, in the configuration given by `--configuration` (Debug by default:
+identifier, name, version, the values of the `Info.plist`; a Release
+configuration also builds with `-c release`), under
 `build/devbox-ios/xtool` with one `warning:` line for each thing it cannot
 carry over (run-script phases among them: SwiftGen, SwiftLint, the dSYM upload
 of Crashlytics, so code they generate has to be committed), then makes up for
 what that package lacks next to Xcode. Each part was found on a real app
 (SwiftUI, Firebase, RxSwift, a private package), built, installed and run on an
-iPhone 11 Pro under iOS 27:
+iPhone 11 Pro under iOS 27. Most of them were taken up by omarchy-apple-dev
+since, and the command now calls its tools:
 
-- **A configuration.** The generator reads the Release settings only; the
-  command has it read `--configuration` (Debug by default): identifier, name,
-  version and the values of the `Info.plist`. A Release configuration also
-  builds with `-c release`.
 - **Root.** Run as root from the host (the rootless Docker case above),
   `swift` and `xtool` look for the SDK and the Apple sign-in in `/root` and
   ignore `HOME`: links there point at those of the box's user, inside the
-  container only. xtool (SwiftNIO) also aborts on `epoll_ctl: Operation not
-  permitted` when its standard input is a file or `/dev/null`: it gets a pipe.
+  container only.
 - **Manifests read on Linux.** SwiftPM evaluates `Package.swift` on the build
   machine. Some test it: RxSwift 6.9 and later leave RxCocoa out when that
   machine is not a Mac (`#if canImport(Darwin)`), though it builds for iOS.
-  The packages whose manifest tests `canImport(Darwin)`, `os(Linux)` or
-  `os(macOS)` are copied under `build/devbox-ios/deps`, those tests answered
-  as on a Mac, and declared by path in their place (`--no-darwin-manifests`
-  keeps them as they are).
+  `tools/host-manifests.py` of omarchy-apple-dev copies the direct
+  dependencies whose manifest tests `canImport(Darwin)`, `os(Linux)` or
+  `os(macOS)` under `build/devbox-ios/xtool/.host-manifests`, answers those
+  tests as on a Mac, and declares the copies by path in their place.
+  `--no-darwin-manifests` keeps the manifests as they are.
 - **Asset symbols.** The `actool` of the box writes `ColorResource` and
   `ImageResource`, marked iOS 17, without the fallback types Xcode writes for
-  an older deployment target and without the SwiftUI and UIKit shortcuts
-  (`Color.text`, `UIColor(.text)`, `Image.logo`) it writes when
-  `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS` is on. The
-  package targets iOS 17 at least (`--min-ios`) and the shortcuts are
-  generated next to the sources, under the names actool gives the symbols
-  (`--no-asset-extensions` leaves them out).
+  an older deployment target, so the package targets iOS 17 at least
+  (`--min-ios`). The SwiftUI and UIKit shortcuts (`Color.text`,
+  `UIColor(.text)`, `Image.logo`) that Xcode writes when
+  `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS` is on come
+  from the generator, which follows that setting. It stops on an asset name
+  it cannot map the way actool does (a leading combining mark, a format
+  character): rename the asset. dev-box releases up to 1.54 wrote the
+  shortcuts themselves, `--no-asset-extensions` turned that off; the option
+  is gone.
 - **The build and the resources.** `xtool dev build` stops short of what
-  Xcode does next: no app icon (the `.app` has none on the home screen), and
-  the resources of the target left in `<Product>_<Product>.bundle`, where
-  code that reads `Bundle.main` (the fonts of `UIAppFonts`,
-  `GoogleService-Info.plist`) finds nothing. `ship.sh --device` of
-  omarchy-apple-dev does both, and the command builds through it. Code built
-  as a package (`SWIFT_PACKAGE`, the files SwiftGen generates) reads
-  `Bundle.module` instead, so `PlistFiles` reads the `Info.plist` of that
-  bundle: the keys of the app's are added to it, without them its
-  `fatalError` stops the app.
+  Xcode does next. The app gets no icon, so the `.app` has none on the home
+  screen. The resources of the target are left in
+  `<Product>_<Product>.bundle`, where code that reads `Bundle.main` finds
+  nothing (the fonts of `UIAppFonts`, `GoogleService-Info.plist`). The
+  command builds through `ship.sh --device` of omarchy-apple-dev, which does
+  both. It also adds the keys of the app's `Info.plist` to the one of that
+  bundle: code built as a package (`SWIFT_PACKAGE`, the files SwiftGen
+  generates) reads `Bundle.module`, so `PlistFiles` reads that `Info.plist`,
+  and its `fatalError` stops the app when the keys are missing.
 - **Signing.** The profile `xtool install` creates holds the first 20 devices
   of the team only (one page of the API): a device past them is refused at
   install time (`0xe8008015`, no valid provisioning profile). Two apps with
@@ -264,17 +273,24 @@ iPhone 11 Pro under iOS 27:
 
 - **A Kotlin Multiplatform app.** `--kmp :module` links the framework of
   that Gradle project first (`devbox ios kmp`, from the nearest dir above
-  with a `gradlew`, dynamic), since the generator drops `OTHER_LDFLAGS` and
-  `FRAMEWORK_SEARCH_PATHS` and the run-script phase that calls Gradle. The
-  framework is wrapped as an `.xcframework` the package takes as a binary
-  target, embedded into the `.app`, and its Compose resources put in
-  `compose-resources/` there. It needs `java` and, for a build with Android
+  with a `gradlew`, dynamic, with its `.xcframework`), since the generator
+  drops `OTHER_LDFLAGS` and `FRAMEWORK_SEARCH_PATHS` and the run-script
+  phase that calls Gradle. The `.xcframework` is copied into the package and
+  declared as a binary target of the app, the framework is embedded into the
+  `.app`, and its Compose resources are put in `compose-resources/` there. It needs `java` and, for a build with Android
   targets, the Android SDK mounted where `sdk.dir` points (above).
 
 The parts both commands share live in `ios-common.sh` (running as root,
 xtool, the build through `ship.sh --device`, signing, install, launch, the
-device), `devbox ios kmp` keeps the link of the framework in `ios-kmp.sh`,
-`devbox ios xcode` the project in `ios-xcode.sh`.
+device). `ios-kmp.sh` checks for the JDK and calls `kmp/build-framework.sh`,
+and `ios-xcode.sh` handles the project.
+
+Both commands need the omarchy-apple-dev the image pins (`OAD_REF` of
+`dev-envs/ios.sh`: a release tag, or the full SHA of a commit of its main
+while what is needed is in no release). The clone lives in the home and is
+kept across images, so after an image update they stop and ask for `devbox
+dev-env ios`, which moves the clone and runs `install-toolchain.sh` again.
+`devbox ios status` shows the clone's tag or commit.
 
 `--package name=path[@ref]` takes a dependency from a local git copy, at the
 commit of `ref`, in place of the one the project names: a private repository

@@ -30,6 +30,8 @@ set -euo pipefail
 
 OAD_DIR="$HOME/.local/share/omarchy-apple-dev"
 INSTALL="$HOME/.local/bin/install-toolchain.sh"
+# The environment that pins omarchy-apple-dev (OAD_REF).
+OAD_ENV="${OAD_ENV:-/usr/share/devbox/dev-envs/ios.sh}"
 SDK_CACHE="$HOME/.cache/xtool"
 # Where xtool keeps its sign-in: ~/.config/xtool/data for the xtool omarchy-apple-dev
 # builds, ~/.local/share/xtool for the AppImage the environment took before.
@@ -50,8 +52,33 @@ if [ -t 0 ] && [ -t 1 ] && command -v gum >/dev/null 2>&1; then INTERACTIVE=true
 interactive() { [ "$INTERACTIVE" = true ]; }
 
 need_ios() {
-  [ -d "$OAD_DIR/.git" ] && [ -x "$INSTALL" ] && return 0
-  err "the ios environment is not installed: devbox dev-env ios first"
+  if ! [ -d "$OAD_DIR/.git" ] || ! [ -x "$INSTALL" ]; then
+    err "the ios environment is not installed: devbox dev-env ios first"
+    exit 1
+  fi
+}
+
+# The clone of omarchy-apple-dev lives in the home, kept across images: a new
+# image pinning a newer release or commit finds the old clone until devbox
+# dev-env ios moves it, and the commands here would call tools it does not
+# have yet. OAD_REF is a tag or a full commit SHA; the clone is compared the
+# same way (its full SHA, or the tag at its HEAD).
+oad_refs() {
+  OAD_WANT="$(sed -n 's/^OAD_REF="\(.*\)"$/\1/p' "$OAD_ENV" 2>/dev/null)"
+  if [[ "$OAD_WANT" =~ ^[0-9a-f]{40}$ ]]; then
+    OAD_HAVE="$(git -C "$OAD_DIR" rev-parse HEAD 2>/dev/null)"
+  else
+    OAD_HAVE="$(git -C "$OAD_DIR" describe --tags --exact-match HEAD 2>/dev/null ||
+      git -C "$OAD_DIR" rev-parse --short HEAD 2>/dev/null)"
+  fi
+}
+
+need_oad_ref() {
+  local want have
+  oad_refs
+  want="$OAD_WANT" have="$OAD_HAVE"
+  [ -z "$want" ] || [ "$have" = "$want" ] && return 0
+  err "omarchy-apple-dev is at $have, this dev-box pins $want: devbox dev-env ios first (moves it, rebuilds xtool when its pin changed)"
   exit 1
 }
 
@@ -77,6 +104,12 @@ status() {
   local version xcode cached
   version="$(swift_version)"
   xcode="$(xcode_for "$version")"
+  oad_refs
+  if [ -z "$OAD_WANT" ] || [ "$OAD_HAVE" = "$OAD_WANT" ]; then
+    echo "  omarchy      ${OAD_HAVE:-not found}"
+  else
+    echo "  omarchy      $OAD_HAVE, this dev-box pins $OAD_WANT: devbox dev-env ios"
+  fi
   echo "  swift        ${version:-not found}${xcode:+ (Xcode $xcode)}"
   if sdk_registered; then echo "  SDK          registered (darwin)"; else echo "  SDK          not registered"; fi
   cached="$(sdk_cached)"
@@ -195,6 +228,7 @@ EOF
 
 sdk() {
   need_ios
+  need_oad_ref
   local version xcode cached xip=""
   version="$(swift_version)"
   xcode="$(xcode_for "$version")"
@@ -251,6 +285,7 @@ kmp)
   *)
     ios_root_env
     need_ios
+    need_oad_ref
     ios_kmp "$@"
     ;;
   esac
@@ -264,6 +299,7 @@ xcode)
   *)
     ios_root_env
     need_ios
+    need_oad_ref
     ios_xcode "$@"
     ;;
   esac

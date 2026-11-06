@@ -4,27 +4,24 @@
 # installed and launched on Linux. Sourced by dev-box-ios for
 # `devbox ios xcode`, not run. Uses log and err of dev-box-ios.
 #
-# xcodeproj2xtool.py of omarchy-apple-dev turns the app target into an xtool
-# package, and ios-common.sh builds it through ship.sh --device, signs,
-# installs and launches it. What is left here, each part found on a real app
-# (SwiftUI, Firebase, RxSwift, a private package, a Compose Multiplatform app):
+# omarchy-apple-dev does the work: xcodeproj2xtool.py turns the app target
+# into an xtool package, in the configuration asked for (Debug by default),
+# with the SwiftUI and UIKit shortcuts of the asset symbols (Color.name,
+# UIColor(.name)) when the project has them on; tools/host-manifests.py
+# answers as on a Mac the manifests of direct dependencies that test the
+# build machine (RxSwift leaves RxCocoa out on Linux); kmp/build-framework.sh
+# links the framework of a Kotlin Multiplatform build; ios-common.sh builds
+# the package through ship.sh --device, signs, installs and launches it.
+# What is left here, each part found on a real app (SwiftUI, Firebase,
+# RxSwift, a private package, a Compose Multiplatform app):
 #   - a project.yml generated into an .xcodeproj by XcodeGen, built once from
 #     its sources into the cache; the files it writes next to the sources are
 #     removed once the package is generated;
-#   - the settings of one configuration (Debug by default), where the
-#     generator only reads Release: identifier, name, version, Info.plist;
-#   - manifests of direct dependencies that test the machine SwiftPM runs on
-#     (canImport(Darwin), os(Linux), os(macOS)): RxSwift leaves RxCocoa out
-#     on Linux. They are copied next to the build, the tests answered as on a
-#     Mac, and declared by path in their place. A dependency of a dependency
-#     cannot be: xtool builds the app from a package of its own;
-#   - the SwiftUI and UIKit shortcuts of the asset symbols (Color.name,
-#     UIColor(.name)), which Xcode writes and the actool of the box does not;
-#     the symbols themselves need iOS 17, so the package targets it at least;
-#   - with --kmp, the framework of a Kotlin Multiplatform build linked by
-#     ios-kmp.sh, wrapped as an .xcframework the package takes as a binary
-#     target (the generator drops OTHER_LDFLAGS and FRAMEWORK_SEARCH_PATHS),
-#     and its Compose resources put into the .app.
+#   - dependencies taken from a local git copy (--package);
+#   - iOS 17 at least: the asset symbols of the box's actool need it;
+#   - with --kmp, the .xcframework of that framework taken as a binary target
+#     of the package (the generator drops OTHER_LDFLAGS and
+#     FRAMEWORK_SEARCH_PATHS), and its Compose resources put into the .app.
 
 # shellcheck source=/usr/share/devbox/lib/ios-kmp.sh
 . /usr/share/devbox/lib/ios-kmp.sh
@@ -59,9 +56,10 @@ Options:
   --kmp :module              the app links the framework of that Gradle
                              project (Kotlin Multiplatform), from the
                              nearest dir above with a gradlew: linked first
-                             (devbox ios kmp), embedded with its Compose
-                             resources. Needs java and, for a build with
-                             Android targets, the Android SDK of sdk.dir
+                             (kmp/build-framework.sh of omarchy-apple-dev),
+                             embedded with its Compose resources. Needs java
+                             and, for a build with Android targets, the
+                             Android SDK of sdk.dir
   --signed-id id             the identifier the app is signed under
                              (XTL-<team key>.<identifier>, like xtool, so it
                              never replaces the App Store or TestFlight one)
@@ -70,24 +68,20 @@ Options:
   --out dir                  where it all goes (<dir>/build/devbox-ios)
 
 Customizing:
-  The package xcodeproj2xtool.py of omarchy-apple-dev generates is built by
-  its ship.sh --device (app icon, resources at the root of the .app; its
-  variables apply, ROOT_RESOURCES and the others), signed by its
-  provision-dev.py and sign-dev.sh. What Xcode does and that chain does not
-  is made up for on its own, each part with an option to tune or turn it off:
+  The package xcodeproj2xtool.py of omarchy-apple-dev generates (settings of
+  the configuration, asset symbol shortcuts as the project's
+  ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS says) is built
+  by its ship.sh --device (app icon, resources at the root of the .app, the
+  app's Info.plist keys in the resource bundle; its variables apply,
+  ROOT_RESOURCES and the others), signed by its provision-dev.py and
+  sign-dev.sh. Two parts can be tuned:
   --min-ios version          the lowest iOS the package targets (17.0): the
                              asset symbols of the box's actool need 17
   --no-darwin-manifests      keep the manifests of direct dependencies that
                              test the build machine (canImport(Darwin),
                              os(Linux), os(macOS)) as they are; by default
-                             they are answered as on a Mac, in a copy under
-                             <out>/deps
-  --no-asset-extensions      no Color.name, UIColor.name, Image.name,
-                             UIImage.name; by default they follow the
-                             project's ASSETCATALOG_COMPILER_GENERATE_SWIFT_
-                             ASSET_SYMBOL_EXTENSIONS (on unless NO)
-  The app's Info.plist keys are also added to the one of its resource bundle
-  (code built as a package reads Bundle.module).
+                             tools/host-manifests.py answers them as on a
+                             Mac, in a copy under <out>/xtool/.host-manifests
   Anything else: run the steps one by one and change the package between
   project and build, under <out>/xtool (regenerated by each project step).
   A project that needs it every time wraps the command in a script of its
@@ -107,11 +101,7 @@ EOF
 }
 
 ios_xcode_py() {
-  OAD_TOOLS="$OAD_DIR/tools" python3 "$IOS_XCODE_PY" "$@"
-}
-
-ios_xcode_setting() {
-  ios_xcode_py setting "$IOS_XCODE_PROJECT" "$IOS_XCODE_CONFIGURATION" "${IOS_XCODE_TARGET:--}" "$1"
+  python3 "$IOS_XCODE_PY" "$@"
 }
 
 ios_xcode_product() { sed -n 's/^product: *//p' "$IOS_XCODE_PKG/xtool.yml"; }
@@ -166,20 +156,24 @@ ios_xcode_xcodegen() {
   [ -n "$IOS_XCODE_PROJECT" ] || ios_die "XcodeGen wrote no .xcodeproj next to $spec"
 }
 
-# The framework of the Gradle project --kmp names, linked by ios_kmp, wrapped
-# as an .xcframework inside the package and taken as a binary target.
+# The framework of the Gradle project --kmp names, linked with its
+# .xcframework by ios_kmp (kmp/build-framework.sh), the .xcframework copied
+# inside the package and taken as a binary target.
 ios_xcode_kmp() {
   local gradle="$IOS_XCODE_DIR" framework name
   while [ ! -x "$gradle/gradlew" ]; do
     [ "$gradle" != / ] || ios_die "--kmp: no gradlew in $IOS_XCODE_DIR or above"
     gradle="$(dirname "$gradle")"
   done
-  ios_kmp "$gradle" --module "$IOS_XCODE_KMP" --dynamic --out "$IOS_XCODE_OUT/kmp" || ios_die "the framework did not link"
+  ios_kmp "$gradle" --module "$IOS_XCODE_KMP" --dynamic --xcframework --out "$IOS_XCODE_OUT/kmp" ||
+    ios_die "the framework did not link"
   framework="$(find "$IOS_XCODE_OUT/kmp" -maxdepth 1 -name '*.framework' -print -quit)"
   [ -n "$framework" ] || ios_die "--kmp: no framework in $IOS_XCODE_OUT/kmp"
   name="$(basename "$framework" .framework)"
+  [ -d "$IOS_XCODE_OUT/kmp/$name.xcframework" ] || ios_die "--kmp: no $name.xcframework in $IOS_XCODE_OUT/kmp"
   mkdir -p "$IOS_XCODE_PKG/Frameworks"
-  ios_xcode_py xcframework "$framework" "$IOS_XCODE_PKG/Frameworks/$name.xcframework"
+  rm -rf "$IOS_XCODE_PKG/Frameworks/$name.xcframework"
+  cp -R "$IOS_XCODE_OUT/kmp/$name.xcframework" "$IOS_XCODE_PKG/Frameworks/"
   ios_xcode_py binary-target "$IOS_XCODE_PKG/Package.swift" "$name" "Frameworks/$name.xcframework"
   log "$name.framework: a binary target of the package"
 }
@@ -201,15 +195,16 @@ ios_xcode_app_hook() {
 }
 
 ios_xcode_project() {
-  local pkg="$IOS_XCODE_PKG" spec name kind replacements=() product
+  local pkg="$IOS_XCODE_PKG" spec name replacements=()
   IOS_XCODE_BEFORE=""
   case "$IOS_XCODE_PROJECT" in *.yml | *.yaml) ios_xcode_xcodegen "$IOS_XCODE_PROJECT" ;; esac
   log "xtool package from $(basename "$IOS_XCODE_PROJECT") ($IOS_XCODE_CONFIGURATION)"
   # .build stays: the packages fetched and built are kept from one run to the next.
   mkdir -p "$pkg"
   find "$pkg" -mindepth 1 -maxdepth 1 ! -name .build ! -name xtool -exec rm -rf {} +
-  ios_xcode_py convert "$IOS_XCODE_PROJECT" "$pkg" "$IOS_XCODE_CONFIGURATION" \
-    ${IOS_XCODE_TARGET:+--target "$IOS_XCODE_TARGET"} 2>&1 | grep -v '^APP_ICON=' || true
+  python3 "$OAD_DIR/tools/xcodeproj2xtool.py" "$IOS_XCODE_PROJECT" --out "$pkg" \
+    --configuration "$IOS_XCODE_CONFIGURATION" ${IOS_XCODE_TARGET:+--target "$IOS_XCODE_TARGET"} 2>&1 |
+    grep -v '^APP_ICON=' || true
   [ -f "$pkg/Package.swift" ] || ios_die "no package generated"
 
   for spec in "${IOS_XCODE_PACKAGES[@]}"; do
@@ -219,40 +214,16 @@ ios_xcode_project() {
   ios_xcode_py package "$pkg/Package.swift" "$IOS_XCODE_MIN_IOS" "${replacements[@]}"
   [ -z "$IOS_XCODE_KMP" ] || ios_xcode_kmp
 
-  # Manifests that answer for Linux: copied, answered as on a Mac, by path.
+  # Manifests that answer for Linux: copied, answered as on a Mac, by path
+  # (tools/host-manifests.py, which resolves the package itself).
   if [ "$IOS_XCODE_DARWIN_MANIFESTS" = true ]; then
-    log "packages fetched (swift package resolve)"
-    (cd "$pkg" && swift package resolve >/dev/null) || ios_die "swift package resolve failed in $pkg"
-    replacements=()
-    while read -r name kind; do
-      [ -n "$name" ] || continue
-      if [ "$kind" != direct ]; then
-        log "$name: its manifest tests the build machine, left as is (a dependency of a dependency)"
-        continue
-      fi
-      log "$name: its manifest tests the build machine, answered as on a Mac"
-      rm -rf "$IOS_XCODE_OUT/deps/$name"
-      mkdir -p "$IOS_XCODE_OUT/deps"
-      cp -R "$pkg/.build/checkouts/$name" "$IOS_XCODE_OUT/deps/$name"
-      rm -rf "$IOS_XCODE_OUT/deps/$name/.git"
-      ios_xcode_py patch-manifests "$IOS_XCODE_OUT/deps/$name"
-      replacements+=("$name=.package(path: \"../deps/$name\")")
-    done < <(ios_xcode_py darwin-manifests "$pkg/.build/checkouts" "$pkg/Package.swift")
-    if [ "${#replacements[@]}" -gt 0 ]; then
-      ios_xcode_py package "$pkg/Package.swift" "$IOS_XCODE_MIN_IOS" "${replacements[@]}"
-      (cd "$pkg" && swift package resolve >/dev/null) || ios_die "swift package resolve failed in $pkg"
-    fi
-  fi
-
-  product="$(ios_xcode_product)"
-  local extensions
-  extensions="$(ios_xcode_setting ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS)" ||
-    ios_die "the settings of $(basename "$IOS_XCODE_PROJECT") could not be read"
-  if [ "$IOS_XCODE_ASSET_EXTENSIONS" = true ] && [ "$extensions" != NO ]; then
-    local catalogs=()
-    while IFS= read -r name; do catalogs+=("$pkg/Sources/$product/$name"); done < <(ios_xcode_py catalogs "$pkg/Package.swift")
-    [ "${#catalogs[@]}" -eq 0 ] ||
-      ios_xcode_py symbols "$pkg/Sources/$product/DevboxAssetSymbolExtensions.swift" "${catalogs[@]}"
+    local manifests
+    log "packages fetched (swift package resolve), manifests that test the build machine looked for"
+    manifests="$(cd "$pkg" && python3 "$OAD_DIR/tools/host-manifests.py" . 2>&1)" || {
+      echo "$manifests" >&2
+      ios_die "tools/host-manifests.py failed in $pkg"
+    }
+    grep -E 'answered as on a Mac|left as is' <<<"$manifests" | while IFS= read -r line; do log "$line"; done
   fi
   # What XcodeGen and the generator wrote next to the sources, gone now; the
   # deepest first, so a new dir is empty when its turn comes.
@@ -289,7 +260,7 @@ ios_xcode() {
   local dir="." step=run found=()
   IOS_XCODE_PROJECT="" IOS_XCODE_TARGET="" IOS_XCODE_CONFIGURATION=Debug IOS_XCODE_SIGNED_ID="" IOS_XCODE_OUT=""
   IOS_XCODE_KMP="" IOS_XCODE_SIGNED_SUFFIX="" IOS_XCODE_PACKAGES=()
-  IOS_XCODE_MIN_IOS="17.0" IOS_XCODE_DARWIN_MANIFESTS=true IOS_XCODE_ASSET_EXTENSIONS=true
+  IOS_XCODE_MIN_IOS="17.0" IOS_XCODE_DARWIN_MANIFESTS=true
   while [ $# -gt 0 ]; do
     case "$1" in
     --project) IOS_XCODE_PROJECT="${2:?--project needs a path}" && shift ;;
@@ -305,7 +276,9 @@ ios_xcode() {
     --out) IOS_XCODE_OUT="${2:?--out needs a dir}" && shift ;;
     --min-ios) IOS_XCODE_MIN_IOS="${2:?--min-ios needs a version}" && shift ;;
     --no-darwin-manifests) IOS_XCODE_DARWIN_MANIFESTS=false ;;
-    --no-asset-extensions) IOS_XCODE_ASSET_EXTENSIONS=false ;;
+    --no-asset-extensions)
+      ios_die "--no-asset-extensions is gone: the shortcuts follow the project's ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS"
+      ;;
     run | project | build | install | launch | logs) step="$1" ;;
     -*) ios_die "unknown option $1 (devbox ios xcode --help)" ;;
     *)

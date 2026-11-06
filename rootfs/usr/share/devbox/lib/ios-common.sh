@@ -4,7 +4,7 @@
 #
 # It leans on omarchy-apple-dev as far as it goes: ship.sh --device builds an
 # xtool package the way Xcode lays an app out (app icon, resources at the root
-# of the .app), provision-dev.py and sign-dev.sh sign it for the device
+# of the .app, the app's Info.plist keys in its resource bundle), provision-dev.py and sign-dev.sh sign it for the device
 # plugged in, pymobiledevice3 installs and launches it. What is left here:
 #   - running as root (docker exec -u 0 from the host): with rootless Docker,
 #     root in the box is the user of the host, the only one that may write
@@ -12,18 +12,14 @@
 #     user (mise, java, swift, the ios environment) and, through links in
 #     /root inside the container, its SDK, Apple sign-in and pymobile3-venv,
 #     where swift, xtool and ship.sh of root look for them;
-#   - xtool given a pipe as standard input: SwiftNIO aborts on a file or
-#     /dev/null (epoll_ctl: Operation not permitted);
-#   - the Info.plist of the resource bundle given the keys of the app's: code
-#     built as a package (SWIFT_PACKAGE, the files of SwiftGen) reads it;
-#   - the signature through provision-dev.py: the profile of xtool install
-#     holds the first 20 devices of the team only;
+#   - the signature through provision-dev.py and sign-dev.sh of
+#     omarchy-apple-dev rather than xtool install: the path these apps are
+#     tested with (xtool install's profile held the first 20 devices of the
+#     team only before xtool-org/xtool#430);
 #   - the app stopped before an install or a launch over the open one, which
 #     otherwise stays stuck on the device until it is closed by hand;
 #   - usbmuxd started, and restarted once when a device was plugged again.
 
-IOS_SDKS="${XDG_CONFIG_HOME:+$XDG_CONFIG_HOME/swiftpm/swift-sdks}"
-IOS_SDKS="${IOS_SDKS:-$HOME/.swiftpm/swift-sdks}"
 IOS_USER_HOME="$HOME"
 
 ios_die() {
@@ -32,7 +28,7 @@ ios_die() {
 }
 
 # As root: the tools, SDK, sign-in and Python of the box's user (USER_NAME of
-# the container). Sets OAD_DIR and INSTALL of dev-box-ios, IOS_SDKS and
+# the container). Sets OAD_DIR and INSTALL of dev-box-ios, and
 # IOS_USER_HOME.
 ios_root_env() {
   [ "$(id -u)" = 0 ] || return 0
@@ -44,7 +40,6 @@ ios_root_env() {
   export MISE_CONFIG_DIR="${MISE_CONFIG_DIR:-$home/.config/mise}"
   export MISE_GLOBAL_CONFIG_FILE="${MISE_GLOBAL_CONFIG_FILE:-$home/.config/mise/config.toml}"
   export PATH="$home/.local/share/mise/shims:$home/.local/bin:$PATH"
-  IOS_SDKS="$home/.swiftpm/swift-sdks"
   # shellcheck disable=SC2034 # read by need_ios of dev-box-ios
   OAD_DIR="$home/.local/share/omarchy-apple-dev"
   # shellcheck disable=SC2034 # read by need_ios of dev-box-ios
@@ -60,32 +55,14 @@ ios_root_env() {
   export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0='*'
 }
 
-# A command that runs xtool, given a pipe that stays open while it runs, the
-# outputs of the sleep closed so that a pipe after it still ends.
-ios_piped() {
-  "$@" < <(exec sleep 86400 >/dev/null 2>&1)
-}
-
 # The xtool package in $1 built by ship.sh --device in the configuration $2
 # (debug or release), then the .ipa $3, unsigned. Prints nothing else.
 ios_ship_build() {
-  local pkg="$1" config="$2" ipa="$3" product app bundle stage
+  local pkg="$1" config="$2" ipa="$3" product app stage
   product="$(sed -n 's/^product: *//p' "$pkg/xtool.yml")"
-  (cd "$pkg" && ulimit -n 65536 && CONFIGURATION="$config" ios_piped ship.sh --device 2>&1 | cat)
+  (cd "$pkg" && ulimit -n 65536 && CONFIGURATION="$config" ship.sh --device 2>&1 | cat)
   app="$pkg/xtool/$product.app"
   [ -x "$app/$product" ] || ios_die "no app built: $app"
-  bundle="$app/${product}_${product}.bundle"
-  [ ! -d "$bundle" ] || python3 - "$app/Info.plist" "$bundle/Info.plist" <<'EOF'
-import plistlib, sys
-
-app, bundle = sys.argv[1:]
-with open(app, "rb") as f:
-    info = plistlib.load(f)
-with open(bundle, "rb") as f:
-    own = plistlib.load(f)
-with open(bundle, "wb") as f:
-    plistlib.dump({**info, **own}, f, fmt=plistlib.FMT_BINARY)
-EOF
   [ -z "${IOS_APP_HOOK:-}" ] || "$IOS_APP_HOOK" "$app"
   stage="$(mktemp -d)"
   mkdir -p "$stage/Payload"
@@ -105,14 +82,14 @@ ios_usbmuxd() {
 ios_device() {
   local udid
   pgrep -x usbmuxd >/dev/null || ios_usbmuxd
-  udid="$(ios_piped timeout 15 xtool devices 2>&1 | sed -n 's/.*\[usb\]: *//p' | head -n 1)"
+  udid="$(timeout 15 xtool devices 2>&1 | sed -n 's/.*\[usb\]: *//p' | head -n 1)"
   if [ -z "$udid" ]; then
     log "no device seen: usbmuxd restarted" >&2
     if [ "$(id -u)" = 0 ]; then pkill -x usbmuxd || true; else sudo pkill -x usbmuxd || true; fi
     sleep 2
     ios_usbmuxd
     sleep 3
-    udid="$(ios_piped timeout 15 xtool devices 2>&1 | sed -n 's/.*\[usb\]: *//p' | head -n 1)"
+    udid="$(timeout 15 xtool devices 2>&1 | sed -n 's/.*\[usb\]: *//p' | head -n 1)"
   fi
   [ -n "$udid" ] || ios_die "no device over USB: plugged in, unlocked, trusted (devbox help ios, step 2)"
   echo "$udid"
@@ -121,7 +98,7 @@ ios_device() {
 # The API key xtool auth signed in with: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH.
 ios_api_key() {
   local status key
-  status="$(ios_piped xtool auth status 2>&1 | cat)"
+  status="$(xtool auth status 2>&1 | cat)"
   export ASC_KEY_ID="${ASC_KEY_ID:-$(sed -n 's/.*ASC key ID: *//p' <<<"$status")}"
   export ASC_ISSUER_ID="${ASC_ISSUER_ID:-$(sed -n 's/.*Issuer ID: *//p' <<<"$status")}"
   [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] ||
