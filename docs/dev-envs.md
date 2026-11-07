@@ -130,7 +130,7 @@ through `devbox pkg`. One step is left to you, since it takes your Apple account
 `devbox ios` chains both, the `.xip` picked in a list.
 There is no simulator: an app runs on a real device, plugged into the host
 and given to the box by the USB block of `compose.override.example.yaml`, with
-`devbox pkg add usbmuxd` and `sudo usbmuxd` in the box. The install ends on
+`devbox pkg add usbmuxd` and `sudo usbmuxd` in the box (below). The install ends on
 those steps, one by one (the Xcode download and the SDK, the device,
 `xtool new` and `xtool dev` or `device-run.sh` for a first app, what to answer
 on the device, debugging, TestFlight, moving to a newer Swift), and
@@ -138,6 +138,44 @@ on the device, debugging, TestFlight, moving to a newer Swift), and
 omarchy-apple-dev keeps its xtool AppImage until `devbox dev-env ios` runs
 again, which moves it over; the same command moves the clone to the release a
 newer image pins.
+
+Docker gives the box no USB device by default. For a device plugged into the
+host, add this to `compose.override.yaml`, next to `compose.yaml` on the host
+(`cp compose.override.example.yaml compose.override.yaml` the first time):
+
+```yaml
+services:
+  dev-box:
+    volumes:
+      - /dev/bus/usb:/dev/bus/usb      # the whole USB bus, devices plugged in later included
+    device_cgroup_rules:
+      - 'c 189:* rmw'                  # lets the box open USB devices (major 189)
+```
+
+The bus goes in as a volume, not as a `devices` entry, which would freeze the
+list at start: an iPhone plugged in afterwards, or one that reconnects when it
+restarts, would never show up. The cgroup rule is what lets the box open
+those device files. Both keys add to the `volumes` of `compose.yaml`; when
+`compose.override.yaml` already has a `volumes` or a `device_cgroup_rules`
+key (another block of the example), add the lines to it, a second key of the
+same name is refused. Every USB device of the host is then within reach of the
+box. The device has one owner, so the usbmuxd of the host has to let go of it
+first: on a host with systemd, udev starts it again at each plug, so mask it
+for as long as the box keeps the device (`sudo systemctl unmask usbmuxd` gives
+it back to the host). Then the box starts again with the new settings, and
+usbmuxd runs inside it:
+
+```bash
+# on the host, in the dev-box directory
+sudo systemctl mask --now usbmuxd
+docker compose up -d
+# in the box, the device plugged in and unlocked
+devbox pkg add usbmuxd
+sudo usbmuxd                 # again after each restart of the box
+xtool devices                # answer Trust on the device, then run it again
+```
+
+`devbox ios pair`, for Wi-Fi afterwards, needs this once too.
 
 A Kotlin Multiplatform app needs one more piece: Gradle builds its klibs on
 Linux but skips the iOS framework, since Kotlin/Native turns Apple targets
@@ -199,8 +237,9 @@ which links the framework through this command first.
 
 An app that lives in an Xcode project, not in an xtool package, builds with
 `devbox ios xcode [dir] [step]`: `run` (the default) builds it, signs it for
-the device plugged in, installs and launches it; `project`, `build`,
-`install`, `launch` and `logs` take one step. The project is the
+the device plugged in (or reached over Wi-Fi with `--wifi`, below), installs
+and launches it; `project`, `build` (the unsigned `.app`, under
+`build/devbox-ios/xtool/xtool`), `install`, `launch` and `logs` take one step. The project is the
 `.xcodeproj` of the dir, or its `project.yml`: XcodeGen (built once from its
 sources into the cache, `IOS_XCODEGEN_VERSION`) generates the `.xcodeproj`
 under `build/devbox-ios/xcodegen`, and the files it writes next to the
@@ -282,7 +321,7 @@ since, and the command now calls its tools:
 
 The parts both commands share live in `ios-common.sh` (running as root,
 xtool, the build through `ship.sh --device`, signing, install, launch, the
-device). `ios-kmp.sh` checks for the JDK and calls `kmp/build-framework.sh`,
+device over USB or Wi-Fi). `ios-kmp.sh` checks for the JDK and calls `kmp/build-framework.sh`,
 and `ios-xcode.sh` handles the project.
 
 Both commands need the omarchy-apple-dev the image pins (`OAD_REF` of
@@ -325,7 +364,37 @@ xtool devices
 
 `devbox help ios-usb` has the whole of it, checked as far as xtool opening
 that address, not yet with a device at the other end: what your machine needs, what to do
-when the SSH connection refuses the forward, and the other ways. `ios` also makes the
+when the SSH connection refuses the forward, and the other ways.
+
+Without the cable, an iPhone or iPad under iOS 27 can be reached over Wi-Fi,
+by `devbox ios xcode` only. xtool has no Wi-Fi on Linux: its `--network` waits
+for a device that the usbmuxd of Linux never sees over the network, and iOS 26
+and older accept no new computer over Wi-Fi at all (FINDINGS.md 17 of
+omarchy-apple-dev). iOS 27 opens a RemotePairing port that answers any routed
+address once the device holds a pairing record for the computer, and
+`tools/tailnet-tunnel.py` of omarchy-apple-dev opens its tunnel. The box
+uses it as is: `devbox ios pair`, once with the device on USB, writes the
+record into `~/.local/share/pymobiledevice3` (in the home, kept across
+rebuilds; it holds a private key), then `--wifi <address>` (or `IOS_WIFI`)
+opens the tunnel for the length of the command and sends install, launch and
+logs through it (`--rsd`) instead of usbmuxd. The tunnel needs a TUN device and
+root: the box has `/dev/net/tun` and `NET_ADMIN` for tailscaled already, and
+its user has sudo. mDNS does not reach the box, so the device is given by its
+address: its tailnet one when the Tailscale app runs on it, which works
+wherever the box and the device are, or a local address the box routes to.
+`devbox ios status` lists the devices paired for Wi-Fi, `IOS_UDID` picks one
+when there are several. An xtool package goes through
+`device-run.sh --over-tailnet <address> <signed .ipa>`. lldb over Wi-Fi is
+measured upstream but wrapped by no command yet (`device-run.sh --lldb` needs
+the cable). `devbox help ios-wifi` has the steps; the route and its measures
+are in [OVER-TAILNET.md](https://github.com/joshuaswarren/omarchy-apple-dev/blob/main/docs/OVER-TAILNET.md).
+
+```bash
+devbox ios pair                                  # once, device on USB
+devbox ios xcode --wifi 100.x.y.z                # then without the cable
+```
+
+`ios` also makes the
 `lldb` of the toolchain work: it takes the Python 3.9 lldb was built against
 as a mise tool of its own (`http:lldb-python`, pinned with its sha256, no
 command on the PATH, the default python untouched) and starts `lldb` and

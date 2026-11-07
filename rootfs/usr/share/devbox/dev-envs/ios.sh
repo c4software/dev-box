@@ -29,7 +29,8 @@ after an image update to move to the release the image pins. A removal takes
 out the clone, xtool, rcodesign, ipsw, the venv and the Python of lldb, and
 leaves swift, python, the SDK (~/.swiftpm/swift-sdks and its cache
 ~/.cache/xtool), the Apple sign-in of xtool (~/.local/share/xtool) and the
-pairing records of pymobiledevice3 (~/.pymobiledevice3) in place.
+pairing records of pymobiledevice3 (~/.pymobiledevice3, and
+~/.local/share/pymobiledevice3 for Wi-Fi) in place.
 
 What is left to you:
 
@@ -249,5 +250,5 @@ uninstall() {
   log "swift and python stay: devbox dev-env --remove swift python."
   log "left in place: the iOS SDK (~/.swiftpm/swift-sdks) and its cache (~/.cache/xtool),"
   log "the Apple sign-in of xtool (~/.local/share/xtool), the pairing records of"
-  log "pymobiledevice3 (~/.pymobiledevice3)."
+  log "pymobiledevice3 (~/.pymobiledevice3) and the Wi-Fi ones (~/.local/share/pymobiledevice3)."
 }

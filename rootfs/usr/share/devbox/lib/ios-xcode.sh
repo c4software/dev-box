@@ -35,12 +35,12 @@ ios_xcode_usage() {
 Usage: devbox ios xcode [project dir] [step] [options]
 
 Builds the app of an Xcode project on Linux, then installs and launches it
-on the iPhone or iPad plugged in. The project is the .xcodeproj of the dir,
-or its project.yml (XcodeGen). Steps:
+on the iPhone or iPad plugged in, or over Wi-Fi with --wifi. The project is
+the .xcodeproj of the dir, or its project.yml (XcodeGen). Steps:
   run       build, install and launch (the default)
   project   the xtool package generated from the project
-  build     the app and its .ipa, unsigned
-  install   signed for the device plugged in, then installed
+  build     the app, unsigned (<out>/xtool/xtool/<Product>.app)
+  install   signed for the device, then installed
   launch    launched, the running one stopped first
   logs      the logs of the app on the device
 
@@ -66,6 +66,10 @@ Options:
   --signed-suffix suffix     appended to that default identifier, for two
                              apps of one identifier on the device (.kmp)
   --out dir                  where it all goes (<dir>/build/devbox-ios)
+  --wifi address             the device over Wi-Fi rather than USB, at its
+                             tailnet address or one the box routes to:
+                             iOS 27, paired once with devbox ios pair
+                             (devbox help ios-wifi)
 
 Customizing:
   The package xcodeproj2xtool.py of omarchy-apple-dev generates (settings of
@@ -91,10 +95,13 @@ Environment:
   ASC_KEY_ID, ASC_ISSUER_ID  the App Store Connect API key used to sign,
   ASC_KEY_PATH               read from xtool auth status when unset
   IOS_XCODEGEN_VERSION       the XcodeGen built for a project.yml (2.44.1)
+  IOS_WIFI                   the same as --wifi
+  IOS_UDID                   over Wi-Fi, the device when several are paired
   USER_NAME                  as root, the box's user whose tools are taken
 
 Needs the ios environment, its SDK and the Apple sign-in with an App Store
-Connect API key (devbox help ios), and a device paired through usbmuxd. As
+Connect API key (devbox help ios), and a device paired through usbmuxd, or
+over Wi-Fi through devbox ios pair (devbox help ios-wifi). As
 root, it takes the tools, the SDK and the sign-in of the box's user. The
 details: docs/dev-envs.md of dev-box, devbox help ios.
 EOF
@@ -242,18 +249,21 @@ ios_xcode_build() {
   product="$(ios_xcode_product)"
   case "${IOS_XCODE_CONFIGURATION,,}" in *release*) config=release ;; esac
   log "$product ($config, ship.sh --device; the first build fetches and builds every package, minutes)"
-  IOS_APP_HOOK=ios_xcode_app_hook ios_ship_build "$IOS_XCODE_PKG" "$config" "$IOS_XCODE_OUT/$product.ipa"
-  log "app: $IOS_XCODE_OUT/$product.ipa (unsigned)"
+  IOS_APP_HOOK=ios_xcode_app_hook ios_ship_build "$IOS_XCODE_PKG" "$config"
+  log "app: $(ios_xcode_app) (unsigned)"
 }
 
+# The app the build step leaves, signed and installed by the install step.
+ios_xcode_app() { echo "$IOS_XCODE_PKG/xtool/$(ios_xcode_product).app"; }
+
 ios_xcode_install() {
-  local ipa
-  ipa="$(find "$IOS_XCODE_OUT" -maxdepth 1 -name '*.ipa' -print -quit)"
-  if [ -z "$ipa" ]; then
+  local app=""
+  [ -f "$IOS_XCODE_PKG/xtool.yml" ] && app="$(ios_xcode_app)"
+  if [ -z "$app" ] || [ ! -d "$app" ]; then
     ios_xcode_build
-    ipa="$(find "$IOS_XCODE_OUT" -maxdepth 1 -name '*.ipa' -print -quit)"
+    app="$(ios_xcode_app)"
   fi
-  ios_install "$ipa" "$IOS_XCODE_SIGNED_ID" "$IOS_XCODE_OUT/installed" "$IOS_XCODE_SIGNED_SUFFIX"
+  ios_install "$app" "$IOS_XCODE_SIGNED_ID" "$IOS_XCODE_OUT/installed" "$IOS_XCODE_SIGNED_SUFFIX"
 }
 
 ios_xcode() {
@@ -262,6 +272,7 @@ ios_xcode() {
   IOS_XCODE_KMP="" IOS_XCODE_SIGNED_SUFFIX="" IOS_XCODE_PACKAGES=()
   IOS_XCODE_MIN_IOS="17.0" IOS_XCODE_DARWIN_MANIFESTS=true
   while [ $# -gt 0 ]; do
+    # shellcheck disable=SC2034 # IOS_WIFI: read by ios_connect of ios-common.sh
     case "$1" in
     --project) IOS_XCODE_PROJECT="${2:?--project needs a path}" && shift ;;
     --target) IOS_XCODE_TARGET="${2:?--target needs a name}" && shift ;;
@@ -274,6 +285,7 @@ ios_xcode() {
     --signed-id) IOS_XCODE_SIGNED_ID="${2:?--signed-id needs an identifier}" && shift ;;
     --signed-suffix) IOS_XCODE_SIGNED_SUFFIX="${2:?--signed-suffix needs a suffix, like .kmp}" && shift ;;
     --out) IOS_XCODE_OUT="${2:?--out needs a dir}" && shift ;;
+    --wifi) IOS_WIFI="${2:?--wifi needs the address of the device}" && shift ;;
     --min-ios) IOS_XCODE_MIN_IOS="${2:?--min-ios needs a version}" && shift ;;
     --no-darwin-manifests) IOS_XCODE_DARWIN_MANIFESTS=false ;;
     --no-asset-extensions)

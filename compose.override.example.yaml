@@ -72,7 +72,9 @@ services:
     # is plugged in and unlocked, with `devbox pkg add usbmuxd` then
     # `sudo usbmuxd`; `xtool devices` lists it once "Trust" is answered on its
     # screen. Stop a usbmuxd running on the host first, the device has one
-    # owner. The whole bus is given: every USB device of the host is within
+    # owner (`sudo systemctl mask --now usbmuxd`, udev starts it again at
+    # each plug otherwise; unmask it to give the device back to the host).
+    # The whole bus is given: every USB device of the host is within
     # reach of the box. A device plugged into another machine than this
     # host needs none of this: `devbox help ios-usb` in the box.
     # volumes:

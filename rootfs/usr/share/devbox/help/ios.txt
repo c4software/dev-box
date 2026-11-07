@@ -23,18 +23,32 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      small part of SwiftUI, read sdk-free/README.md of the clone first):
        install-toolchain.sh --mode no-xcode
 
-  2. The device, once
+  2. On the host, then in the box: the device, once
      The device is on your desk and the box on a remote machine: skip this
      step for `devbox help ios-usb`. Plugged into the machine that runs the
-     box: on that host, copy the USB block of compose.override.example.yaml
-     into your compose.override.yaml, stop a usbmuxd running there (the
-     device has one owner), then docker compose up -d. In the box:
+     box: Docker gives the box no USB device by default. On that host, add
+     to compose.override.yaml, next to compose.yaml (cp
+     compose.override.example.yaml compose.override.yaml the first time):
+       services:
+         dev-box:
+           volumes:
+             - /dev/bus/usb:/dev/bus/usb
+           device_cgroup_rules:
+             - 'c 189:* rmw'
+     The bus as a volume, so a device plugged in later shows up too, and the
+     rule that lets the box open it. A volumes or device_cgroup_rules key
+     there already: add the line to it, a second one is refused. The usbmuxd
+     of the host lets go of the device (udev starts it again at each plug):
+       sudo systemctl mask --now usbmuxd    unmask it to give it back
+       docker compose up -d
+     In the box:
        devbox pkg add usbmuxd
      Plug the iPhone or iPad in, unlock it, then:
        sudo usbmuxd          again after each restart of the box
        xtool devices         answer Trust on the device, then run it again
      usbmuxd keeps its pairing records in /var/lib/lockdown, outside the
-     home: expect Trust again after a rebuild of the box.
+     home: expect Trust again after a rebuild of the box. Without the
+     cable afterwards, on iOS 27: `devbox help ios-wifi`.
 
   3. A first app
        xtool new Hello
@@ -121,7 +135,8 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      project.yml, on Linux, then signs it for the device plugged in,
      installs and launches it. It needs the
      SDK of step 1, xtool signed in with an App Store Connect API key and
-     the device of step 2.
+     the device of step 2, or over Wi-Fi with --wifi (`devbox help
+     ios-wifi`).
        cd ~/projets/<app>
        devbox ios xcode                  build, install, launch
        devbox ios xcode build            or project, install, launch, logs

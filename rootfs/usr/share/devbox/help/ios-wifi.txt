@@ -1,0 +1,58 @@
+An iPhone or iPad over Wi-Fi, without the cable
+
+  iOS 27 only: earlier versions accept no new computer over the network.
+  The device is paired once over USB, then devbox ios xcode installs,
+  launches and reads the logs over Wi-Fi, through the RemotePairing tunnel
+  of omarchy-apple-dev (tools/tailnet-tunnel.py). xtool itself stays on
+  USB: xtool dev and device-run.sh without --over-tailnet need the cable.
+  mDNS does not reach the box, so the device is given by its address.
+
+  1. Once, with the device on USB
+     The device of step 2 of `devbox help ios`, which gives the box the USB
+     bus of the host in compose.override.yaml (or of `devbox help ios-usb`),
+     Developer Mode on, then:
+       devbox ios pair
+     No Trust this time: the device trusts the box already. The record
+     lands in ~/.local/share/pymobiledevice3/remote_<udid>.plist, in the
+     home, so a rebuild keeps it. It holds a private key: whoever has it and
+     reaches the device drives it, keep it like an SSH key.
+
+  2. On the device: Wi-Fi and an address the box reaches
+     Wi-Fi on, whatever the network: on cellular only the device closes the
+     port. The simplest address is its tailnet one, with the Tailscale app
+     on and signed in to the tailnet of the box; it works wherever the box
+     and the device are:
+       tailscale status      in the box, the iOS line
+     The address of the device on your local network also works when the
+     box routes to it (the box on a machine of that network), which
+     omarchy-apple-dev has not measured yet. Unlock it once after a restart.
+
+  3. In the box: the app over Wi-Fi
+       cd ~/projets/<app>
+       devbox ios xcode --wifi 100.x.y.z           build, install, launch
+       devbox ios xcode logs --wifi 100.x.y.z
+       export IOS_WIFI=100.x.y.z                   the same without --wifi
+     The command opens the tunnel, as root through sudo for its TUN device
+     (/dev/net/tun, given to the box by compose.yaml), and closes it when it
+     ends. Several devices paired: IOS_UDID=<udid> picks one. An xtool
+     package without an Xcode project goes through omarchy-apple-dev,
+     with an .ipa signed already (tools/sign-dev.sh of the clone):
+       device-run.sh --over-tailnet 100.x.y.z <App>.ipa
+
+  When it fails
+     Connection refused on every port: Wi-Fi off on the device, or
+     Tailscale off (tailscale ping <address> from the box). The connection
+     cut right after it opens: the record does not match, devbox ios pair
+     again on USB, also after a reset of the device. The app does not launch
+     on a device left asleep for hours: wake it to its lock screen first.
+
+  Debugging
+     lldb over Wi-Fi is measured upstream but not wrapped by a command yet:
+     device-run.sh --lldb needs the cable. The manual route, with its
+     sysroot and its long first stop, is in LLDB over the tunnel of
+       https://github.com/joshuaswarren/omarchy-apple-dev/blob/main/docs/OVER-TAILNET.md
+
+  Sources
+     The route, its limits and the measures (iOS 27.0.1) come from
+     omarchy-apple-dev:
+       https://github.com/joshuaswarren/omarchy-apple-dev/blob/main/docs/OVER-TAILNET.md
