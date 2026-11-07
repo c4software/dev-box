@@ -99,9 +99,20 @@ xcode_for() {
 sdk_registered() { mise x swift -- swift sdk list 2>/dev/null | grep -qx darwin; }
 
 # The newest SDK kept by install-toolchain.sh, empty when there is none.
-sdk_cached() { find "$SDK_CACHE" -maxdepth 1 -name 'darwin-*.xtoolsdk' -type d 2>/dev/null | sort | tail -n 1; }
+sdk_cached() { find "$SDK_CACHE" -maxdepth 1 -name 'darwin-*.xtoolsdk' -type d 2>/dev/null | sort | tail -n 1 || true; }
 
 signed_in() { [ -n "$(ls -A "$XTOOL_AUTH" 2>/dev/null)" ]; }
+
+# As root from the host, after ios_root_env: the SDK cache, the sign-in and the
+# pairings of the box's user, whose environment is taken, rather than /root.
+user_paths() {
+  [ -n "${IOS_USER_HOME:-}" ] || return 0
+  SDK_CACHE="$IOS_USER_HOME/.cache/xtool"
+  XTOOL_AUTH="$IOS_USER_HOME/.config/xtool/data"
+  [ -n "$(ls -A "$XTOOL_AUTH" 2>/dev/null)" ] || XTOOL_AUTH="$IOS_USER_HOME/.local/share/xtool"
+  PAIRING="$IOS_USER_HOME/.pymobiledevice3"
+  WIFI_PAIRING="$IOS_USER_HOME/.local/share/pymobiledevice3"
+}
 
 status() {
   local version xcode cached wifi
@@ -278,14 +289,20 @@ sdk)
   sdk "${1:-}"
   ;;
 status)
+  # As root from the host, like kmp and xcode: the ios environment of the box's user
+  # shellcheck source=/usr/share/devbox/lib/ios-common.sh
+  . /usr/share/devbox/lib/ios-common.sh
+  ios_root_env
+  user_paths
   need_ios
   status
   ;;
 pair)
-  need_ios
-  need_oad_ref
   # shellcheck source=/usr/share/devbox/lib/ios-common.sh
   . /usr/share/devbox/lib/ios-common.sh
+  ios_root_env
+  need_ios
+  need_oad_ref
   ios_pair
   ;;
 kmp)
