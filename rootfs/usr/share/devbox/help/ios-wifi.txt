@@ -12,6 +12,7 @@ An iPhone or iPad over Wi-Fi, without the cable
      bus of the host in compose.override.yaml (or of `devbox help ios-usb`),
      Developer Mode on, then:
        devbox ios pair
+     It starts the usbmuxd of the box itself, as the USB commands do.
      No Trust this time: the device trusts the box already. The record
      lands in ~/.local/share/pymobiledevice3/remote_<udid>.plist, in the
      home, so a rebuild keeps it. It holds a private key: whoever has it and
@@ -23,6 +24,9 @@ An iPhone or iPad over Wi-Fi, without the cable
      on and signed in to the tailnet of the box; it works wherever the box
      and the device are:
        tailscale status      in the box, the iOS line
+     With Tailscale off in the box (TS_DISABLE=true), the Tailscale of the
+     host routes that address as well: measured from rootless Docker on its
+     default bridge, iOS 27.2.
      The address of the device on your local network also works when the
      box routes to it (the box on a machine of that network), which
      omarchy-apple-dev has not measured yet. Unlock it once after a restart.
@@ -34,7 +38,11 @@ An iPhone or iPad over Wi-Fi, without the cable
        export IOS_WIFI=100.x.y.z                   the same without --wifi
      The command opens the tunnel, as root through sudo for its TUN device
      (/dev/net/tun, given to the box by compose.yaml), and closes it when it
-     ends. Several devices paired: IOS_UDID=<udid> picks one. An xtool
+     ends. A box started with docker run rather than compose.yaml needs them
+     on its command line, as compose.yaml has them for tailscaled:
+       --device /dev/net/tun --cap-add NET_ADMIN --cap-add NET_RAW
+     (measured with both; whether NET_RAW is needed was not tried).
+     Several devices paired: IOS_UDID=<udid> picks one. An xtool
      package without an Xcode project goes through omarchy-apple-dev,
      with an .ipa signed already (tools/sign-dev.sh of the clone):
        device-run.sh --over-tailnet 100.x.y.z <App>.ipa

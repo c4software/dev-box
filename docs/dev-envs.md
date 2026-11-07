@@ -379,9 +379,16 @@ rebuilds; it holds a private key), then `--wifi <address>` (or `IOS_WIFI`)
 opens the tunnel for the length of the command and sends install, launch and
 logs through it (`--rsd`) instead of usbmuxd. The tunnel needs a TUN device and
 root: the box has `/dev/net/tun` and `NET_ADMIN` for tailscaled already, and
-its user has sudo. mDNS does not reach the box, so the device is given by its
+its user has sudo. A box started with `docker run` rather than `compose.yaml`
+needs them on its command line: `--device /dev/net/tun --cap-add NET_ADMIN
+--cap-add NET_RAW` (measured with both; whether `NET_RAW` is needed was not
+tried). `devbox ios pair` starts the usbmuxd of the box itself, as the USB
+commands do. mDNS does not reach the box, so the device is given by its
 address: its tailnet one when the Tailscale app runs on it, which works
 wherever the box and the device are, or a local address the box routes to.
+With Tailscale off in the box (`TS_DISABLE=true`), the Tailscale of the host
+routes the tailnet address as well: measured from rootless Docker on its
+default bridge, with an iPhone 14 under iOS 27.2.
 `devbox ios status` lists the devices paired for Wi-Fi, `IOS_UDID` picks one
 when there are several. An xtool package goes through
 `device-run.sh --over-tailnet <address> <signed .ipa>`. lldb over Wi-Fi is
