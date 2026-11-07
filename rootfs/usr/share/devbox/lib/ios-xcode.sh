@@ -230,7 +230,9 @@ ios_xcode_project() {
       echo "$manifests" >&2
       ios_die "tools/host-manifests.py failed in $pkg"
     }
-    grep -E 'answered as on a Mac|left as is' <<<"$manifests" | while IFS= read -r line; do log "$line"; done
+    # A package with no dependency has no such line: grep finds nothing,
+    # which must not stop the build under pipefail.
+    { grep -E 'answered as on a Mac|left as is' <<<"$manifests" || true; } | while IFS= read -r line; do log "$line"; done
   fi
   # What XcodeGen and the generator wrote next to the sources, gone now; the
   # deepest first, so a new dir is empty when its turn comes.
