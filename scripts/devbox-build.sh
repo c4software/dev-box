@@ -17,6 +17,7 @@
 #   logs      shows the logs of the app on the device (Ctrl-C to stop)
 #   pair      pairs the device plugged in over USB for Wi-Fi, once (iOS 27, devbox ios pair)
 #   status    the state of the box: SDK, Apple sign-in, paired devices (devbox ios status)
+#   devices   the devices the box sees over USB; the first time, answer Trust on the device (devbox ios devices)
 #   shell     a shell in the box, in the directory of the app, with the same rights as the steps
 #   key <AuthKey_XXXX.p8>  copies an App Store Connect API key into the box
 #
@@ -36,8 +37,8 @@
 #   IOS_WIFI          address of the device over Wi-Fi (like --wifi)
 #   IOS_UDID          the device to use over Wi-Fi, when several are paired
 #
-# Needs, once: the box running, and in it devbox dev-env ios, the SDK (devbox ios sdk) and the Apple sign-in
-# (xtool auth). The whole path, step by step: devbox help ios, in the box. Source of this script:
+# Needs, once: the box running, and in it devbox dev-env ios, then devbox ios (the SDK, then the Apple sign-in).
+# The whole path, step by step: devbox help ios, in the box. Source of this script:
 # https://github.com/c4software/dev-box/blob/main/scripts/devbox-build.sh
 set -euo pipefail
 
@@ -138,11 +139,11 @@ check_ios() {
     exit 1
   fi
   if ! grep -q 'SDK *registered' <<<"$status"; then
-    err "the iOS SDK is not ready. In the box: devbox ios sdk (with the .xip of Xcode in the home)"
+    err "the iOS SDK is not ready. In the box: devbox ios (with the .xip of Xcode in the home)"
     exit 1
   fi
   if ! grep -q 'Apple *signed in' <<<"$status"; then
-    err "the box is not signed in to Apple. In the box: xtool auth"
+    err "the box is not signed in to Apple. In the box: devbox ios"
     exit 1
   fi
   if [ "$KIND" = flutter ] && ! docker exec "${as_root[@]}" "$BOX" bash -c \
@@ -177,8 +178,8 @@ done
 
 step="${1:-run}"
 case "$step" in
-status)
-  exec docker exec "${envs[@]}" "${as_root[@]}" "$BOX" devbox ios status
+status | devices)
+  exec docker exec "${envs[@]}" "${as_root[@]}" "$BOX" devbox ios "$step"
   ;;
 pair)
   check_ios
@@ -201,7 +202,7 @@ key)
   docker exec -u 0:0 "$BOX" chown "$BOX_USER:" "$dir/$name"
   docker exec -u 0:0 "$BOX" chmod 600 "$dir/$name"
   echo "Key copied into the box: $dir/$name"
-  echo "Then, in the box: xtool auth login --mode key"
+  echo "Then, in the box: devbox ios, mode 0 (the API key)"
   exit 0
   ;;
 run | project | build | install | launch | logs) shift || true ;;

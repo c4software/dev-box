@@ -3,8 +3,10 @@ An iPhone or iPad over Wi-Fi, without the cable
   iOS 27 only: earlier versions accept no new computer over the network.
   The device is paired once over USB, then devbox ios xcode installs,
   launches and reads the logs over Wi-Fi, through the RemotePairing tunnel
-  of omarchy-apple-dev (tools/tailnet-tunnel.py). xtool itself stays on
-  USB: xtool dev and device-run.sh without --over-tailnet need the cable.
+  of omarchy-apple-dev (tools/tailnet-tunnel.py). It needs the sign-in with
+  an App Store Connect API key (mode 0 of devbox ios): signed in with an
+  Apple ID password, a Flutter app, or device-run.sh without
+  --over-tailnet, the cable stays.
   mDNS does not reach the box, so the device is given by its address.
 
   1. Once, with the device on USB

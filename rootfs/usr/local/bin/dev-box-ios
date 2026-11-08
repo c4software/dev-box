@@ -2,18 +2,21 @@
 # devbox:name=ios
 # devbox:summary=The iOS SDK from an Xcode .xip picked in a list, then the Apple sign-in, in one go
 # devbox:summary.fr=Le SDK iOS depuis un .xip de Xcode choisi dans une liste, puis la connexion Apple, d'une traite
-# devbox:args=[sdk [xip]|status|pair|kmp [dir]|xcode [dir] [step]]
+# devbox:args=[sdk [xip]|status|devices|pair|kmp [dir]|xcode [dir] [step]]
 # devbox:requires=ios
 #
 # Step 1 of `devbox help ios`, chained: the .xip picked among the ones found
 # in the home, install-toolchain.sh run on it in the right form, the SDK
-# checked, the .xip deleted if you say so, then xtool auth when xtool is not
-# signed in yet.
+# checked, the .xip deleted if you say so, then the Apple sign-in (xtool
+# auth) when the box is not signed in yet. Run again later, it builds nothing
+# twice and only signs in.
 #
 #   dev-box-ios               the same as sdk on a terminal, status otherwise
 #   dev-box-ios sdk           pick a .xip, build and register the SDK, sign in
 #   dev-box-ios sdk <xip>     the same with that .xip, nothing to pick
 #   dev-box-ios status        the SDK, its cache, the sign-in, the pairing
+#   dev-box-ios devices       the devices seen over USB, usbmuxd started first:
+#                             the first time, answer Trust on the device
 #   dev-box-ios pair          the device on USB paired for Wi-Fi, once (iOS 27)
 #   dev-box-ios kmp [dir]     the iOS framework of a Kotlin Multiplatform
 #                             project, linked on Linux (kmp --help)
@@ -39,12 +42,13 @@ SDK_CACHE="$HOME/.cache/xtool"
 XTOOL_AUTH="$HOME/.config/xtool/data"
 [ -n "$(ls -A "$XTOOL_AUTH" 2>/dev/null)" ] || XTOOL_AUTH="$HOME/.local/share/xtool"
 PAIRING="$HOME/.pymobiledevice3"
+LOCKDOWN=/var/lib/lockdown
 # The RemotePairing records of devbox ios pair, for Wi-Fi.
 WIFI_PAIRING="$HOME/.local/share/pymobiledevice3"
 # Where a .xip is looked for: the home and the projects, a few levels down.
 SEARCH_DEPTH=3
 
-usage() { sed -n '8,29p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '8,32p' "$0" | sed 's/^# \?//'; }
 log() { printf '\033[1m[dev-box-ios]\033[0m %s\n' "$*"; }
 err() { echo "dev-box-ios: $*" >&2; }
 
@@ -115,7 +119,7 @@ user_paths() {
 }
 
 status() {
-  local version xcode cached wifi
+  local version xcode cached wifi paired
   version="$(swift_version)"
   xcode="$(xcode_for "$version")"
   oad_refs
@@ -128,10 +132,39 @@ status() {
   if sdk_registered; then echo "  SDK          registered (darwin)"; else echo "  SDK          not registered"; fi
   cached="$(sdk_cached)"
   echo "  SDK cache    ${cached:-empty, --repair has nothing to register}"
-  if signed_in; then echo "  Apple        signed in ($XTOOL_AUTH)"; else echo "  Apple        not signed in: xtool auth"; fi
-  if ls "$PAIRING"/*.plist >/dev/null 2>&1; then echo "  pairing      $PAIRING"; else echo "  pairing      none yet: devbox help ios, step 2"; fi
+  if signed_in; then echo "  Apple        signed in ($XTOOL_AUTH)"; else echo "  Apple        not signed in: devbox ios"; fi
+  # usbmuxd keeps the USB pairings in /var/lib/lockdown (<udid>.plist),
+  # pymobiledevice3 without usbmuxd in ~/.pymobiledevice3.
+  paired="$(find "$LOCKDOWN" "$PAIRING" -maxdepth 1 -name '*.plist' ! -name SystemConfiguration.plist -printf '%f\n' 2>/dev/null | sed 's/\.plist$//' | sort -u | paste -sd' ' || true)"
+  echo "  pairing      ${paired:-none yet: devbox help ios, step 2}"
   wifi="$(find "$WIFI_PAIRING" -maxdepth 1 -name 'remote_*.plist' -printf '%f\n' 2>/dev/null | sed 's/^remote_//; s/\.plist$//' | paste -sd' ')"
   echo "  Wi-Fi        ${wifi:-not paired: devbox ios pair (devbox help ios-wifi)}"
+}
+
+# The devices usbmuxd sees over USB, one a line. The usbmuxd of the box is
+# started when it is not running, unless USBMUXD_SOCKET_ADDRESS points at the
+# one of another machine (devbox help ios-usb). The first time, the device
+# asks whether to trust the box: answer Trust, then run it again.
+devices() {
+  local out
+  if [ -z "${USBMUXD_SOCKET_ADDRESS:-}" ] && ! pgrep -x usbmuxd >/dev/null; then
+    command -v usbmuxd >/dev/null 2>&1 || {
+      err "no usbmuxd in the box: devbox pkg add usbmuxd (devbox help ios, step 2)"
+      exit 1
+    }
+    log "starting usbmuxd"
+    ios_root usbmuxd
+    sleep 2
+  fi
+  # xtool devices waits for a device forever: 15 seconds at most
+  out="$(timeout 15 xtool devices 2>&1 | grep '\[usb\]' || true)"
+  if [ -z "$out" ]; then
+    err "no device over USB: plugged in, unlocked, Trust answered on it? Then run devbox ios devices again"
+    err "the device on another machine: devbox help ios-usb"
+    exit 1
+  fi
+  echo "$out"
+  log "next: devbox ios xcode in the directory of an app (devbox help ios, step 3)"
 }
 
 # The .xip files of the home and the projects, newest first, one path a line.
@@ -225,7 +258,7 @@ sign_in() {
     return 0
   fi
   if ! interactive; then
-    log "left to you, on a terminal: xtool auth"
+    log "left to you, on a terminal: devbox ios"
     return 0
   fi
   cat <<'EOF'
@@ -241,7 +274,7 @@ EOF
   if gum confirm "Sign in now (xtool auth)?"; then
     xtool auth
   else
-    log "later: xtool auth"
+    log "later: devbox ios"
   fi
 }
 
@@ -280,7 +313,7 @@ sdk() {
   [ -z "$xip" ] || offer_delete "$xip"
   sign_in
   echo
-  log "next: the device, devbox help ios step 2 (or devbox help ios-usb), then xtool new"
+  log "next: the device, devbox help ios step 2 (or devbox help ios-usb), then devbox ios devices"
 }
 
 case "${1:-}" in
@@ -299,6 +332,13 @@ status)
   user_paths
   need_ios
   status
+  ;;
+devices)
+  # shellcheck source=/usr/share/devbox/lib/ios-common.sh
+  . /usr/share/devbox/lib/ios-common.sh
+  ios_root_env
+  need_ios
+  devices
   ;;
 pair)
   # shellcheck source=/usr/share/devbox/lib/ios-common.sh

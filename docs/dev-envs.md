@@ -125,14 +125,17 @@ they find the Swift of mise: `install-toolchain.sh` (always `--user-only`),
 TestFlight). Flutter apps and the experimental mode without an Xcode download
 are in the clone. `libimobiledevice`, which the xtool build links, comes
 through `devbox pkg`. One step is left to you, since it takes your Apple account:
-`XCODE_XIP=~/Xcode.xip install-toolchain.sh` builds the iOS SDK from an
-`Xcode.xip` downloaded from developer.apple.com, and `xtool auth` signs in;
-`devbox ios` chains both, the `.xip` picked in a list.
+`devbox ios` builds the iOS SDK from an `Xcode.xip` downloaded from
+developer.apple.com, picked in a list (`install-toolchain.sh` underneath), then
+signs in to Apple (`xtool auth`). Run again, it builds nothing twice and only
+signs in. Mode 0, an App Store Connect API key, takes a paid Apple Developer
+Program membership and gives `devbox ios xcode` USB and Wi-Fi; mode 1, the
+password of any Apple ID, a free one included, gives it USB only.
 There is no simulator: an app runs on a real device, plugged into the host
 and given to the box by the USB block of `compose.override.example.yaml`, with
-`devbox pkg add usbmuxd` and `sudo usbmuxd` in the box (below). The install ends on
+`devbox pkg add usbmuxd` and `devbox ios devices` in the box (below). The install ends on
 those steps, one by one (the Xcode download and the SDK, the device,
-`xtool new` and `xtool dev` or `device-run.sh` for a first app, what to answer
+a `project.yml` and `devbox ios xcode` for a first app, what to answer
 on the device, debugging, TestFlight, moving to a newer Swift), and
 `devbox help ios` shows them again. A box that had `ios` before
 omarchy-apple-dev keeps its xtool AppImage until `devbox dev-env ios` runs
@@ -171,9 +174,11 @@ sudo systemctl mask --now usbmuxd
 docker compose up -d
 # in the box, the device plugged in and unlocked
 devbox pkg add usbmuxd
-sudo usbmuxd                 # again after each restart of the box
-xtool devices                # answer Trust on the device, then run it again
+devbox ios devices           # answer Trust on the device, then run it again
 ```
+
+`devbox ios devices` starts the usbmuxd of the box when it is not running, as
+every command that reaches the device does, then lists the devices it sees.
 
 `devbox ios pair`, for Wi-Fi afterwards, needs this once too.
 
@@ -190,7 +195,7 @@ then runs as on a Mac, with its Apple parts swapped:
   in `~/.cache/omarchy-apple-dev/kmp`;
 - LLVM for Linux;
 - the `ld64.lld` of the SDK's toolset;
-- the SDK built by `devbox ios sdk`.
+- the SDK built by `devbox ios`.
 
 The output is `<module>/build/omarchy-kmp/<target>` (`ios_arm64`, or
 `ios_simulator_arm64` with `--target`), with `<Name>.xcframework` next to it
@@ -395,7 +400,7 @@ runs in the box.
 ```bash
 ssh -R 27015:/var/run/usbmuxd <user>@<box>       # from your machine, device plugged in
 export USBMUXD_SOCKET_ADDRESS=127.0.0.1:27015    # in the box, in that session
-xtool devices
+devbox ios devices                               # starts no usbmuxd in the box then
 ```
 
 `devbox help ios-usb` has the whole of it, checked as far as xtool opening

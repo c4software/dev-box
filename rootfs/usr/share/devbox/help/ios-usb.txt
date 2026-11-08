@@ -18,12 +18,13 @@ An iPhone or iPad plugged into your machine, the box on another
      your machine for as long as that SSH session lasts. From Windows, where
      Apple's service listens on a port: ssh -R 27015:127.0.0.1:27015.
 
-  3. In the box, in that session: point xtool at it
+  3. In the box, in that session: point the box at it
        export USBMUXD_SOCKET_ADDRESS=127.0.0.1:27015
-       xtool devices
-       xtool dev
-     xtool reads that variable, its own Docker image is built on it.
-     pymobiledevice3 takes the address as an option:
+       devbox ios devices    the device of your machine, listed
+       devbox ios xcode      in the directory of an app
+     xtool reads that variable, its own Docker image is built on it, and
+     devbox ios devices then starts no usbmuxd in the box. pymobiledevice3
+     takes the address as an option:
        pymobiledevice3 usbmux list --usbmux 127.0.0.1:27015
      Put the export line in your shell config to keep it.
 
@@ -41,7 +42,7 @@ An iPhone or iPad plugged into your machine, the box on another
      The device can go to the machine running the box: plug it there, then
      step 2 of `devbox help ios`.
      Without a cable, once paired over USB, iOS 27 only: devbox ios xcode
-     --wifi, in `devbox help ios-wifi`. xtool does not go through it.
+     --wifi, in `devbox help ios-wifi`, signed in with an API key.
 
   Sources
      Step 3 comes from the Dockerfile of xtool:

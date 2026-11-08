@@ -6,19 +6,19 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      file weighs several GB). Take the Xcode that carries the Swift of the
      box (`swift --version`): Xcode 27 for Swift 6.4, Xcode 26 for Swift 6.3.
      Put the .xip in the home of the box: ./data/home on the host, or scp.
-     Then, in the box, either all of this step in one go:
+     Then, in the box, all of this step in one go:
        devbox ios            pick the .xip, build the SDK, sign in
-     or by hand:
-       XCODE_XIP=~/Xcode_27.xip install-toolchain.sh
-       swift sdk list        must answer darwin
-       xtool auth
-     install-toolchain.sh builds the SDK from the .xip, keeps it in
-     ~/.cache/xtool (the .xip can go once it is there), registers it and
-     adds the macros and the tools the SDK of xtool lacks. xtool auth signs
-     in. Mode 0, an API key, with a paid Apple Developer Program membership;
-     1, the password, with any Apple ID (email, password, the two-factor
-     code), which goes through private Apple APIs, hence the throwaway Apple
-     ID xtool suggests.
+       devbox ios status     SDK registered, Apple signed in
+     It builds the SDK from the .xip through install-toolchain.sh, keeps it
+     in ~/.cache/xtool (the .xip can go once it is there), registers it and
+     adds the macros and the tools the SDK of xtool lacks, then signs in to
+     Apple. Sign-in skipped: run devbox ios again, it builds nothing twice.
+     Mode 0, an App Store Connect API key, with a paid Apple Developer
+     Program membership: devbox ios xcode over USB and Wi-Fi. Mode 1, the
+     password, with any Apple ID, a free one will do (email, password, the
+     two-factor code): over USB only, and the signature of a free account
+     lasts 7 days. It goes through private Apple APIs, hence the throwaway
+     Apple ID xtool suggests.
      Without an Xcode download, experimental (Objective-C, C, Swift and a
      small part of SwiftUI, read sdk-free/README.md of the clone first):
        install-toolchain.sh --mode no-xcode
@@ -44,27 +44,52 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      In the box:
        devbox pkg add usbmuxd
      Plug the iPhone or iPad in, unlock it, then:
-       sudo usbmuxd          again after each restart of the box
-       xtool devices         answer Trust on the device, then run it again
+       devbox ios devices    answer Trust on the device, then run it again
+     It starts the usbmuxd of the box when it is not running, as every
+     command that reaches the device does.
      usbmuxd keeps its pairing records in /var/lib/lockdown, outside the
      home: expect Trust again after a rebuild of the box. Without the
      cable afterwards, on iOS 27: `devbox help ios-wifi`.
 
   3. A first app
-       xtool new Hello
-       cd Hello
-       xtool dev             builds, signs, installs on the device
-       device-run.sh         the same, then launches it and shows its logs
+     A directory with the Swift sources in Sources/ and, next to them, a
+     project.yml for XcodeGen (devbox ios xcode builds XcodeGen itself):
+       name: Hello
+       options:
+         deploymentTarget:
+           iOS: "17.0"
+       targets:
+         Hello:
+           type: application
+           platform: iOS
+           sources:
+             - Sources
+           info:
+             path: Sources/Info.plist
+             properties:
+               CFBundleDisplayName: Hello
+               UILaunchScreen: {}
+           settings:
+             base:
+               PRODUCT_BUNDLE_IDENTIFIER: fr.example.hello
+     Sources/ holds the @main App of SwiftUI and its views; the bundle ID
+     is yours, reversed domain style, unique across every Apple account.
+     Then, in that directory:
+       devbox ios xcode      builds, signs, installs and launches the app
      The first build takes a few minutes, the next ones are quick. On the
      device, if asked: Settings, Privacy & Security, Developer Mode (it
-     restarts), then xtool dev again. At the first launch of the app, on
-     "Untrusted Developer": Settings, General, VPN & Device Management, your
-     Apple ID, Trust. With a free account the signature lasts 7 days: xtool
-     dev again renews it. The bundle ID is in xtool.yml.
+     restarts), then devbox ios xcode again. At the first launch of the
+     app, on "Untrusted Developer": Settings, General, VPN & Device
+     Management, your Apple ID, Trust. With a free account the signature
+     lasts 7 days: devbox ios xcode again renews it. From the host, for a
+     project mounted from it: scripts/devbox-build.sh of the repository of
+     dev-box, put next to project.yml.
 
   4. Around it
-     In the directory of the app, the one with xtool.yml:
-       xtool dev build                builds without installing
+     In the directory of the app:
+       devbox ios xcode build         builds without installing
+       devbox ios xcode logs          the logs of the app
+     In build/devbox-ios/xtool, the package devbox ios xcode writes:
        device-run.sh --lldb           installs, then debugs it on the device
        ship.sh                        an App Store .ipa, checked offline
        ship.sh --upload               the same, sent to TestFlight
@@ -94,7 +119,7 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      and the tools to it. Its cache is empty though, so --repair has nothing
      to register after a change of Swift: give the .xip once to fill it.
        devbox ios                    picks the .xip, fills the cache
-     The Apple sign-in and the pairing records stay: no xtool auth, no
+     The Apple sign-in and the pairing records stay: no new sign-in, no
      Trust again.
 
   A newer omarchy-apple-dev

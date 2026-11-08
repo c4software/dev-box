@@ -1,10 +1,16 @@
 # iOS sans Mac : contributions en amont et nettoyage de dev-box
 
-État au 6/11/2026, 12 h 15. **dev-box v1.55 est publiée** : `devbox ios xcode` / `kmp` appellent les outils
-d'omarchy-apple-dev, épinglé par commit (`OAD_REF` = `031155f`, main après #139, pas encore de version
-publiée), et `ios_piped` est retiré. La box locale est à jour (`devbox dev-env ios` fait, caches
-`devbox-ios-kmp` supprimés), Aero et l'app KMP construites, installées et lancées depuis elle sur l'iPhone 11 Pro.
-Application-ios : exemple `--no-asset-extensions` retiré (`777245f`).
+État au 8/11/2026, 19 h 30. **dev-box v1.63 est publiée** : omarchy-apple-dev épinglé par commit
+(`OAD_REF` = `c6eb9d5`, main après #144, pas encore de version publiée), dont le pin xtool est le main
+d'xtool (`7cc56c3` : amont `a2875dd`, avec RCodesign #389 et le contournement #432, plus les 11 commits du
+fork, tag `omarchy-main-pin`). Plus aucun correctif d'xtool porté à la main par cherry-pick. La box locale est
+à jour (`devbox dev-env ios` fait, appairages restaurés) ; Aero et l'app KMP construites, installées et
+lancées depuis elle sur l'iPhone 14 de Laureline (iOS 27.2).
+
+Relecture du 8/11 : dev-box ne réimplémente rien de ce qu'offrent omarchy-apple-dev ou xtool. Ce qui lui est
+propre (XcodeGen, `--package`, `binaryTarget` et `compose-resources` du framework KMP, `--min-ios`) automatise
+des étapes que le README KMP d'omarchy fait faire à la main. Règle : pas de script maison dans dev-box quand
+l'amont a l'outil, seulement des wrappers.
 
 Des contournements ont été ajoutés dans `devbox ios xcode` / `devbox ios kmp` pour construire Aero
 (application-ios) et l'app KMP (application-android/iosApp). Chacun a été proposé en amont. Une fois les
@@ -23,10 +29,12 @@ correctifs publiés, dev-box peut les retirer.
 | #133 | #134 | `kmp/build-framework.sh` (framework Kotlin lié sous Linux) | ✅ fusionnée |
 | #132 | #135 | xtool épinglé : passage à 1.24.0 plus les correctifs du fork | ✅ fusionnée le 5/11 à 23 h 48 (squash 7ce8f58), pin `a8a5a40`, tag `omarchy-1.24.0-pin` du fork |
 | | joshuaswarren/xtool#3 | Branche 1.24.0 plus les 11 commits du fork (pour `omarchy/1.24.0-fixes`) | ⏳ ouverte (le pin de main est déjà ce commit) |
-| #132 | **#138** | xtool épinglé : main d'xtool (`4ec0e96`, contient #375, #430, #422) plus le contournement #432 et les 11 commits du fork (pin `86925e8`) | ⏳ ouverte (6/11, mise à jour le même jour) |
-|  | joshuaswarren/xtool#4 | Maintenant main + #432 + fork (`86925e8`), à proposer comme nouveau pin quand #432 sera fusionnée | ⏳ ouverte |
+| #132 | #138 | xtool épinglé sur main + #432 (pin `86925e8`) | fermée, remplacée par #139 |
+| #132 | #139 | xtool épinglé sur main avant #389, plus #430, #422 et les commits du fork (pin `c9f4363`, tag `omarchy-main-pre389-pin`) | ✅ fusionnée le 6/11 (`031155f`) ; #132 fermé le 8/11 |
+| (suite de #132) | **#144** | xtool épinglé sur main (`7cc56c3` : `a2875dd` + les 11 commits du fork, tag `omarchy-main-pin`) | ✅ fusionnée le 8/11 à 16 h 54 (`c6eb9d5`), après deux verdicts GREEN de leurs agents |
+|  | joshuaswarren/xtool#4 | Branche de suivi : main + commits du fork, tête `7cc56c3` | ⏳ ouverte (sert de référence au pin, le tag suffit) |
 
-Aucune version d'omarchy publiée ne contient encore ces correctifs : la dernière est v0.4.4, du 5/11 à 00 h 16. #132 reste ouvert pour #375 et #430 : le mainteneur a dit qu'il reporterait #430 dans le fork une fois fusionnée, et déciderait pour #375 (report dans le fork ou attente de la prochaine version).
+Aucune version d'omarchy publiée ne contient encore ces correctifs : la dernière est v0.4.4, du 5/11 à 00 h 16. À la prochaine version, `OAD_REF` pourra reprendre un tag.
 
 ### xtool (xtool-org/xtool)
 
@@ -36,8 +44,8 @@ Aucune version d'omarchy publiée ne contient encore ces correctifs : la derniè
 | #426 | #428 | 409 « Multiple profiles found » | fermée par le mainteneur, reprise dans **#430** |
 | #425, #426 | **#430** (kabiroberai) | « ds: fix profile creation conflicts » : pagination, appareils désactivés exclus, vérification d'annulation, suppression du profil `XTL profile <id>` de ce bundle après la lecture des pages | ✅ fusionnée le 6/11 à 05 h 15 (`ac40282`), dans aucune version publiée |
 | (amont) | #375 | Arrêt sur une entrée standard qui n'est pas un tube | ✅ fusionnée le 28/10, mais dans **aucune version publiée** (après 1.24.0) |
-| **#431** (le nôtre) | | La compilation release plante le compilateur sous Linux depuis #389 (RCodesign), bissecté, reproduit dans leur image ; cause : bug du compilateur Swift (swiftlang/swift#94055, CoroSplit), déclenché par deux `unimplemented()` | ⏳ ouvert (6/11) |
-| #431 | **#432** (la nôtre, brouillon niveau 2) | Contournement : `reportIssue` + `throw UnimplementedFailure` dans `UnimplementedSigner` | ✅ approuvée par le mainteneur (6/11), relue, niveau 1, pas encore fusionnée |
+| **#431** (le nôtre) | | La compilation release plante le compilateur sous Linux depuis #389 (RCodesign) ; cause : bug du compilateur Swift (swiftlang/swift#94055, CoroSplit, sans réponse), déclenché par deux `unimplemented()` | ✅ fermé le 8/11 |
+| #431 | **#432** (la nôtre) | Contournement : `reportIssue` + `throw UnimplementedFailure` dans `UnimplementedSigner` | ✅ fusionnée le 8/11 (`a2875dd`) |
 
 Le mainteneur a fermé #427 et #428 le 5/11 pour reprendre leur contenu dans #430, qui contient tous nos points
 sauf la tolérance d'un 404 à la suppression (deux installations simultanées du même bundle), un point mineur.
@@ -196,6 +204,16 @@ Le détail des retraits, pour mémoire :
 2. Une fois cette version d'omarchy publiée et épinglée dans dev-box, retirer `ios_piped` de
    `lib/ios-common.sh`. Le garder pour `xtool devices` si besoin, puisque `timeout` reste utile.
 3. Retester une installation complète.
+
+### C bis. Passage au main d'xtool (fait le 8/11, dev-box v1.63)
+
+Ce que `7cc56c3` apporte par rapport à `c9f4363` : signature RCodesign (#389, seul chemin maintenu en
+amont), correctifs de connexion Apple et double authentification par SMS (#415-#417), sortie des
+sous-processus (#413), contournement du plantage du compilateur (#432). Testé dans un conteneur jetable puis
+dans la box : xtool reconstruit en 3 min, Aero et l'app KMP signées par `provision-dev.py` / `sign-dev.sh`,
+installées et lancées ; le chemin `xtool install` (Apple ID par mot de passe, ajouté en v1.63 par
+2bab208) forcé avec la clé API : Aero installé depuis le `.app`, identifiant relu, lancé par
+`devbox ios xcode launch`. Pas encore essayé avec un vrai Apple ID gratuit.
 
 ### D. Ménage, une fois tout fusionné
 
