@@ -57,9 +57,10 @@ next_steps() {
 # (--configuration of xcodeproj2xtool.py, its asset symbol shortcuts, the
 # resource bundle Info.plist of ship.sh, tools/host-manifests.py,
 # kmp/build-framework.sh) and its xtool pin with xtool-org/xtool#375 (stdin
-# that is a file or /dev/null). No release has them yet: main at #139.
+# that is a file or /dev/null). No release has them yet: main at #144, whose
+# xtool pin is xtool main (RCodesign, xtool-org/xtool#432) plus the fork fixes.
 OAD_REPO="https://github.com/joshuaswarren/omarchy-apple-dev"
-OAD_REF="031155f18f28687486e141a925253ec5e8884020"
+OAD_REF="c6eb9d59940afc88b8b7c531ac1fce6153872d6c"
 OAD_DIR="$HOME/.local/share/omarchy-apple-dev"
 OAD_BIN="$HOME/.local/bin"
 # The scripts of the clone put on the PATH, through a wrapper each.

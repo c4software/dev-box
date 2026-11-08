@@ -305,7 +305,7 @@ since, and the command now calls its tools:
   until it is closed by hand; the developer disk image is mounted when
   needed. Signed in with the password of an Apple ID instead (`xtool auth`,
   mode 1, a free Apple ID will do), `tools/provision-dev.py` has no key to
-  work with: the install step packs the unsigned app and hands it to
+  work with: the install step hands the unsigned app to
   `xtool install --usb`, which creates the App ID and the profile of the
   team, signs and installs, then reads back from the device the identifier
   xtool picked (`XTL-<team>.<identifier>`) for `launch` and `logs`. That

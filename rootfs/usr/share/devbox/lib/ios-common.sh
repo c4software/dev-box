@@ -219,9 +219,8 @@ ios_install_xtool() {
   [ -z "$IOS_WIFI" ] ||
     ios_die "signed in to xtool with an Apple ID password: xtool install reaches the device over USB only. Plug it in and drop --wifi, or sign in with an App Store Connect API key (xtool auth login --mode key)"
   stage="$(mktemp -d)"
-  mkdir "$stage/Payload"
-  cp -R "$src" "$stage/Payload/"
-  app="$stage/Payload/$(basename "$src")"
+  cp -R "$src" "$stage/"
+  app="$stage/$(basename "$src")"
   product="$(basename "$app" .app)"
   if [ -z "$id" ]; then
     id="$(python3 -c 'import plistlib, sys; print(plistlib.load(open(sys.argv[1], "rb"))["CFBundleIdentifier"])' "$app/Info.plist")$suffix"
@@ -229,13 +228,12 @@ ios_install_xtool() {
   python3 -c 'import plistlib, sys
 p = sys.argv[1]; d = plistlib.load(open(p, "rb")); d["CFBundleIdentifier"] = sys.argv[2]; plistlib.dump(d, open(p, "wb"))' \
     "$app/Info.plist" "$id"
-  (cd "$stage" && zip -qry unsigned.ipa Payload)
   if [ -f "$record" ]; then
     ios_record "$record"
     ios_stop "$IOS_ID" 2>/dev/null || true
   fi
   log "signed and installed by xtool install (Apple ID password) on $IOS_UDID_FOUND"
-  xtool install --usb --udid "$IOS_UDID_FOUND" "$stage/unsigned.ipa"
+  xtool install --usb --udid "$IOS_UDID_FOUND" "$app"
   rm -rf "$stage"
   installed="$(pymobiledevice3 apps list "${IOS_DEV[@]}" --type User 2>/dev/null | python3 -c '
 import json, sys
