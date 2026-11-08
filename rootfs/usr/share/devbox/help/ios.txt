@@ -158,6 +158,16 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      mounted from the host with rootless Docker:
        docker exec -u 0:0 -w /home/dev/projets/<app> dev-box \
          devbox ios xcode .                        on the host
+     The same from the host, without a shell in the box: put
+     scripts/devbox-build.sh of the dev-box repository next to project.yml
+     (or the .xcodeproj), then, in that directory of the host:
+       ./devbox-build.sh                 build, install, launch
+       ./devbox-build.sh run --wifi <address>
+       ./devbox-build.sh --help          its steps and settings
+       https://raw.githubusercontent.com/c4software/dev-box/main/scripts/devbox-build.sh
+     It runs devbox ios xcode as root in the box already running, with the
+     path of the project seen from the box, and checks the SDK and the
+     Apple sign-in first; a Flutter project goes to flutter/build.sh.
      After moving to omarchy-apple-dev 0.4.4, the SDK is built once more
      from the .xip (step 1): the SDK of the older xtool is refused.
 

@@ -10,7 +10,8 @@ anything beyond a typo.
 `rootfs/` mirrors the image: `rootfs/usr/local/bin/devbox` in the repo becomes
 `/usr/local/bin/devbox` in the container. The `Dockerfile` builds the image,
 `compose.yaml` runs it, `setup.sh` installs a box without a clone and
-`scripts/` holds the host backup and restore. The user's home lives in
+`scripts/` holds the scripts run on the host (backup, restore, and
+`devbox-build.sh` for iOS apps). The user's home lives in
 `./data/home` and survives every rebuild. That last point is the whole reason
 for the rule below.
 

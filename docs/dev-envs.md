@@ -351,6 +351,33 @@ docker exec -u 0:0 -w /home/dev/projets/<app>/iosApp dev-box devbox ios xcode . 
   --kmp :shared --signed-suffix .kmp
 ```
 
+`scripts/devbox-build.sh` wraps those `docker exec` lines for a project: put
+it next to `project.yml` (or the `.xcodeproj`, or `pubspec.yaml`), set the
+target, the configuration or the Kotlin Multiplatform module at its top, and
+run it from that directory of the host. It takes the steps of `devbox ios
+xcode` (`run`, the default, `project`, `build`, `install`, `launch`, `logs`)
+plus `pair`, `status`, `shell` (a root shell in the box, in the project, with
+the ios environment) and `key <AuthKey_*.p8>` (the App Store Connect key
+copied where xtool looks for it), and passes `--wifi`, `IOS_WIFI` and
+`IOS_UDID` on. It never creates nor restarts a container: it works on the box
+already running (`DEVBOX_CONTAINER`, `dev-box` by default), finds the host
+directory mounted on `~/projets` through `docker inspect` (`DEVBOX_PROJECTS`
+otherwise), turns the path of the host into the one of the box, refuses to
+run inside the box, and checks the SDK and the Apple sign-in before building.
+A Flutter project goes to `flutter/build.sh` of omarchy-apple-dev, over USB
+only. With classic Docker, where root in the box is root on the host, it gives
+the files the build wrote back to the owner of the project. Checked with an
+iPhone 14 under iOS 27.2, over USB and over Wi-Fi, on a SwiftUI app generated
+by XcodeGen and on a Compose Multiplatform app.
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/c4software/dev-box/main/scripts/devbox-build.sh
+chmod +x devbox-build.sh
+./devbox-build.sh --help          # the steps, the settings, then devbox ios xcode --help
+./devbox-build.sh                 # build, sign, install, launch
+./devbox-build.sh run --wifi 100.64.0.13
+```
+
 When the box runs on a remote machine and the device is on your desk, the USB
 block is of no use: the usbmuxd of your own machine does the USB part, and the
 box reaches it through SSH. Nothing goes into the compose file and no usbmuxd
