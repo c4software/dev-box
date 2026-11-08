@@ -9,10 +9,12 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      Then, in the box, all of this step in one go:
        devbox ios            pick the .xip, build the SDK, sign in
        devbox ios status     SDK registered, Apple signed in
+       devbox ios login      the sign-in alone, again (devbox ios logout)
      It builds the SDK from the .xip through install-toolchain.sh, keeps it
      in ~/.cache/xtool (the .xip can go once it is there), registers it and
      adds the macros and the tools the SDK of xtool lacks, then signs in to
-     Apple. Sign-in skipped: run devbox ios again, it builds nothing twice.
+     Apple. Sign-in skipped or failed: devbox ios login (devbox ios logout
+     first to change account or after a wrong code).
      Mode 0, an App Store Connect API key, with a paid Apple Developer
      Program membership: devbox ios xcode over USB and Wi-Fi. Mode 1, the
      password, with any Apple ID, a free one will do (email, password, the

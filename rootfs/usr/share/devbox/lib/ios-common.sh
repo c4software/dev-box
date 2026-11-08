@@ -181,7 +181,7 @@ ios_api_key() {
   export ASC_KEY_ID="${ASC_KEY_ID:-$(sed -n 's/.*ASC key ID: *//p' <<<"$status")}"
   export ASC_ISSUER_ID="${ASC_ISSUER_ID:-$(sed -n 's/.*Issuer ID: *//p' <<<"$status")}"
   [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] ||
-    ios_die "xtool is not signed in with an App Store Connect API key: xtool auth login --mode key"
+    ios_die "xtool is not signed in with an App Store Connect API key: devbox ios login --mode key"
   if [ -z "${ASC_KEY_PATH:-}" ]; then
     for key in "$IOS_USER_HOME"/.appstoreconnect/private_keys/AuthKey_"$ASC_KEY_ID".p8 \
       "$IOS_USER_HOME"/.appstoreconnect/AuthKey_"$ASC_KEY_ID".p8; do
@@ -217,7 +217,7 @@ ios_has_api_key() {
 ios_install_xtool() {
   local src="$1" id="$2" record="$3" suffix="${4:-}" stage app product installed
   [ -z "$IOS_WIFI" ] ||
-    ios_die "signed in to xtool with an Apple ID password: xtool install reaches the device over USB only. Plug it in and drop --wifi, or sign in with an App Store Connect API key (xtool auth login --mode key)"
+    ios_die "signed in to xtool with an Apple ID password: xtool install reaches the device over USB only. Plug it in and drop --wifi, or sign in with an App Store Connect API key (devbox ios logout, then devbox ios login --mode key)"
   stage="$(mktemp -d)"
   cp -R "$src" "$stage/"
   app="$stage/$(basename "$src")"
@@ -295,7 +295,19 @@ ios_launch() {
   ios_connect
   ios_stop "$IOS_ID"
   log "launching $IOS_ID"
-  pymobiledevice3 developer dvt launch "$IOS_ID" "${IOS_DVT[@]}"
+  local out
+  out="$(mktemp)"
+  if pymobiledevice3 developer dvt launch "$IOS_ID" "${IOS_DVT[@]}" 2>"$out"; then
+    rm -f "$out"
+    return 0
+  fi
+  # The traceback of pymobiledevice3 says little: its last lines, then why
+  grep -v '^[│╭╰ ]' "$out" | tail -n 6 >&2 || true
+  rm -f "$out"
+  if ! ios_has_api_key; then
+    ios_die "the app is installed but did not launch. Signed with an Apple ID password, it waits for you to trust its developer, once: on the device, Settings, General, VPN & Device Management, your Apple ID, Trust. Then: devbox ios xcode . launch"
+  fi
+  ios_die "the app is installed but did not launch: unlock the device, then devbox ios xcode . launch"
 }
 
 ios_logs() {

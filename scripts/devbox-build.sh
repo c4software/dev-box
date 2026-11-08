@@ -17,6 +17,7 @@
 #   logs      shows the logs of the app on the device (Ctrl-C to stop)
 #   pair      pairs the device plugged in over USB for Wi-Fi, once (iOS 27, devbox ios pair)
 #   status    the state of the box: SDK, Apple sign-in, paired devices (devbox ios status)
+#   login     signs the box in to Apple, on a terminal (devbox ios login); logout signs it out
 #   devices   the devices the box sees over USB; the first time, answer Trust on the device (devbox ios devices)
 #   shell     a shell in the box, in the directory of the app, with the same rights as the steps
 #   key <AuthKey_XXXX.p8>  copies an App Store Connect API key into the box
@@ -143,7 +144,7 @@ check_ios() {
     exit 1
   fi
   if ! grep -q 'Apple *signed in' <<<"$status"; then
-    err "the box is not signed in to Apple. In the box: devbox ios"
+    err "the box is not signed in to Apple: ./devbox-build.sh login (in the box: devbox ios login)"
     exit 1
   fi
   if [ "$KIND" = flutter ] && ! docker exec "${as_root[@]}" "$BOX" bash -c \
@@ -181,6 +182,10 @@ case "$step" in
 status | devices)
   exec docker exec "${envs[@]}" "${as_root[@]}" "$BOX" devbox ios "$step"
   ;;
+login | logout)
+  # The sign-in asks questions: a terminal
+  exec docker exec -it "${as_root[@]}" "$BOX" devbox ios "$step" "${@:2}"
+  ;;
 pair)
   check_ios
   exec docker exec "${envs[@]}" "${as_root[@]}" "$BOX" devbox ios pair
@@ -202,7 +207,7 @@ key)
   docker exec -u 0:0 "$BOX" chown "$BOX_USER:" "$dir/$name"
   docker exec -u 0:0 "$BOX" chmod 600 "$dir/$name"
   echo "Key copied into the box: $dir/$name"
-  echo "Then, in the box: devbox ios, mode 0 (the API key)"
+  echo "Then: ./devbox-build.sh login, mode 0 (the API key)"
   exit 0
   ;;
 run | project | build | install | launch | logs) shift || true ;;

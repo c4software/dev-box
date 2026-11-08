@@ -128,7 +128,8 @@ through `devbox pkg`. One step is left to you, since it takes your Apple account
 `devbox ios` builds the iOS SDK from an `Xcode.xip` downloaded from
 developer.apple.com, picked in a list (`install-toolchain.sh` underneath), then
 signs in to Apple (`xtool auth`). Run again, it builds nothing twice and only
-signs in. Mode 0, an App Store Connect API key, takes a paid Apple Developer
+signs in; `devbox ios login` does the sign-in alone, `devbox ios logout` signs
+out, to change account or start over after a failed sign-in. Mode 0, an App Store Connect API key, takes a paid Apple Developer
 Program membership and gives `devbox ios xcode` USB and Wi-Fi; mode 1, the
 password of any Apple ID, a free one included, gives it USB only.
 There is no simulator: an app runs on a real device, plugged into the host
