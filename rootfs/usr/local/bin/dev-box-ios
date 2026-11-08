@@ -232,8 +232,11 @@ sign_in() {
 
   xtool signs in to Apple to sign the apps it installs. Two modes:
     0  an API key, with a paid Apple Developer Program membership
-    1  the password, with any Apple ID (email, password, the two-factor
-       code), through private Apple APIs: xtool suggests a throwaway Apple ID
+       (devbox ios xcode over USB and Wi-Fi)
+    1  the password, with any Apple ID, a free one will do (email,
+       password, the two-factor code), through private Apple APIs: xtool
+       suggests a throwaway Apple ID (devbox ios xcode over USB only, the
+       signature lasts 7 days)
 EOF
   if gum confirm "Sign in now (xtool auth)?"; then
     xtool auth

@@ -134,9 +134,12 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      devbox ios xcode builds the app of an .xcodeproj, or of an XcodeGen
      project.yml, on Linux, then signs it for the device plugged in,
      installs and launches it. It needs the
-     SDK of step 1, xtool signed in with an App Store Connect API key and
-     the device of step 2, or over Wi-Fi with --wifi (`devbox help
-     ios-wifi`).
+     SDK of step 1, xtool signed in and the device of step 2. Signed in
+     with an App Store Connect API key, it signs through provision-dev.py
+     and also reaches the device over Wi-Fi with --wifi (`devbox help
+     ios-wifi`). Signed in with the password of an Apple ID, a free one
+     included, xtool install signs and installs, over USB only: trust the
+     developer once on the device, the signature lasts 7 days.
        cd ~/projets/<app>
        devbox ios xcode                  build, install, launch
        devbox ios xcode build            or project, install, launch, logs
@@ -152,8 +155,9 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      (RxSwift drops RxCocoa on Linux), ship.sh --device builds (app icon,
      resources at the root of the .app, the app's Info.plist keys in its
      resource bundle). On its own it targets iOS 17 at least (the asset
-     symbols of the box need it) and signs through provision-dev.py: the
-     profile of xtool install holds the first 20 devices of the team only.
+     symbols of the box need it) and, with an API key, signs through
+     provision-dev.py: the profile of xtool install holds the first 20
+     devices of the team only.
      Run-script phases are not run: commit what they generate. A project
      mounted from the host with rootless Docker:
        docker exec -u 0:0 -w /home/dev/projets/<app> dev-box \

@@ -303,7 +303,16 @@ since, and the command now calls its tools:
   identifier side by side). `install` and `launch` stop the running
   app first, since one installed or launched over the open app stays stuck
   until it is closed by hand; the developer disk image is mounted when
-  needed.
+  needed. Signed in with the password of an Apple ID instead (`xtool auth`,
+  mode 1, a free Apple ID will do), `tools/provision-dev.py` has no key to
+  work with: the install step packs the unsigned app and hands it to
+  `xtool install --usb`, which creates the App ID and the profile of the
+  team, signs and installs, then reads back from the device the identifier
+  xtool picked (`XTL-<team>.<identifier>`) for `launch` and `logs`. That
+  path is USB only (`--wifi` stops with an error), and with a free Apple ID
+  Apple keeps the signature 7 days and 3 apps on the device at a time; the
+  developer has to be trusted once on the device (Settings, General, VPN &
+  Device Management).
 - **A newer compiler.** The Swift of the box can be newer than the one the
   project was last built with: Swift 6.4 refuses `self.flag = value` on an
   `@State` before the other properties of an `init` are set;

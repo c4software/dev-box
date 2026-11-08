@@ -14,9 +14,12 @@
 #     /root inside the container, its SDK, Apple sign-in and pymobile3-venv,
 #     where swift, xtool and ship.sh of root look for them;
 #   - the signature through provision-dev.py and sign-dev.sh of
-#     omarchy-apple-dev rather than xtool install: the path these apps are
-#     tested with (xtool install's profile held the first 20 devices of the
-#     team only before xtool-org/xtool#430);
+#     omarchy-apple-dev rather than xtool install when xtool is signed in
+#     with an App Store Connect API key: the path these apps are tested with
+#     (xtool install's profile held the first 20 devices of the team only
+#     before xtool-org/xtool#430). Signed in with the password of an Apple
+#     ID, a free one included, provision-dev.py has no key to work with:
+#     xtool install signs and installs instead, over USB only;
 #   - the app stopped before an install or a launch over the open one, which
 #     otherwise stays stuck on the device until it is closed by hand;
 #   - usbmuxd started, and restarted once when a device was plugged again;
@@ -199,14 +202,67 @@ ios_stop() {
   pymobiledevice3 developer dvt pkill --bundle "$id" "${IOS_DVT[@]}"
 }
 
+# Is xtool signed in with an App Store Connect API key (a paid Apple
+# Developer Program membership)? Otherwise it is the password of an Apple ID.
+ios_has_api_key() {
+  [ -n "${ASC_KEY_ID:-}" ] && [ -n "${ASC_ISSUER_ID:-}" ] && return 0
+  grep -q 'ASC key ID:' <<<"$(xtool auth status 2>&1)"
+}
+
+# ios_install signed in with the password of an Apple ID, a free one
+# included: xtool install creates the App ID and the profile of the team,
+# signs, prefixes the identifier (XTL-<team>.<its own>) and installs, over
+# USB only (xtool has no Wi-Fi on Linux). The identifier it picked is read
+# back from the device, as device-run.sh of omarchy-apple-dev does.
+ios_install_xtool() {
+  local src="$1" id="$2" record="$3" suffix="${4:-}" stage app product installed
+  [ -z "$IOS_WIFI" ] ||
+    ios_die "signed in to xtool with an Apple ID password: xtool install reaches the device over USB only. Plug it in and drop --wifi, or sign in with an App Store Connect API key (xtool auth login --mode key)"
+  stage="$(mktemp -d)"
+  mkdir "$stage/Payload"
+  cp -R "$src" "$stage/Payload/"
+  app="$stage/Payload/$(basename "$src")"
+  product="$(basename "$app" .app)"
+  if [ -z "$id" ]; then
+    id="$(python3 -c 'import plistlib, sys; print(plistlib.load(open(sys.argv[1], "rb"))["CFBundleIdentifier"])' "$app/Info.plist")$suffix"
+  fi
+  python3 -c 'import plistlib, sys
+p = sys.argv[1]; d = plistlib.load(open(p, "rb")); d["CFBundleIdentifier"] = sys.argv[2]; plistlib.dump(d, open(p, "wb"))' \
+    "$app/Info.plist" "$id"
+  (cd "$stage" && zip -qry unsigned.ipa Payload)
+  if [ -f "$record" ]; then
+    ios_record "$record"
+    ios_stop "$IOS_ID" 2>/dev/null || true
+  fi
+  log "signed and installed by xtool install (Apple ID password) on $IOS_UDID_FOUND"
+  xtool install --usb --udid "$IOS_UDID_FOUND" "$stage/unsigned.ipa"
+  rm -rf "$stage"
+  installed="$(pymobiledevice3 apps list "${IOS_DEV[@]}" --type User 2>/dev/null | python3 -c '
+import json, sys
+b = sys.argv[1]
+try:
+    apps = json.load(sys.stdin)
+except ValueError:
+    apps = {}
+print(next((k for k in apps if k == b or k.endswith("." + b)), ""))' "$id")"
+  [ -n "$installed" ] || ios_die "xtool install ended, but no app $id (or XTL-<team>.$id) on the device: see its output above"
+  printf '%s\n%s\n' "$installed" "$product" >"$record"
+  log "installed as $installed. With a free Apple ID: trust it once on the device (Settings, General, VPN & Device Management), the signature lasts 7 days, 3 apps at most at a time"
+}
+
 # The unsigned app $1 signed for the device under the identifier $2
 # (XTL-<team key>.<its own> when empty, like xtool, so it never replaces the
 # App Store or TestFlight one; $4 appended to it, for two apps of one
 # identifier side by side), then installed. Records the identifier and the
 # executable into $3.
+# Signed in with an Apple ID password rather than an API key: ios_install_xtool.
 ios_install() {
   local src="$1" id="$2" record="$3" suffix="${4:-}" udid stage app product dev tools
   ios_connect
+  if ! ios_has_api_key; then
+    ios_install_xtool "$@"
+    return
+  fi
   udid="$IOS_UDID_FOUND"
   ios_api_key
   stage="$(mktemp -d)"

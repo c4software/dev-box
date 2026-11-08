@@ -93,15 +93,19 @@ Customizing:
 
 Environment:
   ASC_KEY_ID, ASC_ISSUER_ID  the App Store Connect API key used to sign,
-  ASC_KEY_PATH               read from xtool auth status when unset
+  ASC_KEY_PATH               read from xtool auth status when unset; xtool
+                             signed in with an Apple ID password instead
+                             (a free one will do): xtool install signs,
+                             over USB only
   IOS_XCODEGEN_VERSION       the XcodeGen built for a project.yml (2.44.1)
   IOS_WIFI                   the same as --wifi
   IOS_UDID                   over Wi-Fi, the device when several are paired
   USER_NAME                  as root, the box's user whose tools are taken
 
-Needs the ios environment, its SDK and the Apple sign-in with an App Store
-Connect API key (devbox help ios), and a device paired through usbmuxd, or
-over Wi-Fi through devbox ios pair (devbox help ios-wifi). As
+Needs the ios environment, its SDK and the Apple sign-in (devbox help ios),
+and a device paired through usbmuxd. With an App Store Connect API key, over
+Wi-Fi too through devbox ios pair (devbox help ios-wifi); with the password
+of an Apple ID, a free one included, over USB only. As
 root, it takes the tools, the SDK and the sign-in of the box's user. The
 details: docs/dev-envs.md of dev-box, devbox help ios.
 EOF
