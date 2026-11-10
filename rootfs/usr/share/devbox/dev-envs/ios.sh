@@ -53,14 +53,13 @@ next_steps() {
 
 # omarchy-apple-dev, pinned to a release tag or to the full SHA of a commit of
 # its main: a newer one is a change of this line, tried in a throwaway box
-# first. devbox ios xcode / kmp need what came after v0.4.4
-# (--configuration of xcodeproj2xtool.py, its asset symbol shortcuts, the
-# resource bundle Info.plist of ship.sh, tools/host-manifests.py,
-# kmp/build-framework.sh) and its xtool pin with xtool-org/xtool#375 (stdin
-# that is a file or /dev/null). No release has them yet: main at #144, whose
-# xtool pin is xtool main (RCodesign, xtool-org/xtool#432) plus the fork fixes.
+# first. devbox ios xcode / kmp need v0.4.5 or later (--configuration of
+# xcodeproj2xtool.py, its asset symbol shortcuts, the resource bundle
+# Info.plist of ship.sh, tools/host-manifests.py, kmp/build-framework.sh),
+# whose xtool pin is xtool main (RCodesign, xtool-org/xtool#432, stdin that is
+# a file or /dev/null since #375) plus the fork fixes.
 OAD_REPO="https://github.com/joshuaswarren/omarchy-apple-dev"
-OAD_REF="c6eb9d59940afc88b8b7c531ac1fce6153872d6c"
+OAD_REF="v0.4.5"
 OAD_DIR="$HOME/.local/share/omarchy-apple-dev"
 OAD_BIN="$HOME/.local/bin"
 # The scripts of the clone put on the PATH, through a wrapper each.

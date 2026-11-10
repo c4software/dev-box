@@ -34,7 +34,7 @@ correctifs publiés, dev-box peut les retirer.
 | (suite de #132) | **#144** | xtool épinglé sur main (`7cc56c3` : `a2875dd` + les 11 commits du fork, tag `omarchy-main-pin`) | ✅ fusionnée le 8/11 à 16 h 54 (`c6eb9d5`), après deux verdicts GREEN de leurs agents |
 |  | joshuaswarren/xtool#4 | Branche de suivi : main + commits du fork, tête `7cc56c3` | ⏳ ouverte (sert de référence au pin, le tag suffit) |
 
-Aucune version d'omarchy publiée ne contient encore ces correctifs : la dernière est v0.4.4, du 5/11 à 00 h 16. À la prochaine version, `OAD_REF` pourra reprendre un tag.
+Ces correctifs sont dans la version v0.4.5 d'omarchy (10/11) : `OAD_REF` reprend un tag, `v0.4.5` (pin xtool inchangé, `7cc56c3`). Vérifié dans une box jetable : clone déplacé de `031155f` à `v0.4.5` par `devbox dev-env ios`, SDK et connexion Apple gardés, app Swift et app Compose Multiplatform compilées.
 
 ### xtool (xtool-org/xtool)
 
