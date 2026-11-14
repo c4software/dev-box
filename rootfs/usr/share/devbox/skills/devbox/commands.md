@@ -12,7 +12,7 @@ devbox                 # menu of commands (gum), then runs the one you pick
 devbox <cmd> [args]    # run a command
 devbox <cmd> --help    # summary, usage, then the command's own help
 devbox --help          # usage and the table of commands
-devbox help [topic]    # step by step help for the user: ios, ios-usb, ios-wifi, gpu, desktop, podman, tailscale, image, backup
+devbox help [topic]    # step by step help for the user: ios, ios-usb, ios-wifi, ios-ui, gpu, desktop, podman, tailscale, image, backup
 devbox commands        # bare list, one name per line, for completions
 ```
 
@@ -52,7 +52,7 @@ use in scripts and in a `docker exec` from the host: `devbox update` and
 | `tour` | `dev-box-tour` | a guided tour of the box in a dozen steps, each with the command to try. `--text` prints it at once, `--offer` is what the first login runs. |
 | `desktop` | `dev-box-desktop` | the graphical session of `devbox dev-env desktop`, shown by a gliff client over ssh. Out of the menu and the list until `devbox dev-env desktop` is installed (`requires=desktop`), still callable by name. No argument: a menu on a terminal, the state otherwise. `status`, `start`, `stop`; its graphical apps, through `devbox pkg`: `apps`, `install code chromium`, `remove`, `open <app> [args]` (VS Code as Code - OSS, Chromium; both run with `--no-sandbox`). The session starts when a client runs `gliff-server` (a launcher of the image) and stays on until `devbox desktop stop`: nothing stops it on its own. |
 | `ios` | `dev-box-ios` | step 1 of `devbox help ios` chained: a `.xip` of Xcode picked with gum (the home and `~/projets`, 3 levels down), `XCODE_XIP=<xip> install-toolchain.sh --mode full` (or `--repair` when the SDK of an older `xtool setup` is registered without a cache, or with no `.xip` when the cache is there), `swift sdk list` checked, the `.xip` deleted on a yes, `xtool auth login` when `~/.config/xtool/data/XTLAuthToken` is missing (the directory alone proves nothing: the password mode writes its pseudo-device there first), the token checked afterwards. `sdk <xip>` takes the path without a list (no terminal: the sign-in is left to `devbox ios` on a terminal, which builds nothing twice), `login` runs that sign-in alone on a terminal (options passed to `xtool auth login`; signed in already, it prints `xtool auth status`), `logout` runs `xtool auth logout` (`--reset-2fa` passes through), `status` shows the SDK, its cache, the sign-in, the pairing and the devices paired for Wi-Fi, `devices` lists the devices `xtool devices` sees over USB within 15 seconds, after starting `usbmuxd` (as root, through sudo) unless `USBMUXD_SOCKET_ADDRESS` is set. `pair` writes the RemotePairing record of the device on USB (`tools/tailnet-tunnel.py pair`, `~/.local/share/pymobiledevice3`), for `xcode --wifi <address>` afterwards (iOS 27). Out of the menu and the list until `devbox dev-env ios` is installed (`requires=ios`). |
-| `help` | `dev-box-help` | step by step help for the user, for what a command cannot do alone: `ios`, `ios-usb`, `ios-wifi`, `gpu`, `desktop`, `podman`, `tailscale`, `image`, `backup`. No argument: a list to pick from on a terminal, the list printed otherwise. `--list`, `--check` (holds every topic to the layout of `/usr/share/devbox/lib/help.sh`). The user's own topics: `~/.config/dev-box/help/<topic>.txt`. Read only. |
+| `help` | `dev-box-help` | step by step help for the user, for what a command cannot do alone: `ios`, `ios-usb`, `ios-wifi`, `ios-ui`, `gpu`, `desktop`, `podman`, `tailscale`, `image`, `backup`. No argument: a list to pick from on a terminal, the list printed otherwise. `--list`, `--check` (holds every topic to the layout of `/usr/share/devbox/lib/help.sh`). The user's own topics: `~/.config/dev-box/help/<topic>.txt`. Read only. |
 | `migrate` | `dev-box-migrate` | runs the migrations shipped by the image, once each. `--run` with no menu, `--pending`, `--list`, `--mark-done <name>`. |
 | `mise-install` | `dev-box-mise-install` | writes a mise-backed wrapper into `~/.local/bin`. `--list`, `--remove <cmd>`. |
 | `pkg` | `dev-box-pkg` | pacman packages that survive a rebuild. `add`, `drop`, `list`, `install`, `restore`. |
@@ -137,6 +137,18 @@ iOS 27, `devbox help ios-wifi`: `devbox ios pair` once on USB, then
 `devbox ios xcode --wifi <address>` (or `IOS_WIFI`), through the RemotePairing
 tunnel of `tools/tailnet-tunnel.py`, run as root through sudo on the
 `/dev/net/tun` of the box. xtool itself has no Wi-Fi on Linux.
+To check an app on the device (an agent validating a change, screen by
+screen), drive it with `devbox ios ui`, read `devbox help ios-ui` first:
+WebDriverAgent (the XCUITest runner of Appium) installed once with
+`devbox ios ui install <WebDriverAgentRunner-Runner.zip>`, then `ui start`,
+`ui session <bundle id>`, `ui labels` (rects in points), `ui tap <text>` or
+`ui tapxy`, `ui type`, `ui alert accept`, `ui shot`, `ui record <s> <dir>`
+for a layout that moves (about 30 images a second, follow an element's y
+frame by frame), `ui net SlowNetwork100PctLoss` / `ui net off`,
+`ui prefs <bundle id>` (read only), `ui crashes`, and `ui stop` at the end
+(WebDriverAgent listens on the device's network). Do not tap through the
+accessibility service of pymobiledevice3: its press does nothing on an app
+signed by xtool.
 `browser` is a headless Chromium plus
 `noto-fonts` and `noto-fonts-emoji`, installed through `devbox pkg add` (pacman, reinstalled at start
 after a rebuild) because the mise registry has no browser that runs on Arch

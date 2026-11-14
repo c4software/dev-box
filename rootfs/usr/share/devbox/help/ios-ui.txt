@@ -1,0 +1,68 @@
+Drive and check an iOS app on the device, from the box
+
+  The way a test or an agent checks a change on a real iPhone: taps,
+  texts, screenshots and video through WebDriverAgent (the XCUITest runner
+  of Appium), network conditions, crash reports, the app's preferences.
+  Over USB, after devbox help ios (SDK, sign-in, device trusted) and once
+  the app is installed (devbox ios xcode ... install or run). Everything
+  runs in the box; nothing to tap by hand once the runner is installed.
+
+  1. On your machine: the runner of WebDriverAgent
+     Download WebDriverAgentRunner-Runner.zip (the runner for a real
+     device, not a -Sim- one) from the latest release of
+     https://github.com/appium/WebDriverAgent/releases
+     and put it in the home or a project of the box.
+
+  2. In the box: install it, once a week with a free Apple ID
+     It is signed and installed like an app (XTL-<team>.com.facebook.
+     WebDriverAgentRunner.xctrunner), and takes one of the 3 apps a free
+     Apple ID may have on a device; the signature lasts 7 days.
+       devbox ios ui install ~/WebDriverAgentRunner-Runner.zip
+     On the device, once: Settings, Privacy & Security, Developer Mode on;
+     Settings, Developer, Enable UI Automation on; trust the developer in
+     Settings, General, VPN & Device Management if asked.
+
+  3. In the box: start it, open the app
+     The runner is launched through the developer disk image (mounted when
+     needed), and its ports reach 127.0.0.1 of the box: 8100 (commands)
+     and 9100 (video). Keep the device unlocked.
+       devbox ios ui start
+       devbox ios ui session <bundle id>   launches the app, keeps a session
+
+  4. In the box: drive it
+       devbox ios ui labels                what is on screen, rects in points
+       devbox ios ui tap "Valider"         the element whose label has it
+       devbox ios ui tapxy 195 785         a point (points, not pixels)
+       devbox ios ui swipe 350 450 40 450  from one point to the other
+       devbox ios ui find TextField        fields labels leaves out
+       devbox ios ui type "boulevard"      into the focused field
+       devbox ios ui alert accept          a system alert (camera, location)
+       devbox ios ui activate <bundle id>  the app back after a link opened
+       devbox ios ui shot /tmp/a.png       screenshot
+       devbox ios ui record 3 /tmp/rec     ~30 images a second, for a jump
+       devbox ios ui net SlowNetwork100PctLoss   offline (net list, net off)
+       devbox ios ui prefs <bundle id>     the app's preferences, as JSON
+       devbox ios ui crashes <executable>  its crash reports
+     A check: open a screen, shot or labels, compare. For a layout that
+     moves, record while tapping into the screen, then follow the y of an
+     element frame by frame.
+
+  5. In the box: stop it
+     WebDriverAgent also listens on the local network of the device: stop
+     it once the checks are done (the network condition goes with it).
+       devbox ios ui stop
+
+  What was found on a real device
+     The accessibility service of pymobiledevice3 lists the elements but
+     its press does nothing on an app signed by xtool: WebDriverAgent is
+     the way to tap. A sheet (a bottom sheet with a field) may be missing
+     from labels: find TextField gives its rect, tapxy on it, then type.
+     iOS keeps an app's preferences in memory (cfprefsd): a plist pushed
+     in their place is overwritten by the app, so prefs is read only. An
+     article or a link opened in another app takes the foreground: activate
+     brings the app back. A screenshot every few hundred milliseconds misses
+     an animation of a fraction of a second: record does not.
+
+  Sources
+     https://github.com/appium/WebDriverAgent
+     https://github.com/doronz88/pymobiledevice3

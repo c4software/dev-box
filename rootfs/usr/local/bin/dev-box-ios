@@ -2,7 +2,7 @@
 # devbox:name=ios
 # devbox:summary=The iOS SDK from an Xcode .xip picked in a list, then the Apple sign-in, in one go
 # devbox:summary.fr=Le SDK iOS depuis un .xip de Xcode choisi dans une liste, puis la connexion Apple, d'une traite
-# devbox:args=[sdk [xip]|status|login|logout|devices|pair|kmp [dir]|xcode [dir] [step]]
+# devbox:args=[sdk [xip]|status|login|logout|devices|pair|kmp [dir]|xcode [dir] [step]|ui <command>]
 # devbox:requires=ios
 #
 # Step 1 of `devbox help ios`, chained: the .xip picked among the ones found
@@ -29,6 +29,10 @@
 #   dev-box-ios xcode [dir]   the app of an Xcode project, built on Linux,
 #                             installed and launched on the device plugged
 #                             in or over Wi-Fi with --wifi (xcode --help)
+#   dev-box-ios ui <command>  the app on the device driven through
+#                             WebDriverAgent: install, start, session, labels,
+#                             tap, type, shot, record, net, prefs, crashes,
+#                             stop (devbox help ios-ui)
 #
 # The SDK registered and its cache there: nothing to build. The cache there
 # and the SDK gone (a new Swift): registered again from the cache, no .xip.
@@ -54,7 +58,7 @@ WIFI_PAIRING="$HOME/.local/share/pymobiledevice3"
 # Where a .xip is looked for: the home and the projects, a few levels down.
 SEARCH_DEPTH=3
 
-usage() { sed -n '8,38p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '8,42p' "$0" | sed 's/^# \?//'; }
 log() { printf '\033[1m[dev-box-ios]\033[0m %s\n' "$*"; }
 err() { echo "dev-box-ios: $*" >&2; }
 
@@ -431,6 +435,16 @@ xcode)
     ios_xcode "$@"
     ;;
   esac
+  ;;
+ui)
+  shift
+  # shellcheck source=/usr/share/devbox/lib/ios-common.sh
+  . /usr/share/devbox/lib/ios-common.sh
+  # shellcheck source=/usr/share/devbox/lib/ios-ui.sh
+  . /usr/share/devbox/lib/ios-ui.sh
+  ios_root_env
+  need_ios
+  ios_ui "$@"
   ;;
 -h | --help) usage ;;
 *)
