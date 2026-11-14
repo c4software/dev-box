@@ -276,6 +276,8 @@ EOF
 # xtool auth login, then the token checked: xtool can end without one
 login_now() {
   if xtool auth login "$@" && signed_in; then
+    # As root (ios-common.sh loaded): the sign-in handed to the box's user
+    ! declare -F ios_give_back >/dev/null || ios_give_back "$XTOOL_AUTH"
     log "signed in to Apple"
   else
     err "the sign-in did not finish: devbox ios logout, then devbox ios login"

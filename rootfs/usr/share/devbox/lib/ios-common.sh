@@ -46,6 +46,13 @@ ios_die() {
   exit 1
 }
 
+# As root after ios_root_env: what root wrote in the box's user's home (the
+# sign-in, a pairing) handed to that user, who reads it outside these commands.
+ios_give_back() {
+  [ "$(id -u)" = 0 ] && [ -n "${IOS_USER_HOME:-}" ] || return 0
+  chown -R "$(stat -c %u:%g "$IOS_USER_HOME")" "$@"
+}
+
 # As root: the tools, SDK, sign-in and Python of the box's user (USER_NAME of
 # the container). Sets OAD_DIR and INSTALL of dev-box-ios, and
 # IOS_USER_HOME.
@@ -64,6 +71,25 @@ ios_root_env() {
   # shellcheck disable=SC2034 # read by need_ios of dev-box-ios
   INSTALL="$home/.local/bin/install-toolchain.sh"
   for pair in .swiftpm/swift-sdks .config/xtool .appstoreconnect pymobile3-venv "$IOS_RP_RECORDS"; do
+    # Left in root's home by a run that came before the user's directory (the
+    # first sign-in, before this was fixed): given to the user rather than
+    # deleted below.
+    if [ ! -e "$home/$pair" ] && [ -d "$HOME/$pair" ] && [ ! -L "$HOME/$pair" ]; then
+      mkdir -p "$(dirname "$home/$pair")"
+      mv "$HOME/$pair" "$home/$pair"
+      ios_give_back "$home/$pair"
+    fi
+    # Written as root on their first use (xtool auth login, the Wi-Fi pairing):
+    # without the user's directory there is no link, root writes into its own
+    # home and the user, and every later check, finds nothing.
+    case "$pair" in
+    .config/xtool | "$IOS_RP_RECORDS")
+      if [ ! -e "$home/$pair" ]; then
+        mkdir -p "$home/$pair"
+        ios_give_back "$home/$pair"
+      fi
+      ;;
+    esac
     [ -e "$home/$pair" ] || continue
     [ "$(readlink "$HOME/$pair" 2>/dev/null)" = "$home/$pair" ] && continue
     mkdir -p "$(dirname "$HOME/$pair")"
