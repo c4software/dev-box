@@ -44,6 +44,9 @@ def cmd_package(path, min_ios, *replacements):
 def cmd_binary_target(path, name, relative):
     """The app target of the generated package depends on a binary target."""
     text = open(path).read()
+    if re.search(rf'\.binaryTarget\(name: "{re.escape(name)}"', text):
+        print(f"{name}: already a binary target of the package", file=sys.stderr)
+        return
     target = re.search(r'\.target\(\s*name: "([^"]+)",\s*dependencies: \[', text)
     if not target:
         sys.exit("no app target with dependencies in Package.swift")
