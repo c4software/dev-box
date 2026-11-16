@@ -180,20 +180,22 @@ version is only reported.
   expected. A new shipped version is reported, never forced.
 - `pi.md` and `omp.md`: Claude Code sub-agents that delegate a task to the `pi`
   and `omp` CLIs. They only run when asked for explicitly.
-- The pi and omp files are not seeded: they come from dotarchy
-  (`config/pi/` of the clone), laid down by `dotarchy-sync` in
-  `~/.pi/agent` and `~/.omp/agent`. `extensions/llm-proxy.ts` registers the
-  Albert (DINUM) provider; it reads `LLM_PROXY_URL` and `LLM_PROXY_API_KEY`
-  from `.env`, and registers nothing rather than blocking startup when the
-  endpoint is unreachable. It follows the repo on every sync, like the rest of
-  the dotarchy config. `mcp.json` connects them to the MCP server of the proxy
+- The pi and omp files are not seeded: `dotarchy-sync` lays them down in
+  `~/.pi/agent` and `~/.omp/agent`. `extensions/llm-proxy.ts` comes from the
+  [llm-proxy](https://github.com/c4software/llm-proxy) repo
+  (`proxy/llm_proxy/ui/web/static/config/pi-llm-proxy.ts`, master branch),
+  downloaded again on every sync; a failed download keeps the file in place.
+  It registers the Albert (DINUM) provider, reads `LLM_PROXY_URL` and
+  `LLM_PROXY_API_KEY` from `.env`, and registers nothing rather than
+  blocking startup when the endpoint is unreachable. `mcp.json` comes from
+  dotarchy (`config/pi/` of the clone) and connects them to the MCP server of the proxy
   (web search, web pages and PDFs, search inside a page); it is only laid down
   when missing, since pi writes to it (`pi mcp add`, `/mcp`). omp takes
   `config/pi/mcp.omp.json` when dotarchy has one: pi counts the MCP
   `timeout` in seconds, omp in milliseconds.
-- opencode (2.x) gets the proxy through a plugin of dotarchy,
-  `config/opencode/plugins/llm-proxy.ts`, copied into
-  `~/.config/opencode/plugins/` with the rest of `config/`: a `llmproxy`
+- opencode (2.x) gets the proxy through a plugin of the llm-proxy repo
+  (`opencode-llm-proxy.ts`, next to the one of pi), downloaded by
+  `dotarchy-sync` into `~/.config/opencode/plugins/llm-proxy.ts`: a `llmproxy`
   provider whose chat models are read from `/v1/models` of the proxy at
   every start (and every 5 minutes), the proxy's MCP server, and opencode's
   built-in `websearch` / `webfetch` removed in favour of the proxy's. Pick a

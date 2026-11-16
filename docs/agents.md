@@ -106,8 +106,9 @@ itself; the reason for each line is written in the file.
 
 The files the agents read (`~/.claude/settings.json`, the `pi` and `omp`
 sub-agents of Claude Code) are shipped by the image and laid down by the seed,
-which never overwrites a file you changed. The `llm-proxy.ts` extension and
-the `mcp.json` of pi and omp come from dotarchy, through `dotarchy-sync`. The
+which never overwrites a file you changed. The `llm-proxy.ts` extension of
+pi, omp and opencode comes from the llm-proxy repo, and the `mcp.json` of pi
+and omp from dotarchy, both through `dotarchy-sync`. The
 table and what each file holds are in
 [customization.md](customization.md#seeded-files-and-devbox-seed).
 
