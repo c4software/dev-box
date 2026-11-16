@@ -213,9 +213,52 @@ ios_api_key() {
       "$IOS_USER_HOME"/.appstoreconnect/AuthKey_"$ASC_KEY_ID".p8; do
       [ -f "$key" ] && ASC_KEY_PATH="$key" && break
     done
+    [ -n "${ASC_KEY_PATH:-}" ] || ios_api_key_from_xtool
   fi
   export ASC_KEY_PATH
-  [ -f "${ASC_KEY_PATH:-}" ] || ios_die "no key file AuthKey_$ASC_KEY_ID.p8 in ~/.appstoreconnect"
+  [ -f "${ASC_KEY_PATH:-}" ] ||
+    ios_die "no key file AuthKey_$ASC_KEY_ID.p8 in ~/.appstoreconnect/private_keys: copy it there (devbox-build.sh key), or set ASC_KEY_PATH"
+}
+
+# Right after devbox ios login: signed in with an API key, its .p8 checked,
+# and put where the signature looks for it, now rather than at the end of
+# the first build. A password sign-in has no key: nothing to check.
+ios_api_key_check() {
+  ios_has_api_key || return 0
+  if (ios_api_key && log "API key file: $ASC_KEY_PATH"); then
+    return 0
+  fi
+  err "signing with the API key will fail until that file is there"
+  return 1
+}
+
+# xtool auth login --mode key reads the .p8 once and keeps its PEM in
+# XTLAuthToken, but leaves no file behind for provision-dev.py and ship.sh:
+# the key written back to ~/.appstoreconnect/private_keys/AuthKey_<id>.p8
+# (0600, the box's user's), the way devbox-build.sh key does. Only when the
+# sign-in holds that same key ID (ASC_KEY_ID may come from the environment).
+ios_api_key_from_xtool() {
+  local token dir key
+  for token in "$IOS_USER_HOME"/.config/xtool/data/XTLAuthToken \
+    "$IOS_USER_HOME"/.local/share/xtool/XTLAuthToken; do
+    [ -s "$token" ] && break
+  done
+  [ -s "$token" ] || return 0
+  dir="$IOS_USER_HOME/.appstoreconnect/private_keys"
+  key="$dir/AuthKey_$ASC_KEY_ID.p8"
+  mkdir -p "$dir"
+  if ! (umask 077 && python3 -c 'import json, sys
+k = json.load(open(sys.argv[1]))["appStoreConnect"]["_0"]
+if k["id"] != sys.argv[2] or "PRIVATE KEY" not in k["pem"]:
+    sys.exit(1)
+sys.stdout.write(k["pem"].rstrip("\n") + "\n")' "$token" "$ASC_KEY_ID" >"$key.tmp") 2>/dev/null; then
+    rm -f "$key.tmp"
+    return 0
+  fi
+  mv "$key.tmp" "$key"
+  ios_give_back "$IOS_USER_HOME/.appstoreconnect"
+  ASC_KEY_PATH="$key"
+  log "API key written from the xtool sign-in: $key"
 }
 
 # The app of identifier $1 stopped when it runs (dvt pkill, as device-run.sh
@@ -300,8 +343,12 @@ ios_install() {
   dev="$IOS_USER_HOME/.config/omarchy-apple-dev/development"
   tools="$OAD_DIR/tools"
   log "development profile for $id on $udid"
-  "$IOS_USER_HOME/pymobile3-venv/bin/python3" "$tools/provision-dev.py" --bundle-id "$id" --udid "$udid" --out "$dev" |
-    grep -v 'Entitlements' || true
+  # Its failure stops here, with Apple's answer it printed just above, rather
+  # than as a missing profile in sign-dev.sh (pipefail: grep alone is ignored)
+  if ! "$IOS_USER_HOME/pymobile3-venv/bin/python3" "$tools/provision-dev.py" --bundle-id "$id" --udid "$udid" --out "$dev" |
+    { grep -v 'Entitlements' || true; }; then
+    ios_die "no development profile for $id: Apple's answer is above (provision-dev.py of omarchy-apple-dev)"
+  fi
   python3 -c 'import plistlib, sys
 p = sys.argv[1]; d = plistlib.load(open(p, "rb")); d["CFBundleIdentifier"] = sys.argv[2]; plistlib.dump(d, open(p, "wb"))' \
     "$app/Info.plist" "$id"

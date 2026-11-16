@@ -16,11 +16,13 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      Apple. Sign-in skipped or failed: devbox ios login (devbox ios logout
      first to change account or after a wrong code).
      Mode 0, an App Store Connect API key, with a paid Apple Developer
-     Program membership: devbox ios xcode over USB and Wi-Fi. Mode 1, the
-     password, with any Apple ID, a free one will do (email, password, the
-     two-factor code): over USB only, and the signature of a free account
-     lasts 7 days. It goes through private Apple APIs, hence the throwaway
-     Apple ID xtool suggests.
+     Program membership: devbox ios xcode over USB and Wi-Fi. The login
+     checks its .p8 and writes it to ~/.appstoreconnect/private_keys from
+     the xtool sign-in when it is missing, where the signature reads it.
+     Mode 1, the password, with any Apple ID, a free one will do (email,
+     password, the two-factor code): over USB only, and the signature of a
+     free account lasts 7 days. It goes through private Apple APIs, hence
+     the throwaway Apple ID xtool suggests.
      Without an Xcode download, experimental (Objective-C, C, Swift and a
      small part of SwiftUI, read sdk-free/README.md of the clone first):
        install-toolchain.sh --mode no-xcode

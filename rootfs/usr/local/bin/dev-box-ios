@@ -277,12 +277,24 @@ sign_in_modes() {
 EOF
 }
 
+# Signed in with an API key: its .p8 put where the signature looks for it
+# (ios_api_key_check), from the sign-in of xtool when it is not there yet.
+# Through devbox ios with no step (sign_in), ios-common.sh is not loaded yet.
+key_check() {
+  if ! declare -F ios_api_key_check >/dev/null; then
+    # shellcheck source=/usr/share/devbox/lib/ios-common.sh
+    . /usr/share/devbox/lib/ios-common.sh
+  fi
+  ios_api_key_check
+}
+
 # xtool auth login, then the token checked: xtool can end without one
 login_now() {
   if xtool auth login "$@" && signed_in; then
     # As root (ios-common.sh loaded): the sign-in handed to the box's user
     ! declare -F ios_give_back >/dev/null || ios_give_back "$XTOOL_AUTH"
     log "signed in to Apple"
+    key_check || true
   else
     err "the sign-in did not finish: devbox ios logout, then devbox ios login"
     return 1
@@ -310,6 +322,7 @@ login() {
   if signed_in; then
     log "signed in already:"
     xtool auth status 2>&1 | sed 's/^/  /'
+    key_check || true
     log "another account: devbox ios logout, then devbox ios login"
     return 0
   fi
