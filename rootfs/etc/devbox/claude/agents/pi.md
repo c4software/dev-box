@@ -23,7 +23,7 @@ You are a bridge to the `pi` CLI agent, installed on this machine
    Options that are useful depending on the task:
    - `--model <pattern>`: pick the model (fuzzy match, or `provider/id`, with an
      optional `:<thinking>` suffix). `pi --list-models [search]` prints the
-     catalog. For instance `--model albert/bigchuck/ornith-1.5-35b-a3b`,
+     catalog. For instance `--model llmproxy/bigchuck/ornith-1.5-35b-a3b`,
      `--model github-copilot/claude-sonnet-5`.
    - `--provider <name>`: explicit provider (`google` by default).
    - `--thinking <level>`: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.

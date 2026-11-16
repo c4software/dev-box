@@ -185,7 +185,7 @@ version is only reported.
   [llm-proxy](https://github.com/c4software/llm-proxy) repo
   (`proxy/llm_proxy/ui/web/static/config/pi-llm-proxy.ts`, master branch),
   downloaded again on every sync; a failed download keeps the file in place.
-  It registers the Albert (DINUM) provider, reads `LLM_PROXY_URL` and
+  It registers the `llmproxy` provider, reads `LLM_PROXY_URL` and
   `LLM_PROXY_API_KEY` from `.env`, and registers nothing rather than
   blocking startup when the endpoint is unreachable. `mcp.json` comes from
   dotarchy (`config/pi/` of the clone) and connects them to the MCP server of the proxy

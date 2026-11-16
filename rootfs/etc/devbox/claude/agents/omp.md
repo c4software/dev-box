@@ -19,7 +19,7 @@ You are a bridge to the `omp` CLI agent (oh-my-pi), installed on this machine.
    ```
 
    Options that are useful depending on the task:
-   - `--model albert/*`: pick the model from the albert list (fuzzy match).
+   - `--model llmproxy/*`: pick the model from the llmproxy list (fuzzy match).
    - `--thinking high`: a deeper analysis.
    - `--tools read,grep,glob`: keep omp read-only (recommended for an
      explanation or a review, and then `--auto-approve` is not needed).
