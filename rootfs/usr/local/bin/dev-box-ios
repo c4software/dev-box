@@ -2,7 +2,7 @@
 # devbox:name=ios
 # devbox:summary=The iOS SDK from an Xcode .xip picked in a list, then the Apple sign-in, in one go
 # devbox:summary.fr=Le SDK iOS depuis un .xip de Xcode choisi dans une liste, puis la connexion Apple, d'une traite
-# devbox:args=[sdk [xip]|status|login|logout|devices|pair|kmp [dir]|xcode [dir] [step]|ui <command>]
+# devbox:args=[sdk [xip]|status|login|logout|devices [--pick]|pair|kmp [dir]|xcode [dir] [step]|ui <command>]
 # devbox:requires=ios
 #
 # Step 1 of `devbox help ios`, chained: the .xip picked among the ones found
@@ -22,7 +22,9 @@
 #                             over after a failed sign-in (--reset-2fa also
 #                             forgets the pseudo-device: a new two-factor code)
 #   dev-box-ios devices       the devices seen over USB, usbmuxd started first:
-#                             the first time, answer Trust on the device
+#                             the first time, answer Trust on the device;
+#                             --pick prints the UDID of one, picked with gum
+#                             when several are plugged in (IOS_UDID skips it)
 #   dev-box-ios pair          the device on USB paired for Wi-Fi, once (iOS 27)
 #   dev-box-ios kmp [dir]     the iOS framework of a Kotlin Multiplatform
 #                             project, linked on Linux (kmp --help)
@@ -157,16 +159,19 @@ status() {
 # started when it is not running, unless USBMUXD_SOCKET_ADDRESS points at the
 # one of another machine (devbox help ios-usb). The first time, the device
 # asks whether to trust the box: answer Trust, then run it again.
+# devbox ios devices [--pick]: the devices on USB. --pick prints the UDID of
+# one only (IOS_UDID, the only one, or picked with gum on a terminal), for a
+# script that asks once before several steps (devbox-build.sh).
 devices() {
   local out
-  if [ -z "${USBMUXD_SOCKET_ADDRESS:-}" ] && ! pgrep -x usbmuxd >/dev/null; then
+  if [ -z "${USBMUXD_SOCKET_ADDRESS:-}" ]; then
     command -v usbmuxd >/dev/null 2>&1 || {
       err "no usbmuxd in the box: devbox pkg add usbmuxd (devbox help ios, step 2)"
       exit 1
     }
-    log "starting usbmuxd"
-    ios_root usbmuxd
-    sleep 2
+    pgrep -x usbmuxd >/dev/null || log "starting usbmuxd" >&2
+    # Started, or restarted when a device was plugged in since it started
+    ios_usbmuxd
   fi
   # xtool devices waits for a device forever: 15 seconds at most
   out="$(timeout 15 xtool devices 2>&1 | grep '\[usb\]' || true)"
@@ -174,6 +179,10 @@ devices() {
     err "no device over USB: plugged in, unlocked, Trust answered on it? Then run devbox ios devices again"
     err "the device on another machine: devbox help ios-usb"
     exit 1
+  fi
+  if [ "${1:-}" = --pick ]; then
+    ios_pick_usb "$out"
+    return 0
   fi
   echo "$out"
   log "next: devbox ios xcode in the directory of an app (devbox help ios, step 3)"
@@ -411,7 +420,7 @@ devices)
   . /usr/share/devbox/lib/ios-common.sh
   ios_root_env
   need_ios
-  devices
+  devices "${2:-}"
   ;;
 pair)
   # shellcheck source=/usr/share/devbox/lib/ios-common.sh

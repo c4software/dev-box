@@ -116,23 +116,94 @@ ios_root() {
   if [ "$(id -u)" = 0 ]; then "$@"; else sudo "$@"; fi
 }
 
-# The UDID of the device plugged in. usbmuxd started when it is not running,
-# restarted once when it no longer sees a device that was plugged again.
-# xtool devices waits for a device forever: 15 seconds at most, each time.
+# The serial numbers of the Apple devices on the USB bus, as /sys shows them
+# (UDIDs without their dash), one a line.
+ios_usb_serials() {
+  local vendor
+  for vendor in /sys/bus/usb/devices/*/idVendor; do
+    [ "$(cat "$vendor" 2>/dev/null)" = 05ac ] || continue
+    cat "${vendor%/idVendor}/serial" 2>/dev/null || true
+  done
+}
+
+# usbmuxd running, and seeing every Apple device on the bus. The box gets no
+# hotplug event: the kernel sends them to the network namespace of the host
+# only (the box has its own, and no udev), and libusb in usbmuxd keeps the list
+# of devices it found when it started, updated by those events only. A device
+# plugged in, or plugged again, afterwards shows up in /sys and /dev/bus/usb but
+# never in usbmuxd; asking it to scan (usbmuxd -n, SIGUSR2) reads that same
+# list. So usbmuxd is restarted, which drops the connections it holds, only
+# when a device of the bus is missing from it. Nothing to do with the usbmuxd
+# of another machine (USBMUXD_SOCKET_ADDRESS).
+ios_usbmuxd() {
+  local serial known missing=""
+  [ -z "${USBMUXD_SOCKET_ADDRESS:-}" ] || return 0
+  if ! pgrep -x usbmuxd >/dev/null; then
+    ios_root usbmuxd
+    sleep 2
+    return 0
+  fi
+  command -v idevice_id >/dev/null || return 0
+  known="$(timeout 5 idevice_id -l 2>/dev/null | tr -d - | tr '[:lower:]' '[:upper:]')"
+  while IFS= read -r serial; do
+    [ -n "$serial" ] || continue
+    grep -qx "${serial^^}" <<<"$known" || missing="$serial"
+  done < <(ios_usb_serials)
+  [ -n "$missing" ] || return 0
+  log "usbmuxd does not see $missing, plugged in after it started: restarted" >&2
+  ios_root pkill -x usbmuxd || true
+  sleep 2
+  ios_root usbmuxd
+  sleep 3
+}
+
+# The UDID of the device plugged in (IOS_UDID when several are), usbmuxd
+# brought up to date first (ios_usbmuxd); restarted once when it still sees
+# nothing. xtool devices waits for a device forever: 15 seconds at most, each
+# time.
 ios_usb_device() {
-  local udid
-  pgrep -x usbmuxd >/dev/null || ios_root usbmuxd
-  udid="$(timeout 15 xtool devices 2>&1 | sed -n 's/.*\[usb\]: *//p' | head -n 1)"
-  if [ -z "$udid" ]; then
+  local udids
+  ios_usbmuxd
+  udids="$(timeout 15 xtool devices 2>&1 | sed -n 's/.*\[usb\]: *//p')"
+  if [ -z "$udids" ]; then
     log "no device seen: usbmuxd restarted" >&2
     ios_root pkill -x usbmuxd || true
     sleep 2
     ios_root usbmuxd
     sleep 3
-    udid="$(timeout 15 xtool devices 2>&1 | sed -n 's/.*\[usb\]: *//p' | head -n 1)"
+    udids="$(timeout 15 xtool devices 2>&1 | sed -n 's/.*\[usb\]: *//p')"
   fi
-  [ -n "$udid" ] || ios_die "no device over USB: plugged in, unlocked, trusted (devbox help ios, step 2), or over Wi-Fi with --wifi (devbox help ios-wifi)"
-  echo "$udid"
+  [ -n "$udids" ] || ios_die "no device over USB: plugged in, unlocked, trusted (devbox help ios, step 2), or over Wi-Fi with --wifi (devbox help ios-wifi)"
+  ios_pick_usb "$udids"
+}
+
+# One device of the lines of xtool devices on USB ("<name> [usb]: <udid>", or
+# bare UDIDs), its UDID on stdout: IOS_UDID when set, the only one, or picked
+# with gum filter on a terminal (by name or UDID). Without a terminal, the
+# first one, said on stderr.
+ios_pick_usb() {
+  local lines udids pick
+  lines="$(grep -v '^$' <<<"$1")"
+  # shellcheck disable=SC2001 # one UDID a line
+  udids="$(sed 's/.*\[usb\]: *//' <<<"$lines")"
+  if [ -n "${IOS_UDID:-}" ]; then
+    grep -qx "$IOS_UDID" <<<"$udids" ||
+      ios_die "IOS_UDID=$IOS_UDID is not on USB; plugged in: $(tr '\n' ' ' <<<"$udids")"
+    echo "$IOS_UDID"
+    return 0
+  fi
+  if [ "$(wc -l <<<"$udids")" = 1 ]; then
+    echo "$udids"
+    return 0
+  fi
+  if [ -t 0 ] && [ -t 2 ] && command -v gum >/dev/null; then
+    pick="$(gum filter --header "Device (IOS_UDID=<udid> skips this question)" \
+      --placeholder "name or UDID" <<<"$lines")" || ios_die "no device picked"
+    echo "${pick##*: }"
+    return 0
+  fi
+  log "several devices on USB, $(head -n 1 <<<"$udids") used; another one: IOS_UDID=<udid> ($(tr '\n' ' ' <<<"$udids"))" >&2
+  head -n 1 <<<"$udids"
 }
 
 # The UDIDs of the devices paired for Wi-Fi, one a line.

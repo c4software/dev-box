@@ -374,7 +374,9 @@ xcode` (`run`, the default, `project`, `build`, `install`, `launch`, `logs`)
 plus `pair`, `status`, `shell` (a root shell in the box, in the project, with
 the ios environment) and `key <AuthKey_*.p8>` (the App Store Connect key
 copied where xtool looks for it), and passes `--wifi`, `IOS_WIFI` and
-`IOS_UDID` on. It never creates nor restarts a container: it works on the box
+`IOS_UDID` on; with several devices on USB and no `IOS_UDID`, it asks for
+one on a terminal (`gum filter`, by name or UDID) before the build of `run`,
+`install`, `launch` and `logs`, and uses it for every step. It never creates nor restarts a container: it works on the box
 already running (`DEVBOX_CONTAINER`, `dev-box` by default), finds the host
 directory mounted on `~/projets` through `docker inspect` (`DEVBOX_PROJECTS`
 otherwise), turns the path of the host into the one of the box, refuses to

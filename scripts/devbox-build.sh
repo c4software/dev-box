@@ -245,6 +245,19 @@ if [ "$KIND" = flutter ]; then
   exit
 fi
 
+# Several devices on USB and no IOS_UDID: one picked now, on the terminal (gum in the box), before a build of
+# several minutes rather than in the middle of it, and the same one for every step of the command
+pick_device() {
+  local file="/tmp/devbox-build-udid.$$"
+  [ -t 0 ] && [ -z "${IOS_UDID:-}" ] && [ -z "${IOS_WIFI:-}" ] && [ -z "${USBMUXD_SOCKET_ADDRESS:-}" ] || return 0
+  [[ " $* " != *" --wifi "* ]] || return 0
+  docker exec -it "${as_root[@]}" "$BOX" bash -c 'devbox ios devices --pick >"$1"' _ "$file" || exit 1
+  IOS_UDID="$(docker exec "$BOX" cat "$file")"
+  docker exec -u 0:0 "$BOX" rm -f "$file"
+  envs+=(-e "IOS_UDID=$IOS_UDID")
+}
+case "$step" in run | install | launch | logs) pick_device "$@" ;; esac
+
 # The settings of the app, then those of the command line
 opts=(--configuration "$APP_CONFIGURATION")
 [ -z "$APP_TARGET" ] || opts+=(--target "$APP_TARGET")
