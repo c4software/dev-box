@@ -180,6 +180,13 @@ devbox ios devices           # answer Trust on the device, then run it again
 
 `devbox ios devices` starts the usbmuxd of the box when it is not running, as
 every command that reaches the device does, then lists the devices it sees.
+The box gets no hotplug event (the kernel sends them to the network namespace
+of the host only, and the box has no udev), and libusb in usbmuxd keeps the
+list of devices it found at start: a device plugged in, or plugged again,
+afterwards would stay unseen. So when a device of the bus
+(`/sys/bus/usb/devices`) is missing from usbmuxd (`idevice_id -l`), usbmuxd is
+restarted, and only then, since a restart drops the connections it holds.
+`devbox ios devices --pick` prints the UDID of one device, picked as below.
 
 `devbox ios pair`, for Wi-Fi afterwards, needs this once too.
 
@@ -256,7 +263,8 @@ identifier, name, version, the values of the `Info.plist`; a Release
 configuration also builds with `-c release`), under
 `build/devbox-ios/xtool` with one `warning:` line for each thing it cannot
 carry over (run-script phases among them: SwiftGen, SwiftLint, the dSYM upload
-of Crashlytics, so code they generate has to be committed), then makes up for
+of Crashlytics, so code they generate has to be committed, or the phase
+replayed with `--app-hook`, below), then makes up for
 what that package lacks next to Xcode. Each part was found on a real app
 (SwiftUI, Firebase, RxSwift, a private package), built, installed and run on an
 iPhone 11 Pro under iOS 27. Most of them were taken up by omarchy-apple-dev
@@ -325,6 +333,23 @@ since, and the command now calls its tools:
   `_flag = State(initialValue: value)` means the same and builds everywhere.
   That one is a change to the project.
 
+- **A run-script phase.** `--app-hook <script>` runs a script of the
+  project (relative to its dir) on the unsigned `.app` right after the
+  build, before it is signed: the `.app` as `$1`, and `CONFIGURATION`,
+  `SRCROOT`, `PROJECT_DIR`, `TARGET_NAME`, `PRODUCT_NAME`,
+  `BUILT_PRODUCTS_DIR` and `CODESIGNING_FOLDER_PATH` as Xcode sets them, so
+  that the phase's own script often runs as it is, behind a few lines that
+  set the project's own settings (a plist copied into the app from the
+  `.xcconfig` of the configuration, for instance). It fails the build when
+  it fails.
+
+- **Several devices.** With several devices on USB and no `IOS_UDID`, `run`
+  and `install` ask which one with `gum filter` (by name or UDID) on a
+  terminal, before the build; the UDID is recorded with the app installed
+  (`<out>/installed`), and `launch` and `logs` go back to that device while
+  it is plugged in. Without a terminal the first device is used, and said;
+  `IOS_UDID=<udid>` picks one and skips the question.
+
 - **A Kotlin Multiplatform app.** `--kmp :module` links the framework of
   that Gradle project first (`devbox ios kmp`, from the nearest dir above
   with a `gradlew`, dynamic, with its `.xcframework`), since the generator
@@ -374,9 +399,11 @@ xcode` (`run`, the default, `project`, `build`, `install`, `launch`, `logs`)
 plus `pair`, `status`, `shell` (a root shell in the box, in the project, with
 the ios environment) and `key <AuthKey_*.p8>` (the App Store Connect key
 copied where xtool looks for it), and passes `--wifi`, `IOS_WIFI` and
-`IOS_UDID` on; with several devices on USB and no `IOS_UDID`, it asks for
-one on a terminal (`gum filter`, by name or UDID) before the build of `run`,
-`install`, `launch` and `logs`, and uses it for every step. It never creates nor restarts a container: it works on the box
+`IOS_UDID` on. With several devices on USB and no `IOS_UDID`, `devbox ios
+xcode` asks for one on a terminal (`gum filter`, by name or UDID) at the
+start of `run` and `install`, before the build, and `launch` and `logs` go
+back to the device the app was installed on; the script runs those steps
+with a terminal (`docker exec -it`) for that. It never creates nor restarts a container: it works on the box
 already running (`DEVBOX_CONTAINER`, `dev-box` by default), finds the host
 directory mounted on `~/projets` through `docker inspect` (`DEVBOX_PROJECTS`
 otherwise), turns the path of the host into the one of the box, refuses to

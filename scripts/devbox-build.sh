@@ -52,7 +52,8 @@ APP_TARGET=""
 APP_CONFIGURATION="Debug"
 # Kotlin Multiplatform: the Gradle module that produces the iOS framework (for example :shared), empty otherwise
 APP_KMP=""
-# Other options of devbox ios xcode, always added (for example: --signed-suffix .kmp)
+# Other options of devbox ios xcode, always added (for example: --signed-suffix .kmp, or --app-hook <script> to
+# replay a run-script phase of the project on the built .app before signing: devbox ios xcode --help)
 APP_OPTIONS=()
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -221,9 +222,10 @@ esac
 check_ios
 trap give_back EXIT
 
-# -it for the logs (Ctrl-C), only from a terminal
+# -it from a terminal for the steps that reach the device: Ctrl-C on the logs, and the device picked with gum
+# by devbox ios when several are plugged in and IOS_UDID is not set
 tty=()
-[ "$step" = logs ] && [ -t 0 ] && tty=(-it)
+case "$step" in run | install | launch | logs) [ -t 0 ] && tty=(-it) ;; esac
 
 if [ "$KIND" = flutter ]; then
   # Flutter: flutter/build.sh of omarchy-apple-dev builds (build), or builds and installs over USB (run, install)
@@ -244,19 +246,6 @@ if [ "$KIND" = flutter ]; then
     _ "${flutter_opts[@]}" . "$@"
   exit
 fi
-
-# Several devices on USB and no IOS_UDID: one picked now, on the terminal (gum in the box), before a build of
-# several minutes rather than in the middle of it, and the same one for every step of the command
-pick_device() {
-  local file="/tmp/devbox-build-udid.$$"
-  [ -t 0 ] && [ -z "${IOS_UDID:-}" ] && [ -z "${IOS_WIFI:-}" ] && [ -z "${USBMUXD_SOCKET_ADDRESS:-}" ] || return 0
-  [[ " $* " != *" --wifi "* ]] || return 0
-  docker exec -it "${as_root[@]}" "$BOX" bash -c 'devbox ios devices --pick >"$1"' _ "$file" || exit 1
-  IOS_UDID="$(docker exec "$BOX" cat "$file")"
-  docker exec -u 0:0 "$BOX" rm -f "$file"
-  envs+=(-e "IOS_UDID=$IOS_UDID")
-}
-case "$step" in run | install | launch | logs) pick_device "$@" ;; esac
 
 # The settings of the app, then those of the command line
 opts=(--configuration "$APP_CONFIGURATION")

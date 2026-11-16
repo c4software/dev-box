@@ -50,7 +50,9 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      Plug the iPhone or iPad in, unlock it, then:
        devbox ios devices    answer Trust on the device, then run it again
      It starts the usbmuxd of the box when it is not running, as every
-     command that reaches the device does.
+     command that reaches the device does. The box gets no hotplug event:
+     a device plugged in after usbmuxd started is unseen by it, so usbmuxd
+     is restarted then, only when a device of the bus is missing from it.
      usbmuxd keeps its pairing records in /var/lib/lockdown, outside the
      home: expect Trust again after a rebuild of the box. Without the
      cable afterwards, on iOS 27: `devbox help ios-wifi`.
@@ -187,8 +189,15 @@ iPhone and iPad apps: what is left after devbox dev-env ios
      symbols of the box need it) and, with an API key, signs through
      provision-dev.py: the profile of xtool install holds the first 20
      devices of the team only.
-     Run-script phases are not run: commit what they generate. A project
-     mounted from the host with rootless Docker:
+     Run-script phases are not run: commit what they generate, or replay
+     one on the built .app before signing with --app-hook <script> (a
+     script of the project, given CONFIGURATION, PROJECT_DIR, TARGET_NAME,
+     PRODUCT_NAME, BUILT_PRODUCTS_DIR as Xcode sets them: devbox ios xcode
+     --help).
+     Several devices on USB and no IOS_UDID: run and install ask which one
+     with gum, before the build; launch and logs go back to the device the
+     app was installed on. IOS_UDID=<udid> skips the question.
+     A project mounted from the host with rootless Docker:
        docker exec -u 0:0 -w /home/dev/projets/<app> dev-box \
          devbox ios xcode .                        on the host
      The same from the host, without a shell in the box: put
@@ -200,7 +209,9 @@ iPhone and iPad apps: what is left after devbox dev-env ios
        https://raw.githubusercontent.com/c4software/dev-box/main/scripts/devbox-build.sh
      It runs devbox ios xcode as root in the box already running, with the
      path of the project seen from the box, and checks the SDK and the
-     Apple sign-in first; a Flutter project goes to flutter/build.sh.
+     Apple sign-in first; a Flutter project goes to flutter/build.sh. Its
+     run, install, launch and logs get a terminal, for the question above;
+     APP_OPTIONS at its top takes --app-hook and the other options.
      After moving to omarchy-apple-dev 0.4.4, the SDK is built once more
      from the .xip (step 1): the SDK of the older xtool is refused.
 

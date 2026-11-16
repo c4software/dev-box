@@ -198,7 +198,8 @@ ios_pick_usb() {
   fi
   if [ -t 0 ] && [ -t 2 ] && command -v gum >/dev/null; then
     pick="$(gum filter --header "Device (IOS_UDID=<udid> skips this question)" \
-      --placeholder "name or UDID" <<<"$lines")" || ios_die "no device picked"
+      --placeholder "name or UDID" <<<"$lines")" || true
+    [ -n "$pick" ] || ios_die "no device picked (IOS_UDID=<udid> to name one: $(tr '\n' ' ' <<<"$udids"))"
     echo "${pick##*: }"
     return 0
   fi
@@ -279,10 +280,21 @@ ios_major_version() {
     python3 -c 'import json, sys; print(json.load(sys.stdin)["ProductVersion"].split(".")[0])' 2>/dev/null || true
 }
 
-# The identifier and the executable ios_install recorded in $1: IOS_ID, IOS_PRODUCT.
+# The identifier, the executable and the device ios_install recorded in $1:
+# IOS_ID, IOS_PRODUCT, IOS_RECORD_UDID (empty in a record written before it).
 ios_record() {
   [ -f "$1" ] || ios_die "not installed yet: the install step first"
-  { read -r IOS_ID && read -r IOS_PRODUCT; } <"$1"
+  IOS_RECORD_UDID=""
+  { read -r IOS_ID && read -r IOS_PRODUCT && { read -r IOS_RECORD_UDID || true; }; } <"$1"
+}
+
+# launch and logs on the device the app was installed on (recorded by
+# ios_install), without asking again which one when several are plugged in,
+# unless IOS_UDID or --wifi says otherwise or that device is gone.
+ios_record_device() {
+  [ -z "${IOS_UDID:-}" ] && [ -z "$IOS_WIFI" ] && [ -n "${IOS_RECORD_UDID:-}" ] || return 0
+  ios_usb_serials | grep -qix "${IOS_RECORD_UDID//-/}" || return 0
+  IOS_UDID="$IOS_RECORD_UDID"
 }
 
 # The API key xtool auth signed in with: ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH.
@@ -398,7 +410,7 @@ except ValueError:
     apps = {}
 print(next((k for k in apps if k == b or k.endswith("." + b)), ""))' "$id")"
   [ -n "$installed" ] || ios_die "xtool install ended, but no app $id (or XTL-<team>.$id) on the device: see its output above"
-  printf '%s\n%s\n' "$installed" "$product" >"$record"
+  printf '%s\n%s\n%s\n' "$installed" "$product" "$IOS_UDID_FOUND" >"$record"
   log "installed as $installed. With a free Apple ID: trust it once on the device (Settings, General, VPN & Device Management), the signature lasts 7 days, 3 apps at most at a time"
 }
 
@@ -443,13 +455,14 @@ p = sys.argv[1]; d = plistlib.load(open(p, "rb")); d["CFBundleIdentifier"] = sys
   log "installed on $udid${IOS_WIFI:+ over Wi-Fi}"
   pymobiledevice3 apps install "${IOS_DEV[@]}" "$stage/signed.ipa"
   rm -rf "$stage"
-  printf '%s\n%s\n' "$id" "$product" >"$record"
+  printf '%s\n%s\n%s\n' "$id" "$product" "$IOS_UDID_FOUND" >"$record"
 }
 
 # The app installed by ios_install (identifier and executable in $1), the
 # running one stopped first.
 ios_launch() {
   ios_record "$1"
+  ios_record_device
   ios_connect
   ios_stop "$IOS_ID"
   log "launching $IOS_ID"
@@ -470,6 +483,7 @@ ios_launch() {
 
 ios_logs() {
   ios_record "$1"
+  ios_record_device
   ios_connect
   pymobiledevice3 syslog live "${IOS_DEV[@]}" --process-name "$IOS_PRODUCT"
 }

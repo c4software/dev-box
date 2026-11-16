@@ -160,8 +160,8 @@ status() {
 # one of another machine (devbox help ios-usb). The first time, the device
 # asks whether to trust the box: answer Trust, then run it again.
 # devbox ios devices [--pick]: the devices on USB. --pick prints the UDID of
-# one only (IOS_UDID, the only one, or picked with gum on a terminal), for a
-# script that asks once before several steps (devbox-build.sh).
+# one only (IOS_UDID, the only one, or picked with gum on a terminal), as
+# devbox ios xcode picks it, for a script of its own.
 devices() {
   local out
   if [ -z "${USBMUXD_SOCKET_ADDRESS:-}" ]; then
