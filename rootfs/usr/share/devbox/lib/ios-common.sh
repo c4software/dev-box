@@ -190,8 +190,22 @@ ios_connect() {
   else
     IOS_UDID_FOUND="$(ios_usb_device)"
     IOS_DEV=(--udid "$IOS_UDID_FOUND")
-    IOS_DVT=(--userspace --udid "$IOS_UDID_FOUND")
+    # The userspace tunnel needs CoreDeviceProxy (iOS 17.4). Up to iOS 16
+    # the developer services answer over lockdown, through usbmuxd, with the
+    # developer disk image mounted: no tunnel at all.
+    if [ "$(ios_major_version)" -lt 17 ] 2>/dev/null; then
+      IOS_DVT=(--udid "$IOS_UDID_FOUND")
+    else
+      IOS_DVT=(--userspace --udid "$IOS_UDID_FOUND")
+    fi
   fi
+}
+
+# The major iOS version of the device on USB (IOS_UDID_FOUND), empty when
+# lockdown does not answer.
+ios_major_version() {
+  pymobiledevice3 lockdown info --udid "$IOS_UDID_FOUND" 2>/dev/null |
+    python3 -c 'import json, sys; print(json.load(sys.stdin)["ProductVersion"].split(".")[0])' 2>/dev/null || true
 }
 
 # The identifier and the executable ios_install recorded in $1: IOS_ID, IOS_PRODUCT.
