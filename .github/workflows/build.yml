@@ -29,6 +29,14 @@
 # The image records its tag, and dev-box-check-updates compares it with the
 # newest v* tag of the repo.
 #
+# Once a month the schedule rebuilds the newest release, from the same tag,
+# for amd64 and arm64, and publishes it again under that tag and latest. Arch
+# is a rolling distribution: a Go program packaged by Arch only drops a
+# vulnerable dependency when its upstream releases and Arch rebuilds it, and
+# an image built before that keeps the old binary until the next release of
+# dev-box. The monthly run picks those fixes up without a new tag. The box is
+# told nothing (same tag, no new changelog); a pull gets the fresh packages.
+#
 # Once the image is out, the tag becomes a GitHub release whose notes are the
 # annotation of the tag: that is the changelog `devbox changelog` shows in the
 # box. Write it when tagging, `git tag -a v1.7` opens the editor.
@@ -39,13 +47,43 @@ on:
     tags: ["v*"]
   # arm64 only, run on a v* tag.
   workflow_dispatch:
+  # The newest release, rebuilt for both architectures on the 1st of the month.
+  schedule:
+    - cron: "41 4 1 * *"
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
+  # The release to build: the pushed or picked tag, or for the schedule the
+  # newest v* tag of the repo (version order, so v1.10 comes after v1.9).
+  pick:
+    name: Pick the release
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.pick.outputs.tag }}
+    steps:
+      - id: pick
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            tag=$(git ls-remote --tags --refs "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" 'v*' \
+              | sed 's#.*refs/tags/##' | sort -V | tail -n1)
+          else
+            case "$GITHUB_REF" in
+              refs/tags/v*) tag="$GITHUB_REF_NAME" ;;
+              *) echo "::error::run this workflow on a v* tag, not on $GITHUB_REF"; exit 1 ;;
+            esac
+          fi
+          if [ -z "$tag" ]; then
+            echo "::error::no v* tag to build"
+            exit 1
+          fi
+          echo "Building $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build ${{ matrix.platform }}
+    needs: pick
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -53,17 +91,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(github.event_name == 'push' && '[{"platform":"linux/amd64","runner":"ubuntu-24.04"}]' || '[{"platform":"linux/arm64","runner":"ubuntu-24.04-arm"}]') }}
+        include: ${{ fromJSON(github.event_name == 'push' && '[{"platform":"linux/amd64","runner":"ubuntu-24.04"}]' || github.event_name == 'schedule' && '[{"platform":"linux/amd64","runner":"ubuntu-24.04"},{"platform":"linux/arm64","runner":"ubuntu-24.04-arm"}]' || '[{"platform":"linux/arm64","runner":"ubuntu-24.04-arm"}]') }}
     steps:
-      - name: Check the ref is a release tag
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          case "$GITHUB_REF" in
-            refs/tags/v*) ;;
-            *) echo "::error::run this workflow on a v* tag, not on $GITHUB_REF"; exit 1 ;;
-          esac
-
       - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ needs.pick.outputs.tag }}
+
+      # The commit of the tag: on a schedule github.sha is the head of main.
+      - name: Read the commit of the release
+        id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v4
 
@@ -91,10 +128,10 @@ jobs:
           pull: true
           no-cache: true
           build-args: |
-            DEVBOX_COMMIT=${{ github.sha }}
+            DEVBOX_COMMIT=${{ steps.commit.outputs.sha }}
             DEVBOX_REPO=${{ github.server_url }}/${{ github.repository }}.git
             DEVBOX_BRANCH=main
-            DEVBOX_VERSION=${{ github.ref_name }}
+            DEVBOX_VERSION=${{ needs.pick.outputs.tag }}
             DEVBOX_SOURCE=release
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true,oci-mediatypes=true,compression=zstd,compression-level=19,force-compression=true
 
@@ -113,17 +150,20 @@ jobs:
 
   merge:
     name: Publish the multi-arch manifest
-    needs: build
+    needs: [pick, build]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
+    env:
+      TAG: ${{ needs.pick.outputs.tag }}
     steps:
+      # One directory per architecture built (digest-amd64, digest-arm64),
+      # each holding a file named after the digest.
       - uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
           pattern: digest-*
-          merge-multiple: true
 
       - uses: docker/setup-buildx-action@v4
 
@@ -151,11 +191,13 @@ jobs:
               | jq -r --arg a "$2" '.manifests[]? | select(.platform.os == "linux" and .platform.architecture == $a) | .digest' \
               | head -n1 || true
           }
-          built="sha256:$(ls)"
-          release="${IMAGE}:${GITHUB_REF_NAME}"
+          built_amd64=$(ls digest-amd64 2>/dev/null || true)
+          built_arm64=$(ls digest-arm64 2>/dev/null || true)
+          release="${IMAGE}:${TAG}"
           if [ "$GITHUB_EVENT_NAME" = push ]; then
             # arm64 comes later: the release tag holds amd64 alone, latest
             # keeps the arm64 of the previous release meanwhile.
+            built="sha256:${built_amd64}"
             previous_arm64=$(arch_digest "${IMAGE}:latest" arm64)
             docker buildx imagetools create -t "$release" "${IMAGE}@${built}"
             refs=("${IMAGE}@${built}")
@@ -163,7 +205,24 @@ jobs:
               refs+=("${IMAGE}@${previous_arm64}")
             fi
             docker buildx imagetools create -t "${IMAGE}:latest" "${refs[@]}"
+          elif [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            # The monthly rebuild: both architectures are new, the release
+            # tag gets them, and latest too while it still points to this
+            # release (it always should: this is the newest tag).
+            if [ -z "$built_amd64" ] || [ -z "$built_arm64" ]; then
+              echo "::error::the monthly rebuild needs both architectures, publishing nothing"
+              exit 1
+            fi
+            tags=(-t "$release" -t "${release}-arm64")
+            if [ "$(arch_digest "${IMAGE}:latest" amd64)" = "$(arch_digest "$release" amd64)" ]; then
+              tags+=(-t "${IMAGE}:latest" -t "${IMAGE}:latest-arm64")
+            else
+              echo "latest does not point to $TAG, left alone"
+            fi
+            docker buildx imagetools create "${tags[@]}" \
+              "${IMAGE}@sha256:${built_amd64}" "${IMAGE}@sha256:${built_arm64}"
           else
+            built="sha256:${built_arm64}"
             amd64=$(arch_digest "$release" amd64)
             if [ -z "$amd64" ]; then
               echo "::error::$release has no amd64 image: push the tag first, then build arm64"
@@ -180,7 +239,7 @@ jobs:
           fi
 
       - name: Inspect the result
-        run: docker buildx imagetools inspect "${IMAGE}:${GITHUB_REF_NAME}"
+        run: docker buildx imagetools inspect "${IMAGE}:${TAG}"
 
   release:
     name: Publish the release notes

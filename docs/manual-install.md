@@ -212,7 +212,7 @@ cp compose.override.example.yaml compose.override.yaml
 ## Prebuilt image
 
 A GitHub workflow (`.github/workflows/build.yml`) builds the image when a `v*`
-tag is pushed, and only then, and publishes it on `ghcr.io/c4software/dev-box`
+tag is pushed, and publishes it on `ghcr.io/c4software/dev-box`
 as `latest` and under the release tag (`v1.12`): every machine pulls the same
 tag and gets its own architecture. A push on `main` publishes nothing: a
 release is a deliberate act, `git tag -a v0.3.0 && git push origin v0.3.0`.
@@ -221,7 +221,13 @@ from the Actions tab (Run workflow on the tag) or with
 `gh workflow run build.yml --ref v0.3.0`, and joins the same manifest (native
 runners, no emulation). Until then `latest` keeps the arm64 image of the
 previous release, so an arm64 box pulls a working image and simply sees the
-new release a little later. Each run starts
+new release a little later. On the 1st of every month the workflow also
+rebuilds the newest release for both architectures and publishes it again
+under the same tag and `latest`: a program Arch packages only drops a
+vulnerable dependency once its upstream releases and Arch rebuilds it, and the
+monthly run picks that up without a new release. The box is told nothing (same
+tag, same changelog); the next `docker compose pull` gets the fresh packages.
+Each run starts
 from a fresh base with no layer cache, the same as
 `docker compose build --pull --no-cache`, so nothing is ever frozen at a
 previous build. The image is a single layer compressed with zstd, which every

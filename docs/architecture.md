@@ -87,4 +87,7 @@ starts the workflow, which builds the image, publishes it on
 [manual-install.md](manual-install.md#prebuilt-image)) and then creates the
 GitHub release from that text. The arm64 image is added by hand afterwards,
 `gh workflow run build.yml --ref v1.7`. That release is what `devbox changelog` and the
-next login show (see [updates.md](updates.md#the-changelog-at-login)).
+next login show (see [updates.md](updates.md#the-changelog-at-login)). The newest release is
+also rebuilt for both architectures on the 1st of every month, under the same
+tag, so the image follows the Arch packages between releases (see
+[manual-install.md](manual-install.md#prebuilt-image)).
