@@ -135,11 +135,14 @@ jobs:
             DEVBOX_SOURCE=release
           outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true,oci-mediatypes=true,compression=zstd,compression-level=19,force-compression=true
 
+      # A file named after the architecture, holding the digest.
       - name: Export the digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          PLATFORM: ${{ matrix.platform }}
         run: |
           mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
+          echo "${DIGEST#sha256:}" > "/tmp/digests/${PLATFORM#linux/}"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -158,12 +161,15 @@ jobs:
     env:
       TAG: ${{ needs.pick.outputs.tag }}
     steps:
-      # One directory per architecture built (digest-amd64, digest-arm64),
-      # each holding a file named after the digest.
+      # One file per architecture built (amd64, arm64) holding its digest.
+      # merge-multiple keeps that layout whether one or two artifacts match:
+      # without it, download-artifact extracts a single match straight into
+      # the path but two matches into a directory each.
       - uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
           pattern: digest-*
+          merge-multiple: true
 
       - uses: docker/setup-buildx-action@v4
 
@@ -191,8 +197,13 @@ jobs:
               | jq -r --arg a "$2" '.manifests[]? | select(.platform.os == "linux" and .platform.architecture == $a) | .digest' \
               | head -n1 || true
           }
-          built_amd64=$(ls digest-amd64 2>/dev/null || true)
-          built_arm64=$(ls digest-arm64 2>/dev/null || true)
+          built_amd64=$(cat amd64 2>/dev/null || true)
+          built_arm64=$(cat arm64 2>/dev/null || true)
+          if [ -z "$built_amd64$built_arm64" ]; then
+            echo "::error::no digest downloaded"
+            ls -lR
+            exit 1
+          fi
           release="${IMAGE}:${TAG}"
           if [ "$GITHUB_EVENT_NAME" = push ]; then
             # arm64 comes later: the release tag holds amd64 alone, latest
