@@ -33,8 +33,11 @@ correctifs publiés, dev-box peut les retirer.
 | #132 | #139 | xtool épinglé sur main avant #389, plus #430, #422 et les commits du fork (pin `c9f4363`, tag `omarchy-main-pre389-pin`) | ✅ fusionnée le 6/11 (`031155f`) ; #132 fermé le 8/11 |
 | (suite de #132) | **#144** | xtool épinglé sur main (`7cc56c3` : `a2875dd` + les 11 commits du fork, tag `omarchy-main-pin`) | ✅ fusionnée le 8/11 à 16 h 54 (`c6eb9d5`), après deux verdicts GREEN de leurs agents |
 |  | joshuaswarren/xtool#4 | Branche de suivi : main + commits du fork, tête `7cc56c3` | ⏳ ouverte (sert de référence au pin, le tag suffit) |
+| **#170** (le nôtre) | #171 | Build `ship.sh --device` en mode compatibilité iOS : le `sdk` de `LC_BUILD_VERSION` est la cible minimale (ancienne tab bar, pas de Liquid Glass) | #171 (réécriture du Mach-O avant signature) fermée le 19/11 ; #170 ouvert avec l'état des lieux : la correction d'xtool (#452) n'existe que sur la 2.x, changement trop gros pour l'instant |
 
 Ces correctifs sont dans la version v0.4.5 d'omarchy (10/11) : `OAD_REF` reprend un tag, `v0.4.5` (pin xtool inchangé, `7cc56c3`). Vérifié dans une box jetable : clone déplacé de `031155f` à `v0.4.5` par `devbox dev-env ios`, SDK et connexion Apple gardés, app Swift et app Compose Multiplatform compilées.
+
+v0.4.6 (16/11) : iPad sur Tailscale (#162), dépendances x86_64 de Kotlin/Native épinglées (#159), JAR hors du lien du framework KMP (#158), versions exactes et `kind = revision` dans `xcodeproj2xtool` (#157, #161), fonds `automatic-gradient` d'Icon Composer (#164). Pin xtool inchangé (`7cc56c3`), donc SDK et connexion Apple gardés : `OAD_REF` passe à `v0.4.6`. Les builds de la dev-box restent en mode compatibilité iOS (#170) tant que le pin xtool n'a pas de correction.
 
 ### xtool (xtool-org/xtool)
 
@@ -46,6 +49,7 @@ Ces correctifs sont dans la version v0.4.5 d'omarchy (10/11) : `OAD_REF` reprend
 | (amont) | #375 | Arrêt sur une entrée standard qui n'est pas un tube | ✅ fusionnée le 28/10, mais dans **aucune version publiée** (après 1.24.0) |
 | **#431** (le nôtre) | | La compilation release plante le compilateur sous Linux depuis #389 (RCodesign) ; cause : bug du compilateur Swift (swiftlang/swift#94055, CoroSplit, sans réponse), déclenché par deux `unimplemented()` | ✅ fermé le 8/11 |
 | #431 | **#432** (la nôtre) | Contournement : `reportIssue` + `throw UnimplementedFailure` dans `UnimplementedSigner` | ✅ fusionnée le 8/11 (`a2875dd`) |
+| #351 | #452 (kabiroberai) | `LC_BUILD_VERSION` : la cible minimale écrite comme version du SDK quand swiftc pilote le link (`--sysroot` au lieu de `-isysroot`) | ✅ fusionnée le 16/11 (`854767c`) sur **`pre/2.x`** (2.0.0-beta) seulement ; `main` (1.x) garde le bug. Notre #456 était un doublon, fermé |
 
 Le mainteneur a fermé #427 et #428 le 5/11 pour reprendre leur contenu dans #430, qui contient tous nos points
 sauf la tolérance d'un 404 à la suppression (deux installations simultanées du même bundle), un point mineur.
