@@ -33,11 +33,15 @@ correctifs publiés, dev-box peut les retirer.
 | #132 | #139 | xtool épinglé sur main avant #389, plus #430, #422 et les commits du fork (pin `c9f4363`, tag `omarchy-main-pre389-pin`) | ✅ fusionnée le 6/11 (`031155f`) ; #132 fermé le 8/11 |
 | (suite de #132) | **#144** | xtool épinglé sur main (`7cc56c3` : `a2875dd` + les 11 commits du fork, tag `omarchy-main-pin`) | ✅ fusionnée le 8/11 à 16 h 54 (`c6eb9d5`), après deux verdicts GREEN de leurs agents |
 |  | joshuaswarren/xtool#4 | Branche de suivi : main + commits du fork, tête `7cc56c3` | ⏳ ouverte (sert de référence au pin, le tag suffit) |
-| **#170** (le nôtre) | #171 | Build `ship.sh --device` en mode compatibilité iOS : le `sdk` de `LC_BUILD_VERSION` est la cible minimale (ancienne tab bar, pas de Liquid Glass) | #171 (réécriture du Mach-O avant signature) fermée le 19/11 ; #170 ouvert avec l'état des lieux : la correction d'xtool (#452) n'existe que sur la 2.x, changement trop gros pour l'instant |
+| **#170** (le nôtre) | #171, #177 | Build `ship.sh --device` en mode compatibilité iOS : le `sdk` de `LC_BUILD_VERSION` est la cible minimale (ancienne tab bar, pas de Liquid Glass) | ✅ corrigé en v0.4.7 par #177 : `asc.py stamp-sdk` écrit la vraie version du SDK à la fin de `ship.sh --device` (notre #171, même idée, fermée le 19/11). Vérifié en v0.4.8 dans la box Angers : `sdk 27.1` |
 
 Ces correctifs sont dans la version v0.4.5 d'omarchy (10/11) : `OAD_REF` reprend un tag, `v0.4.5` (pin xtool inchangé, `7cc56c3`). Vérifié dans une box jetable : clone déplacé de `031155f` à `v0.4.5` par `devbox dev-env ios`, SDK et connexion Apple gardés, app Swift et app Compose Multiplatform compilées.
 
 v0.4.6 (16/11) : iPad sur Tailscale (#162), dépendances x86_64 de Kotlin/Native épinglées (#159), JAR hors du lien du framework KMP (#158), versions exactes et `kind = revision` dans `xcodeproj2xtool` (#157, #161), fonds `automatic-gradient` d'Icon Composer (#164). Pin xtool inchangé (`7cc56c3`), donc SDK et connexion Apple gardés : `OAD_REF` passe à `v0.4.6`. Les builds de la dev-box restent en mode compatibilité iOS (#170) tant que le pin xtool n'a pas de correction.
+
+v0.4.7 (23/11) et v0.4.8 (24/11) : `ship.sh --device` tamponne la version du SDK (#177, ferme #170), `ship.sh --simulator`, `tools/xcarchive`, `install-toolchain.sh` contourne `openssl-3` du python312 de l'AUR (#179), `p`/`po`/`expression` dans `device-run.sh --lldb` (#183). Pin xtool inchangé : `OAD_REF` passe à `v0.4.8` sans recompiler xtool. Les builds de la dev-box ont enfin le design iOS 26. `FINDINGS.md` disparaît de l'amont (v0.4.7) : l'aide et `docs/dev-envs.md` n'y renvoient plus.
+
+Reste ouvert côté dev-box : les expressions Swift de `device-run.sh --lldb` ne marchent pas encore dans la box. `tools/lldb-ios-shadow.sh` lie en dur `usr/bin/lldb` du toolchain, qui dans la box est le lanceur shell de `give_lldb_python` (`PYTHONHOME`, ASLR) : la copie fantôme exécute `lldb.real` du toolchain, donc son `liblldb` et le répertoire Swift de Linux. `frame variable` marche comme avant. Piste : se passer du lanceur (bibliothèque standard de Python 3.9 là où libpython la cherche, ASLR dans un `.lldbinit`), ou faire suivre le lanceur par le script amont.
 
 ### xtool (xtool-org/xtool)
 

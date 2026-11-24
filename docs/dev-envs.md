@@ -440,8 +440,8 @@ when the SSH connection refuses the forward, and the other ways.
 Without the cable, an iPhone or iPad under iOS 27 can be reached over Wi-Fi,
 by `devbox ios xcode` only. xtool has no Wi-Fi on Linux: its `--network` waits
 for a device that the usbmuxd of Linux never sees over the network, and iOS 26
-and older accept no new computer over Wi-Fi at all (FINDINGS.md 17 of
-omarchy-apple-dev). iOS 27 opens a RemotePairing port that answers any routed
+and older accept no new computer over Wi-Fi at all (finding 17 in the
+FINDINGS.md of omarchy-apple-dev, up to v0.4.6). iOS 27 opens a RemotePairing port that answers any routed
 address once the device holds a pairing record for the computer, and
 `tools/tailnet-tunnel.py` of omarchy-apple-dev opens its tunnel. The box
 uses it as is: `devbox ios pair`, once with the device on USB, writes the

@@ -217,7 +217,7 @@ iPhone and iPad apps: what is left after devbox dev-env ios
 
   Sources
      The tools and steps 1, 4 and 5 come from omarchy-apple-dev, the same
-     tools on Arch, with what was found along the way (FINDINGS.md):
+     tools on Arch, with what was found along the way (receipts/):
        https://github.com/joshuaswarren/omarchy-apple-dev
      Steps 2 and 3 follow the documentation of xtool:
        https://github.com/xtool-org/xtool

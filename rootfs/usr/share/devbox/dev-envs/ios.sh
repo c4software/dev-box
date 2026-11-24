@@ -59,7 +59,7 @@ next_steps() {
 # whose xtool pin is xtool main (RCodesign, xtool-org/xtool#432, stdin that is
 # a file or /dev/null since #375) plus the fork fixes.
 OAD_REPO="https://github.com/joshuaswarren/omarchy-apple-dev"
-OAD_REF="v0.4.6"
+OAD_REF="v0.4.8"
 OAD_DIR="$HOME/.local/share/omarchy-apple-dev"
 OAD_BIN="$HOME/.local/bin"
 # The scripts of the clone put on the PATH, through a wrapper each.
