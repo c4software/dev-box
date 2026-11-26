@@ -114,9 +114,13 @@ php-sodium, xdebug, extensions enabled at build); `dev-env php` only checks it,
 `laravel` and `symfony` add their installer on top. `android` is the
 platform-tools only (adb, fastboot) through mise's http backend, x86_64 only,
 refreshed by running the command again. `android-sdk` is the full SDK to build
-apps (cmdline-tools pinned in mise, platform-tools, newest platform and
-build-tools through sdkmanager, JDK 21 when no java is declared), and
-`flutter` sits on it, Android and web targets; both x86_64 only, no emulator.
+apps (cmdline-tools pinned in mise, JDK 21 when no java is declared): the
+Android CLI they carry (`android`, sdkmanager is deprecated, do not use it)
+lays platform-tools, the newest stable platform and build-tools; `android
+create`, `build`, `run`, `layout`, `preview` and `docs` drive a project, and
+`android init` lays the android-cli skill for Claude Code, Codex and pi
+(linked for omp). `flutter` sits on it, Android and web targets; both x86_64
+only, no emulator.
 `swift` is the swift.org toolchain made to run on Arch (`libxml2-legacy`
 through `devbox pkg add`, ncurses links inside the toolchain, version pinned,
 no lldb), and `ios` sits on it and on python: omarchy-apple-dev, cloned at a

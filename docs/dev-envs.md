@@ -86,15 +86,32 @@ box the command points to `devbox pkg add android-tools` instead.
 
 `android-sdk` is the full SDK, to build apps: the cmdline-tools from the mise
 registry, pinned to the version of the day so that `devbox update tools` never
-moves `ANDROID_HOME`, then `sdkmanager` lays the platform-tools, the newest
-stable platform and build-tools inside it, the licenses accepted on your
-behalf. It needs a JDK 17 or 21: `java@temurin-21` when no java is declared,
-the declared one otherwise. There is no emulator (no KVM, no display): deploy
-to a phone over USB or `adb connect`. `flutter` sits on it, from the official
-stable archive through mise, with the Android and web engine artifacts fetched
-at install and Linux desktop turned off; the web target runs with
-`flutter run -d web-server --web-hostname 0.0.0.0`. Both are x86_64 only,
-Google publishes no arm64 build-tools.
+moves `ANDROID_HOME`. Since 23.0 they carry the
+[Android CLI](https://developer.android.com/tools/agents), the `android`
+command that replaces `sdkmanager`: it lays the platform-tools, the newest
+stable platform (Android 37 today) and build-tools inside the SDK, and accepts
+the license itself. A box whose pin is older than 23.0 has no Android CLI: run
+`devbox dev-env android-sdk` again, it moves the pin to the version of the
+day and lays the packages again (`mise prune android-sdk` frees the old SDK).
+The same `android` command is there for you and for coding agents:
+`android create` for a new project, `build`, `run` on a device, `layout` and
+`screen` to inspect an app, `preview` to render Compose previews, `docs` to
+search the Android Knowledge Base. The install runs `android init`, which puts
+the `android-cli` skill in `~/.claude/skills`, `~/.codex/skills` and
+`~/.pi/agent/skills`, and links it into `~/.omp/agent/skills` too;
+`android skills list` shows the other skills Google publishes,
+`android skills add <name>` installs one. `android auth login` is only needed
+for Crashlytics and remote devices. The CLI sends usage metrics to Google
+unless it gets `--no-metrics`: a `--no-metrics` line in `~/.androidrc`
+applies it to every call. It needs a JDK 17 or 21: `java@temurin-21` when no
+java is declared, the declared one otherwise. There is no emulator (no KVM, no
+display): deploy to a phone over USB or `adb connect`. A removal deletes the
+SDK, the `android-cli` skill and `~/.android/cli`, and leaves java, the rest
+of `~/.android`, `~/.gradle` and the skills added by hand. `flutter` sits on
+it, from the official stable archive through mise, with the Android and web
+engine artifacts fetched at install and Linux desktop turned off; the web
+target runs with `flutter run -d web-server --web-hostname 0.0.0.0`. Both are
+x86_64 only, Google publishes no arm64 build-tools.
 
 `swift` is the toolchain of swift.org, which publishes no build for Arch: mise
 takes the Red Hat UBI 9 one, and the environment gives it the two things Arch
