@@ -119,7 +119,11 @@ Android CLI they carry (`android`, sdkmanager is deprecated, do not use it)
 lays platform-tools, the newest stable platform and build-tools; `android
 create`, `build`, `run`, `layout`, `preview` and `docs` drive a project, and
 `android init` lays the android-cli skill for Claude Code, Codex and pi
-(linked for omp). `flutter` sits on it, Android and web targets; both x86_64
+(linked for omp). That `android` is a launcher, the CLI lives in
+~/.android/bin and ~/.android/cli and updates with `android update` (run by
+`devbox update tools`). Name the packages (`android sdk install <package>`):
+never a bare `android sdk update`, which rewrites the mise-owned cmdline-tools;
+never a second Android CLI (direct download, mise android-cli). `flutter` sits on it, Android and web targets; both x86_64
 only, no emulator.
 `swift` is the swift.org toolchain made to run on Arch (`libxml2-legacy`
 through `devbox pkg add`, ncurses links inside the toolchain, version pinned,

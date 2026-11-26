@@ -6,11 +6,14 @@ details() {
 Android SDK and Android CLI to build apps: platform-tools, platform, build-tools
 
 cmdline-tools come from the mise registry (android-sdk), pinned to the version
-of the day: mise sets ANDROID_HOME to that install. They carry the Android CLI
-(`android`, https://developer.android.com/tools/agents), which lays the
-platform-tools, the newest stable platform and build-tools inside it, so a
-`devbox update tools` does not move the SDK. Run this again to add the newest
-platform. `android create`, `build`, `run`, `layout`, `preview` and `docs` are
+of the day: mise sets ANDROID_HOME to that install. They carry the launcher
+of the Android CLI (`android`, https://developer.android.com/tools/agents),
+which lays the platform-tools, the newest stable platform and build-tools
+inside it, so a `devbox update tools` does not move the SDK. Run this again
+to add the newest platform; never a bare `android sdk update`, which would
+rewrite the cmdline-tools mise owns. The CLI itself lives in ~/.android/bin
+and ~/.android/cli and updates with `android update`, which `devbox update
+tools` runs too. `android create`, `build`, `run`, `layout`, `preview` and `docs` are
 there for you and for coding agents: `android init` lays its android-cli skill
 for Claude Code, Codex and pi, linked for omp too. The CLI sends usage metrics
 to Google unless --no-metrics is given (a --no-metrics line in ~/.androidrc

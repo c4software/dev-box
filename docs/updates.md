@@ -36,12 +36,16 @@ there is no such line. See [the login message](commands.md#the-login-message).
 devbox update            # on a terminal: a menu; otherwise all of the below
 devbox update all        # all of the below
 devbox update dotfiles   # dotarchy-sync
-devbox update tools      # mise install, then mise upgrade
+devbox update tools      # mise install, then mise upgrade, then android update
 devbox update seed       # shipped config (see customization.md)
 ```
 
 `dev-box-update` is the binary and keeps working under that name. `devbox
 update` is the form to remember. Migrations are separate, see below.
+
+`tools` also runs `android update` when the `android-sdk` environment is
+installed: the Android CLI updates itself, outside mise (see
+[dev-envs.md](dev-envs.md)).
 
 It clears the flag and re-runs the check when it is done.
 

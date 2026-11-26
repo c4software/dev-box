@@ -93,6 +93,15 @@ stable platform (Android 37 today) and build-tools inside the SDK, and accepts
 the license itself. A box whose pin is older than 23.0 has no Android CLI: run
 `devbox dev-env android-sdk` again, it moves the pin to the version of the
 day and lays the packages again (`mise prune android-sdk` frees the old SDK).
+The `android` of the cmdline-tools is only a launcher: on its first call it
+downloads the CLI itself into `~/.android/bin` and `~/.android/cli`, which
+`android update` brings up to date, run by `devbox update tools` as well; the
+pin of the cmdline-tools does not hold it back. Let the CLI manage the
+packages by name (`android sdk install <package>`, or this command again),
+never a bare `android sdk update`: it would rewrite the cmdline-tools inside
+the mise install, which mise owns. Take neither the direct download of the
+CLI nor the `android-cli` tool of mise next to it: they are the same launcher,
+a second `android` on the PATH for the same CLI.
 The same `android` command is there for you and for coding agents:
 `android create` for a new project, `build`, `run` on a device, `layout` and
 `screen` to inspect an app, `preview` to render Compose previews, `docs` to

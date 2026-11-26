@@ -117,7 +117,8 @@ same kind of wrapper for any other tool, see
 The declared tools are installed in the background on first start. Follow progress with
 `tail -f ~/.cache/dev-box-install.log`. Later starts only reinstall what is
 missing (`MISE_INSTALL_ON_START`), and never bump a version. Upgrading is
-explicit: `devbox update tools` runs `mise install` then `mise upgrade`. Add
+explicit: `devbox update tools` runs `mise install` then `mise upgrade`, then
+`android update` when `android-sdk` is installed. Add
 more on demand, for example `mise use -g go@latest`, or a whole language with
 [`devbox dev-env`](dev-envs.md). Set `GITHUB_TOKEN`, no scopes needed, to avoid
 GitHub API rate limits.
