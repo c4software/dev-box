@@ -21,10 +21,12 @@ libimobiledevice, which the xtool build links, comes through `devbox pkg`.
 lldb, which the swift environment leaves unable to start, gets the Python 3.9
 it was built against: the standalone build mise itself uses for python, taken
 as a tool of its own (http:lldb-python, no command on the PATH, the default
-python is left alone), and lldb and lldb-dap are started through a launcher
-that points PYTHONHOME at it. lldb also leaves address randomization on for the program
-it starts: turning it off is refused inside a container. There is no
-simulator: an app runs on a real device. linux x86_64 only. Run it again
+python is left alone). The toolchain's usr/bin/lldb stays intact so
+tools/lldb-ios-shadow.sh (Swift expressions in device-run.sh --lldb) can
+hard-link it; device-run.sh receives LLDB_PYTHONHOME through its wrapper,
+direct lldb and lldb-dap calls go through wrappers in ~/.local/bin, and
+~/.lldbinit leaves address randomization on (seccomp refuses turning it off
+inside a container). There is no simulator: an app runs on a real device. linux x86_64 only. Run it again
 after an image update to move to the release the image pins. A removal takes
 out the clone, xtool, rcodesign, ipsw, the venv and the Python of lldb, and
 leaves swift, python, the SDK (~/.swiftpm/swift-sdks and its cache
@@ -88,43 +90,70 @@ LLDB_PYTHON_SHA256="fe04e8b27bd69ca2144fc542428f8b9b5287b6a2e45516a4acfe2c2bc310
 
 # lldb is linked against libpython3.9.so.1.0, and an embedded Python only
 # finds its standard library through PYTHONHOME. The library is linked into
-# the toolchain, next to liblldb; lldb and lldb-dap move aside (.real) behind
-# a launcher that sets the variable for them alone: set for the whole box, it
-# would break every other Python. mise only puts the swift* commands of the
-# toolchain on the PATH: the two launchers are linked next to them.
+# the toolchain, next to liblldb. The toolchain's usr/bin/lldb stays untouched
+# as a real binary so tools/lldb-ios-shadow.sh (device-run.sh --lldb, Swift
+# expressions) can hard-link it; device-run.sh gets LLDB_PYTHONHOME through
+# its wrapper, and direct lldb / lldb-dap calls go through wrappers in
+# ~/.local/bin that set PYTHONHOME for them alone.
 # lldb turns address randomization off for the program it launches, through
 # personality(2), which the seccomp profile of Docker refuses ("personality
-# set failed"): its launcher leaves it on. lldb-dap takes no such option.
+# set failed"): ~/.lldbinit leaves it on for every lldb session.
 give_lldb_python() {
-  local root toolchain home bin extra
+  local root toolchain home bin
   root="$(mise where swift)"
   toolchain="$root/usr"
   home="$(mise where "$LLDB_PYTHON")/python"
   ln -sf "$home/lib/libpython3.9.so.1.0" "$toolchain/lib/libpython3.9.so.1.0"
+  mkdir -p "$OAD_BIN"
   for bin in lldb lldb-dap; do
-    [ -e "$toolchain/bin/$bin.real" ] || mv "$toolchain/bin/$bin" "$toolchain/bin/$bin.real"
-    extra=""
-    [ "$bin" = lldb ] && extra=" -O 'settings set target.disable-aslr false'"
-    printf '#!/bin/sh\n# dev-box (devbox dev-env ios): %s with the Python it embeds.\nPYTHONHOME=%s exec %s%s "$@"\n' \
-      "$bin" "$home" "$toolchain/bin/$bin.real" "$extra" > "$toolchain/bin/$bin"
-    chmod +x "$toolchain/bin/$bin"
-    ln -sf "$toolchain/bin/$bin" "$root/bin/$bin"
-  done
-  mise reshim
-}
-
-take_lldb_python() {
-  local root toolchain bin
-  root="$(mise where swift 2>/dev/null)" || return 0
-  toolchain="$root/usr"
-  [ -d "$toolchain/bin" ] || return 0
-  for bin in lldb lldb-dap; do
+    # Older installs moved the toolchain binary to .real behind a shell launcher,
+    # which broke tools/lldb-ios-shadow.sh. Restore the real binary cleanly.
     rm -f "$root/bin/$bin"
     if [ -e "$toolchain/bin/$bin.real" ]; then
       mv -f "$toolchain/bin/$bin.real" "$toolchain/bin/$bin"
     fi
+    printf '#!/bin/sh\n%s: %s with the Python it embeds.\nPYTHONHOME=%s exec %s "$@"\n' \
+      "$WRAPPER_MARK" "$bin" "$home" "$toolchain/bin/$bin" > "$OAD_BIN/$bin"
+    chmod 755 "$OAD_BIN/$bin"
   done
-  rm -f "$toolchain/lib/libpython3.9.so.1.0"
+  if ! grep -qxF 'settings set target.disable-aslr false' "$HOME/.lldbinit" 2>/dev/null; then
+    printf '\n%s: seccomp refuses personality(2)\nsettings set target.disable-aslr false\n' \
+      "$WRAPPER_MARK" >> "$HOME/.lldbinit"
+  fi
+  mise reshim
+}
+
+take_lldb_python() {
+  local root toolchain bin tmp
+  root="$(mise where swift 2>/dev/null)" || root=""
+  toolchain="${root:+$root/usr}"
+  for bin in lldb lldb-dap; do
+    if grep -qF "$WRAPPER_MARK" "$OAD_BIN/$bin" 2>/dev/null; then
+      rm -f "$OAD_BIN/$bin"
+    fi
+    if [ -n "$toolchain" ] && [ -d "$toolchain/bin" ]; then
+      rm -f "$root/bin/$bin"
+      if [ -e "$toolchain/bin/$bin.real" ]; then
+        mv -f "$toolchain/bin/$bin.real" "$toolchain/bin/$bin"
+      fi
+    fi
+  done
+  if [ -n "$toolchain" ]; then
+    rm -f "$toolchain/lib/libpython3.9.so.1.0"
+  fi
+  if [ -f "$HOME/.lldbinit" ] && grep -qF "$WRAPPER_MARK" "$HOME/.lldbinit"; then
+    tmp="$(mktemp)"
+    awk -v m="$WRAPPER_MARK" '
+      index($0, m) { skip = 1; next }
+      skip && $0 == "settings set target.disable-aslr false" { skip = 0; next }
+      { skip = 0; print }
+    ' "$HOME/.lldbinit" > "$tmp"
+    if [ -s "$tmp" ] && grep -q '[^[:space:]]' "$tmp"; then
+      mv "$tmp" "$HOME/.lldbinit"
+    else
+      rm -f "$tmp" "$HOME/.lldbinit"
+    fi
+  fi
   mise reshim
 }
 
@@ -153,7 +182,8 @@ fetch_oad() {
 # clone, where device-run.sh finds its tools. install-toolchain.sh always runs
 # --user-only: its other mode installs swift-bin from the AUR, with sudo.
 write_wrappers() {
-  local name extra
+  local name extra pyhome
+  pyhome="$(mise where "$LLDB_PYTHON")/python"
   mkdir -p "$OAD_BIN"
   for name in "${OAD_SCRIPTS[@]}"; do
     extra=""
@@ -162,6 +192,8 @@ case " $* " in
 *" --repair "* | *" --curses-compat "* | *" --mode-help "*) ;;
 *) set -- --user-only "$@" ;;
 esac'
+    [ "$name" = device-run.sh ] && extra="
+export LLDB_PYTHONHOME=\"\${LLDB_PYTHONHOME:-$pyhome}\""
     printf '#!/bin/sh\n%s: %s of %s.%s\nexec mise x swift python -- %s "$@"\n' \
       "$WRAPPER_MARK" "$name" "$OAD_DIR" "$extra" "$OAD_DIR/$name" > "$OAD_BIN/$name"
     chmod 755 "$OAD_BIN/$name"
@@ -225,7 +257,7 @@ install() {
     fi
   fi
   log "xtool $("$OAD_BIN/xtool" --version 2>&1 | awk '{print $NF}'), pymobiledevice3 $("$OAD_VENV/bin/pymobiledevice3" version 2>&1 | tail -n 1)"
-  log "$("$(mise where swift)/bin/lldb" --version 2>&1 | head -n 1)"
+  log "$("$OAD_BIN/lldb" --version 2>&1 | head -n 1)"
   if darwin_sdk; then
     log "ios is ready, the SDK is in; what is left to you (shown again by devbox help ios):"
   else

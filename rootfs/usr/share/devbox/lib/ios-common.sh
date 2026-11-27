@@ -262,22 +262,20 @@ ios_connect() {
   else
     IOS_UDID_FOUND="$(ios_usb_device)"
     IOS_DEV=(--udid "$IOS_UDID_FOUND")
-    # The userspace tunnel needs CoreDeviceProxy (iOS 17.4). Up to iOS 16
-    # the developer services answer over lockdown, through usbmuxd, with the
-    # developer disk image mounted: no tunnel at all.
-    if [ "$(ios_major_version)" -lt 17 ] 2>/dev/null; then
-      IOS_DVT=(--udid "$IOS_UDID_FOUND")
-    else
-      IOS_DVT=(--userspace --udid "$IOS_UDID_FOUND")
-    fi
+    IOS_DVT=(--userspace --udid "$IOS_UDID_FOUND")
   fi
 }
 
-# The major iOS version of the device on USB (IOS_UDID_FOUND), empty when
-# lockdown does not answer.
-ios_major_version() {
-  pymobiledevice3 lockdown info --udid "$IOS_UDID_FOUND" 2>/dev/null |
-    python3 -c 'import json, sys; print(json.load(sys.stdin)["ProductVersion"].split(".")[0])' 2>/dev/null || true
+# Read or set CFBundleIdentifier in an app's Info.plist.
+ios_plist_id() {
+  local plist="$1" new="${2:-}"
+  if [ -z "$new" ]; then
+    python3 -c 'import plistlib, sys; print(plistlib.load(open(sys.argv[1], "rb"))["CFBundleIdentifier"])' "$plist"
+  else
+    python3 -c 'import plistlib, sys
+p = sys.argv[1]; d = plistlib.load(open(p, "rb")); d["CFBundleIdentifier"] = sys.argv[2]; plistlib.dump(d, open(p, "wb"))' \
+      "$plist" "$new"
+  fi
 }
 
 # The identifier, the executable and the device ios_install recorded in $1:
@@ -389,11 +387,9 @@ ios_install_xtool() {
   app="$stage/$(basename "$src")"
   product="$(basename "$app" .app)"
   if [ -z "$id" ]; then
-    id="$(python3 -c 'import plistlib, sys; print(plistlib.load(open(sys.argv[1], "rb"))["CFBundleIdentifier"])' "$app/Info.plist")$suffix"
+    id="$(ios_plist_id "$app/Info.plist")$suffix"
   fi
-  python3 -c 'import plistlib, sys
-p = sys.argv[1]; d = plistlib.load(open(p, "rb")); d["CFBundleIdentifier"] = sys.argv[2]; plistlib.dump(d, open(p, "wb"))' \
-    "$app/Info.plist" "$id"
+  ios_plist_id "$app/Info.plist" "$id"
   if [ -f "$record" ]; then
     ios_record "$record"
     ios_stop "$IOS_ID" 2>/dev/null || true
@@ -435,7 +431,7 @@ ios_install() {
   product="$(basename "$app" .app)"
   if [ -z "$id" ]; then
     id="XTL-${ASC_ISSUER_ID:0:8}"
-    id="${id^^}.$(python3 -c 'import plistlib, sys; print(plistlib.load(open(sys.argv[1], "rb"))["CFBundleIdentifier"])' "$app/Info.plist")$suffix"
+    id="${id^^}.$(ios_plist_id "$app/Info.plist")$suffix"
   fi
   dev="$IOS_USER_HOME/.config/omarchy-apple-dev/development"
   tools="$OAD_DIR/tools"
@@ -446,9 +442,7 @@ ios_install() {
     { grep -v 'Entitlements' || true; }; then
     ios_die "no development profile for $id: Apple's answer is above (provision-dev.py of omarchy-apple-dev)"
   fi
-  python3 -c 'import plistlib, sys
-p = sys.argv[1]; d = plistlib.load(open(p, "rb")); d["CFBundleIdentifier"] = sys.argv[2]; plistlib.dump(d, open(p, "wb"))' \
-    "$app/Info.plist" "$id"
+  ios_plist_id "$app/Info.plist" "$id"
   log "signed (rcodesign)"
   "$tools/sign-dev.sh" "$app" "$stage/signed.ipa" "$dev" | tail -n 1
   ios_stop "$id"

@@ -41,7 +41,7 @@ v0.4.6 (16/11) : iPad sur Tailscale (#162), dépendances x86_64 de Kotlin/Native
 
 v0.4.7 (23/11) et v0.4.8 (24/11) : `ship.sh --device` tamponne la version du SDK (#177, ferme #170), `ship.sh --simulator`, `tools/xcarchive`, `install-toolchain.sh` contourne `openssl-3` du python312 de l'AUR (#179), `p`/`po`/`expression` dans `device-run.sh --lldb` (#183). Pin xtool inchangé : `OAD_REF` passe à `v0.4.8` sans recompiler xtool. Les builds de la dev-box ont enfin le design iOS 26. `FINDINGS.md` disparaît de l'amont (v0.4.7) : l'aide et `docs/dev-envs.md` n'y renvoient plus.
 
-Reste ouvert côté dev-box : les expressions Swift de `device-run.sh --lldb` ne marchent pas encore dans la box. `tools/lldb-ios-shadow.sh` lie en dur `usr/bin/lldb` du toolchain, qui dans la box est le lanceur shell de `give_lldb_python` (`PYTHONHOME`, ASLR) : la copie fantôme exécute `lldb.real` du toolchain, donc son `liblldb` et le répertoire Swift de Linux. `frame variable` marche comme avant. Piste : se passer du lanceur (bibliothèque standard de Python 3.9 là où libpython la cherche, ASLR dans un `.lldbinit`), ou faire suivre le lanceur par le script amont.
+Réglé côté dev-box : `give_lldb_python` ne remplace plus `usr/bin/lldb` dans le toolchain (il restaure les anciens `.real`), laisse le binaire intact pour `tools/lldb-ios-shadow.sh`, passe `LLDB_PYTHONHOME` dans le wrapper `device-run.sh`, place des wrappers légers `lldb` / `lldb-dap` dans `~/.local/bin` et écrit `settings set target.disable-aslr false` dans `~/.lldbinit`. `dev-box-ios` lit la version Xcode directement dans le `.xip` via `tools/xip_version.py`.
 
 ### xtool (xtool-org/xtool)
 

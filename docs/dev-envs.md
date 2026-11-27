@@ -501,9 +501,12 @@ devbox ios xcode --wifi 100.x.y.z                # then without the cable
 `ios` also makes the
 `lldb` of the toolchain work: it takes the Python 3.9 lldb was built against
 as a mise tool of its own (`http:lldb-python`, pinned with its sha256, no
-command on the PATH, the default python untouched) and starts `lldb` and
-`lldb-dap` through a launcher that sets `PYTHONHOME` for them alone. Both are
-x86_64 only.
+command on the PATH, the default python untouched), keeps the toolchain's
+`lldb` binary intact so `tools/lldb-ios-shadow.sh` (Swift expressions in
+`device-run.sh --lldb`) can hard-link it, passes `LLDB_PYTHONHOME` through the
+`device-run.sh` wrapper, writes wrappers for direct `lldb` and `lldb-dap` calls
+in `~/.local/bin`, and sets `target.disable-aslr false` in `~/.lldbinit`. Both
+are x86_64 only.
 
 `desktop` gives the box a graphical session, for a browser or any window,
 shown on your machine by [gliff](https://github.com/omacom/gliff) through the

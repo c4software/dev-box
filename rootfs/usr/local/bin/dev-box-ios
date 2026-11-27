@@ -245,15 +245,35 @@ pick_xip() {
   readlink -f "$choice"
 }
 
-# A name that says another Xcode than the one of this Swift: ask before
+# Check the Xcode version inside the .xip (tools/xip_version.py reads
+# version.plist in a stream, falling back to the file name): ask before
 # spending several minutes on an SDK the build will refuse.
 check_name() {
-  local xip="$1" xcode="$2" named
-  named="$(basename "$xip" | sed -n 's/^Xcode[_ -]\{0,1\}\([0-9][0-9]*\).*/\1/p')"
-  [ -n "$named" ] && [ -n "$xcode" ] && [ "$named" != "$xcode" ] || return 0
-  log "$(basename "$xip") looks like Xcode $named, and this Swift goes with Xcode $xcode"
+  local xip="$1" xcode="$2" tmp ver="" major="" from_xip=false
+  [ -n "$xcode" ] || return 0
+  if [ -f "$OAD_DIR/tools/xip_version.py" ]; then
+    tmp="$(mktemp)"
+    if ver="$(python3 -I "$OAD_DIR/tools/xip_version.py" "$xip" "$tmp" 2>/dev/null)"; then
+      ver="${ver%% *}"
+      major="${ver%%.*}"
+      from_xip=true
+    fi
+    rm -f "$tmp"
+  fi
+  if [ -z "$major" ]; then
+    major="$(basename "$xip" | sed -n 's/^Xcode[_ -]\{0,1\}\([0-9][0-9]*\).*/\1/p')"
+  fi
+  [ -n "$major" ] && [ "$major" != "$xcode" ] || return 0
+  if [ "$from_xip" = true ]; then
+    log "$(basename "$xip") is Xcode $ver, and this Swift goes with Xcode $xcode"
+  else
+    log "$(basename "$xip") looks like Xcode $major, and this Swift goes with Xcode $xcode"
+  fi
   if interactive; then
     gum confirm --default=false "Build the SDK from it anyway?" || exit 0
+  elif [ "$from_xip" = true ]; then
+    err "give the .xip of Xcode $xcode"
+    exit 1
   else
     err "give the .xip of Xcode $xcode, or rename it if it is one"
     exit 1
