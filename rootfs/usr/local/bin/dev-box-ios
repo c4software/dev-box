@@ -60,7 +60,7 @@ WIFI_PAIRING="$HOME/.local/share/pymobiledevice3"
 # Where a .xip is looked for: the home and the projects, a few levels down.
 SEARCH_DEPTH=3
 
-usage() { sed -n '8,42p' "$0" | sed 's/^# \?//'; }
+usage() { sed -n '8,44p' "$0" | sed 's/^# \?//'; }
 log() { printf '\033[1m[dev-box-ios]\033[0m %s\n' "$*"; }
 err() { echo "dev-box-ios: $*" >&2; }
 

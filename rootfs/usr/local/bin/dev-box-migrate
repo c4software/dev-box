@@ -154,7 +154,7 @@ fi
 
 log "${#PENDING[@]} migration(s) pending"
 for name in "${PENDING[@]}"; do
-  log "-> ${name%.sh}"
+  log "running ${name%.sh}"
   if bash "$MIG_DIR/$name"; then
     mark_done "$name"
   else

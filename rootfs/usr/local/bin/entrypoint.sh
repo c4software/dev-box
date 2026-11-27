@@ -249,11 +249,12 @@ fi
   # flag ~/.cache/dev-box/dev-envs says what is going on (printed at login and
   # by dev-box-status): "installing" while it runs, the error when it failed,
   # gone when everything is there. The full output is in dev-envs.log.
-  if [ -n "${DEV_ENVS:-}" ]; then
+  read -ra dev_env_list <<< "${DEV_ENVS:-}"
+  if [ "${#dev_env_list[@]}" -gt 0 ]; then
     DEV_ENVS_FLAG="$HOME_DIR/.cache/dev-box/dev-envs"
     DEV_ENVS_LOG="$HOME_DIR/.cache/dev-box/dev-envs.log"
     as_user "mkdir -p ~/.cache/dev-box"
-    printf 'DEV_ENVS: installing %s (started at boot, ~/.cache/dev-box/dev-envs.log)\n' "$DEV_ENVS" > "$DEV_ENVS_FLAG"
+    printf 'DEV_ENVS: installing %s (started at boot, ~/.cache/dev-box/dev-envs.log)\n' "${dev_env_list[*]}" > "$DEV_ENVS_FLAG"
     chown "$PUID:$PGID" "$DEV_ENVS_FLAG"
     # The browser environment goes through pacman, and so does the package
     # restore above: wait for its lock rather than fail on it.
@@ -261,8 +262,9 @@ fi
       [ -e /var/lib/pacman/db.lck ] || break
       sleep 1
     done
-    if as_user "dev-box-dev-env --if-missing $DEV_ENVS > ~/.cache/dev-box/dev-envs.log 2>&1"; then
-      log "dev-envs: $DEV_ENVS ready"
+    printf -v dev_env_args ' %q' "${dev_env_list[@]}"
+    if as_user "dev-box-dev-env --if-missing$dev_env_args > ~/.cache/dev-box/dev-envs.log 2>&1"; then
+      log "dev-envs: ${dev_env_list[*]} ready"
       rm -f "$DEV_ENVS_FLAG"
     else
       # One line for the login message: the reason when the script gave one
